@@ -1,23 +1,25 @@
-import { Calendar } from './Calendar';
+import type { PauseWindow } from './PauseWindow';
 
-export interface PauseWindow {
-  startDate: string; // ISO string
-  endDate: string;   // ISO string
-}
+export type { PauseWindow } from './PauseWindow';
 
 export interface Event {
   id: string;
   title: string;
   description?: string;
-  startDate: string; // ISO string
-  endDate: string;   // ISO string
+  /** ISO timestamp. All-day events: local midnight of the first day. */
+  startDate: string;
+  /** ISO timestamp. All-day events: local end of the last day. */
+  endDate: string;
   isAllDay: boolean;
   location?: string;
-  calendarId: string; // foreign key to Calendar
-  color?: string;     // hex color override for this event
-  recurrenceRule?: string; // RRule string, if undefined then it's a single event
-  pauseWindows: PauseWindow[]; // array of pause windows (exclusion windows)
-  reminders: number[]; // minutes before start to remind
-  emoji?: string;      // single emoji character
-  tags?: string[];     // array of tags
+  calendarId: string;
+  /** Hex override. Falls back to the calendar color when unset. */
+  color?: string;
+  /** RRULE body without DTSTART, e.g. `FREQ=WEEKLY;INTERVAL=1;BYDAY=MO`. Undefined = one-off. */
+  recurrenceRule?: string;
+  pauseWindows: PauseWindow[];
+  /** Minutes before start. */
+  reminders: number[];
+  emoji?: string;
+  tags: string[];
 }

@@ -1,264 +1,287 @@
 import * as SQLite from 'expo-sqlite';
-import { Calendar } from '../models/Calendar';
-import { Event, PauseWindow } from '../models/Event';
+import type { Calendar } from '../models/Calendar';
+import type { Event } from '../models/Event';
+import type { PauseWindow } from '../models/PauseWindow';
+import type { EventTemplate } from '../models/Template';
 
-// Open the database
 const db = SQLite.openDatabaseSync('calendar.db');
+const SCHEMA_VERSION = 2;
 
-// Initialize the database and create tables if they don't exist
-export const initDatabase = () => {
+type Row = Record<string, any>;
+
+const parseJson = <T>(value: unknown, fallback: T): T => {
+  if (typeof value !== 'string' || !value) return fallback;
   try {
-    db.withTransactionSync(() => {
-      // Create calendars table
-      db.execSync(
-        `CREATE TABLE IF NOT EXISTS calendars (
-          id TEXT PRIMARY KEY,
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+};
+
+const orNull = (v?: string | null): string | null => (v ? v : null);
+const orUndef = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
+
+export function initDatabase(): void {
+  db.execSync('PRAGMA foreign_keys = ON;');
+  const version = db.getFirstSync<{ user_version: number }>('PRAGMA user_version')?.user_version ?? 0;
+  if (version >= SCHEMA_VERSION) return;
+
+  db.withTransactionSync(() => {
+    if (version < 1) {
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS calendars (
+          id TEXT PRIMARY KEY NOT NULL,
           name TEXT NOT NULL,
           color TEXT NOT NULL
-        );`
-      );
-
-      // Create events table
-      db.execSync(
-        `CREATE TABLE IF NOT EXISTS events (
-          id TEXT PRIMARY KEY,
+        );
+        CREATE TABLE IF NOT EXISTS events (
+          id TEXT PRIMARY KEY NOT NULL,
           title TEXT NOT NULL,
           description TEXT,
           startDate TEXT NOT NULL,
           endDate TEXT NOT NULL,
-          isAllDay BOOLEAN NOT NULL,
+          isAllDay INTEGER NOT NULL DEFAULT 0,
           location TEXT,
-          calendarId TEXT NOT NULL,
+          calendarId TEXT NOT NULL REFERENCES calendars(id),
           color TEXT,
           recurrenceRule TEXT,
-          reminders TEXT, -- JSON array of numbers
+          reminders TEXT,
           emoji TEXT,
-          tags TEXT, -- JSON array of strings
-          FOREIGN KEY (calendarId) REFERENCES calendars(id)
-        );`
-      );
-
-      // Create pause_windows table (since an event can have multiple pause windows)
-      db.execSync(
-        `CREATE TABLE IF NOT EXISTS pause_windows (
+          tags TEXT
+        );
+        CREATE TABLE IF NOT EXISTS pause_windows (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
-          eventId TEXT NOT NULL,
+          eventId TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
           startDate TEXT NOT NULL,
-          endDate TEXT NOT NULL,
-          FOREIGN KEY (eventId) REFERENCES events(id) ON DELETE CASCADE
-        );`
-      );
-    });
-    console.log('Database initialized successfully');
-  } catch (error) {
-    console.log('Error initializing database: ', error);
-  }
-};
+          endDate TEXT NOT NULL
+        );
+      `);
+    }
+    if (version < 2) {
+      db.execSync(`
+        ALTER TABLE calendars ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0;
+        CREATE TABLE IF NOT EXISTS calendar_pause_windows (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          calendarId TEXT NOT NULL REFERENCES calendars(id) ON DELETE CASCADE,
+          startDate TEXT NOT NULL,
+          endDate TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS templates (
+          id TEXT PRIMARY KEY NOT NULL,
+          name TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          emoji TEXT,
+          durationMinutes INTEGER NOT NULL,
+          isAllDay INTEGER NOT NULL DEFAULT 0,
+          location TEXT,
+          calendarId TEXT REFERENCES calendars(id) ON DELETE SET NULL,
+          color TEXT,
+          reminders TEXT,
+          tags TEXT,
+          sortOrder INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS app_settings (
+          key TEXT PRIMARY KEY NOT NULL,
+          value TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_events_calendar ON events(calendarId);
+        CREATE INDEX IF NOT EXISTS idx_pause_windows_event ON pause_windows(eventId);
+        CREATE INDEX IF NOT EXISTS idx_calendar_pause_windows ON calendar_pause_windows(calendarId);
+      `);
+    }
+    db.execSync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
+  });
+}
 
-// Calendar CRUD operations
-export const getCalendars = (callback: (calendars: Calendar[]) => void) => {
-  try {
-    const rows = db.getAllSync('SELECT * FROM calendars');
-    const calendars: Calendar[] = rows.map((row: any) => ({
-      id: row.id,
-      name: row.name,
-      color: row.color
-    }));
-    callback(calendars);
-  } catch (error) {
-    console.log('Error getting calendars: ', error);
-    callback([]);
+function groupPauseWindows(rows: Row[], key: string): Map<string, PauseWindow[]> {
+  const map = new Map<string, PauseWindow[]>();
+  for (const r of rows) {
+    const list = map.get(r[key]) ?? [];
+    list.push({ startDate: r.startDate, endDate: r.endDate });
+    map.set(r[key], list);
   }
-};
+  return map;
+}
 
-export const createCalendar = (calendar: Calendar, callback: (id: string) => void) => {
-  try {
-    const result = db.runSync(
-      `INSERT INTO calendars (id, name, color) VALUES (?, ?, ?)`,
-      [calendar.id, calendar.name, calendar.color]
-    );
-    callback(calendar.id);
-  } catch (error) {
-    console.log('Error creating calendar: ', error);
-  }
-};
+// ---------- Calendars ----------
 
-export const updateCalendar = (calendar: Calendar, callback: () => void) => {
-  try {
+export function loadCalendars(): Calendar[] {
+  const pauses = groupPauseWindows(
+    db.getAllSync<Row>('SELECT calendarId, startDate, endDate FROM calendar_pause_windows ORDER BY startDate'),
+    'calendarId',
+  );
+  return db.getAllSync<Row>('SELECT * FROM calendars ORDER BY sortOrder, name').map((r) => ({
+    id: r.id,
+    name: r.name,
+    color: r.color,
+    sortOrder: r.sortOrder ?? 0,
+    pauseWindows: pauses.get(r.id) ?? [],
+  }));
+}
+
+export function saveCalendar(c: Calendar): void {
+  db.withTransactionSync(() => {
     db.runSync(
-      `UPDATE calendars SET name = ?, color = ? WHERE id = ?`,
-      [calendar.name, calendar.color, calendar.id]
+      `INSERT INTO calendars (id, name, color, sortOrder) VALUES (?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET name = excluded.name, color = excluded.color, sortOrder = excluded.sortOrder`,
+      [c.id, c.name, c.color, c.sortOrder],
     );
-    callback();
-  } catch (error) {
-    console.log('Error updating calendar: ', error);
-  }
-};
+    db.runSync('DELETE FROM calendar_pause_windows WHERE calendarId = ?', [c.id]);
+    for (const w of c.pauseWindows) {
+      db.runSync('INSERT INTO calendar_pause_windows (calendarId, startDate, endDate) VALUES (?, ?, ?)', [
+        c.id,
+        w.startDate,
+        w.endDate,
+      ]);
+    }
+  });
+}
 
-export const deleteCalendar = (id: string, callback: () => void) => {
-  try {
+/** Deletes a calendar. Its events are moved to `reassignTo`, or deleted when it is null. */
+export function deleteCalendar(id: string, reassignTo: string | null): void {
+  db.withTransactionSync(() => {
+    if (reassignTo) db.runSync('UPDATE events SET calendarId = ? WHERE calendarId = ?', [reassignTo, id]);
+    else db.runSync('DELETE FROM events WHERE calendarId = ?', [id]);
     db.runSync('DELETE FROM calendars WHERE id = ?', [id]);
-    callback();
-  } catch (error) {
-    console.log('Error deleting calendar: ', error);
+  });
+}
+
+// ---------- Events ----------
+
+export function loadEvents(): Event[] {
+  const pauses = groupPauseWindows(
+    db.getAllSync<Row>('SELECT eventId, startDate, endDate FROM pause_windows ORDER BY startDate'),
+    'eventId',
+  );
+  return db.getAllSync<Row>('SELECT * FROM events ORDER BY startDate').map((r) => ({
+    id: r.id,
+    title: r.title,
+    description: orUndef(r.description),
+    startDate: r.startDate,
+    endDate: r.endDate,
+    isAllDay: r.isAllDay === 1 || r.isAllDay === true,
+    location: orUndef(r.location),
+    calendarId: r.calendarId,
+    color: orUndef(r.color),
+    recurrenceRule: orUndef(r.recurrenceRule),
+    pauseWindows: pauses.get(r.id) ?? [],
+    reminders: parseJson<number[]>(r.reminders, []),
+    emoji: orUndef(r.emoji),
+    tags: parseJson<string[]>(r.tags, []),
+  }));
+}
+
+function writeEvent(e: Event): void {
+  db.runSync(
+    `INSERT INTO events (id, title, description, startDate, endDate, isAllDay, location, calendarId, color, recurrenceRule, reminders, emoji, tags)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       title = excluded.title, description = excluded.description, startDate = excluded.startDate,
+       endDate = excluded.endDate, isAllDay = excluded.isAllDay, location = excluded.location,
+       calendarId = excluded.calendarId, color = excluded.color, recurrenceRule = excluded.recurrenceRule,
+       reminders = excluded.reminders, emoji = excluded.emoji, tags = excluded.tags`,
+    [
+      e.id,
+      e.title,
+      orNull(e.description),
+      e.startDate,
+      e.endDate,
+      e.isAllDay ? 1 : 0,
+      orNull(e.location),
+      e.calendarId,
+      orNull(e.color),
+      orNull(e.recurrenceRule),
+      JSON.stringify(e.reminders),
+      orNull(e.emoji),
+      JSON.stringify(e.tags),
+    ],
+  );
+  db.runSync('DELETE FROM pause_windows WHERE eventId = ?', [e.id]);
+  for (const w of e.pauseWindows) {
+    db.runSync('INSERT INTO pause_windows (eventId, startDate, endDate) VALUES (?, ?, ?)', [e.id, w.startDate, w.endDate]);
   }
-};
+}
 
-// Event CRUD operations
-export const getEvents = (callback: (events: Event[]) => void) => {
-  try {
-    // First get all events
-    const eventRows = db.getAllSync('SELECT * FROM events');
-    const events: Event[] = eventRows.map((row: any) => {
-      // Get pause windows for this event
-      const pauseWindowRows = db.getAllSync(
-        `SELECT startDate, endDate FROM pause_windows WHERE eventId = ?`,
-        [row.id]
-      );
-      const pauseWindows: PauseWindow[] = pauseWindowRows.map((pwRow: any) => ({
-        startDate: pwRow.startDate,
-        endDate: pwRow.endDate
-      }));
+export function saveEvent(e: Event): void {
+  db.withTransactionSync(() => writeEvent(e));
+}
 
-      return {
-        id: row.id,
-        title: row.title,
-        description: row.description,
-        startDate: row.startDate,
-        endDate: row.endDate,
-        isAllDay: row.isAllDay === 1,
-        location: row.location,
-        calendarId: row.calendarId,
-        color: row.color,
-        recurrenceRule: row.recurrenceRule,
-        reminders: row.reminders ? JSON.parse(row.reminders) : [],
-        emoji: row.emoji,
-        tags: row.tags ? JSON.parse(row.tags) : [],
-        pauseWindows: pauseWindows
-      };
-    });
-    callback(events);
-  } catch (error) {
-    console.log('Error getting events: ', error);
-    callback([]);
-  }
-};
+export function saveEvents(list: Event[]): void {
+  db.withTransactionSync(() => list.forEach(writeEvent));
+}
 
-export const createEvent = (event: Event, callback: (id: string) => void) => {
-  try {
-    db.withTransactionSync(() => {
-      // Insert the event
-      const result = db.runSync(
-        `INSERT INTO events (
-          id, title, description, startDate, endDate, isAllDay, location, calendarId, color, recurrenceRule, reminders, emoji, tags
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          event.id,
-          event.title,
-          event.description ?? null,
-          event.startDate,
-          event.endDate,
-          event.isAllDay ? 1 : 0,
-          event.location ?? null,
-          event.calendarId,
-          event.color ?? null,
-          event.recurrenceRule ?? null,
-          JSON.stringify(event.reminders),
-          event.emoji ?? null,
-          JSON.stringify(event.tags),
-        ]
-      );
+export function deleteEvent(id: string): void {
+  db.runSync('DELETE FROM events WHERE id = ?', [id]);
+}
 
-      // Insert pause windows
-      for (const pw of event.pauseWindows) {
-        db.runSync(
-          `INSERT INTO pause_windows (eventId, startDate, endDate) VALUES (?, ?, ?)`,
-          [event.id, pw.startDate, pw.endDate]
-        );
-      }
-    });
-    callback(event.id);
-  } catch (error) {
-    console.log('Error creating event: ', error);
-  }
-};
+// ---------- Templates ----------
 
-export const updateEvent = (event: Event, callback: () => void) => {
-  try {
-    db.withTransactionSync(() => {
-      // Update the event
-      db.runSync(
-        `UPDATE events SET
-          title = ?,
-          description = ?,
-          startDate = ?,
-          endDate = ?,
-          isAllDay = ?,
-          location = ?,
-          calendarId = ?,
-          color = ?,
-          recurrenceRule = ?,
-          reminders = ?,
-          emoji = ?,
-          tags = ?
-        WHERE id = ?`,
-        [
-          event.title,
-          event.description ?? null,
-          event.startDate,
-          event.endDate,
-          event.isAllDay ? 1 : 0,
-          event.location ?? null,
-          event.calendarId,
-          event.color ?? null,
-          event.recurrenceRule ?? null,
-          JSON.stringify(event.reminders),
-          event.emoji ?? null,
-          JSON.stringify(event.tags),
-          event.id
-        ]
-      );
+export function loadTemplates(): EventTemplate[] {
+  return db.getAllSync<Row>('SELECT * FROM templates ORDER BY sortOrder, name').map((r) => ({
+    id: r.id,
+    name: r.name,
+    title: r.title,
+    description: orUndef(r.description),
+    emoji: orUndef(r.emoji),
+    durationMinutes: r.durationMinutes,
+    isAllDay: r.isAllDay === 1 || r.isAllDay === true,
+    location: orUndef(r.location),
+    calendarId: r.calendarId ?? '',
+    color: orUndef(r.color),
+    reminders: parseJson<number[]>(r.reminders, []),
+    tags: parseJson<string[]>(r.tags, []),
+    sortOrder: r.sortOrder ?? 0,
+  }));
+}
 
-      // Delete existing pause windows for this event
-      db.runSync('DELETE FROM pause_windows WHERE eventId = ?', [event.id]);
+export function saveTemplate(t: EventTemplate): void {
+  db.runSync(
+    `INSERT INTO templates (id, name, title, description, emoji, durationMinutes, isAllDay, location, calendarId, color, reminders, tags, sortOrder)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       name = excluded.name, title = excluded.title, description = excluded.description, emoji = excluded.emoji,
+       durationMinutes = excluded.durationMinutes, isAllDay = excluded.isAllDay, location = excluded.location,
+       calendarId = excluded.calendarId, color = excluded.color, reminders = excluded.reminders,
+       tags = excluded.tags, sortOrder = excluded.sortOrder`,
+    [
+      t.id,
+      t.name,
+      t.title,
+      orNull(t.description),
+      orNull(t.emoji),
+      t.durationMinutes,
+      t.isAllDay ? 1 : 0,
+      orNull(t.location),
+      orNull(t.calendarId),
+      orNull(t.color),
+      JSON.stringify(t.reminders),
+      JSON.stringify(t.tags),
+      t.sortOrder,
+    ],
+  );
+}
 
-      // Insert the new pause windows
-      for (const pw of event.pauseWindows) {
-        db.runSync(
-          `INSERT INTO pause_windows (eventId, startDate, endDate) VALUES (?, ?, ?)`,
-          [event.id, pw.startDate, pw.endDate]
-        );
-      }
-    });
-    callback();
-  } catch (error) {
-    console.log('Error updating event: ', error);
-  }
-};
+export function deleteTemplate(id: string): void {
+  db.runSync('DELETE FROM templates WHERE id = ?', [id]);
+}
 
-export const deleteEvent = (id: string, callback: () => void) => {
-  try {
-    db.runSync('DELETE FROM events WHERE id = ?', [id]);
-    callback();
-  } catch (error) {
-    console.log('Error deleting event: ', error);
-  }
-};
+export function saveTemplateOrder(ids: string[]): void {
+  db.withTransactionSync(() => {
+    ids.forEach((id, index) => db.runSync('UPDATE templates SET sortOrder = ? WHERE id = ?', [index, id]));
+  });
+}
 
-// Pause windows operations
-export const getPauseWindowsForEvent = (eventId: string, callback: (pauseWindows: PauseWindow[]) => void) => {
-  try {
-    const rows = db.getAllSync(
-      `SELECT startDate, endDate FROM pause_windows WHERE eventId = ?`,
-      [eventId]
-    );
-    const pauseWindows: PauseWindow[] = rows.map((row: any) => ({
-      startDate: row.startDate,
-      endDate: row.endDate
-    }));
-    callback(pauseWindows);
-  } catch (error) {
-    console.log('Error getting pause windows for event: ', error);
-    callback([]);
-  }
-};
+// ---------- Settings ----------
+
+export function getSetting<T>(key: string, fallback: T): T {
+  const row = db.getFirstSync<Row>('SELECT value FROM app_settings WHERE key = ?', [key]);
+  return row ? parseJson<T>(row.value, fallback) : fallback;
+}
+
+export function setSetting(key: string, value: unknown): void {
+  db.runSync(
+    'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    [key, JSON.stringify(value)],
+  );
+}
