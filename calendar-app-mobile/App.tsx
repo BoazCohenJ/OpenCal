@@ -1,172 +1,96 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, Button, FlatList } from 'react-native';
-import { CalendarProvider, useCalendarContext } from './src/context/CalendarContext';
-import { v4 as uuidv4 } from 'uuid';
-
-import { NavigationContainer } from '@react-navigation/native';
+import { DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { StatusBar } from 'expo-status-bar';
+import React from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { CalendarProvider, useCalendarContext } from './src/context/CalendarContext';
+import type { RootStackParamList } from './src/navigation/types';
+import { CalendarEditScreen } from './src/screens/CalendarEditScreen';
+import { CalendarScreen } from './src/screens/CalendarScreen';
+import { CalendarsScreen } from './src/screens/CalendarsScreen';
+import { EventEditScreen } from './src/screens/EventEditScreen';
 import { HiddenEventsListScreen } from './src/screens/HiddenEventsListScreen';
+import { QuickAddScreen } from './src/screens/QuickAddScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
+import { StampScreen } from './src/screens/StampScreen';
+import { TemplateEditScreen } from './src/screens/TemplateEditScreen';
+import { TemplatesScreen } from './src/screens/TemplatesScreen';
+import { colors } from './src/theme';
 
-// Home screen (formerly CalendarUI)
-const HomeScreen: React.FC = () => {
-  const {
-    calendars,
-    events,
-    addCalendar,
-    addEvent,
-    visibleCalendarIds,
-    toggleCalendarVisibility,
-    getVisibleCalendars,
-    getEventsWithEffectiveColors,
-    getEffectiveColor
-  } = useCalendarContext();
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
-  // For testing, we'll add a sample calendar and event on button press
-  const handleAddSampleData = () => {
-    // Add a calendar if none exists
-    if (calendars.length === 0) {
-      const newCalendar = {
-        id: uuidv4(),
-        name: 'Personal',
-        color: '#ff0000',
-      };
-      addCalendar(newCalendar);
-    }
-
-    // Add a sample event
-    const now = new Date();
-    const startDate = now.toISOString();
-    const endDate = new Date(now.getTime() + 60 * 60 * 1000).toISOString(); // 1 hour later
-    const newEvent = {
-      id: uuidv4(),
-      title: 'Sample Event',
-      startDate,
-      endDate,
-      isAllDay: false,
-      calendarId: calendars.length > 0 ? calendars[0].id : '',
-      color: undefined,
-      recurrenceRule: undefined,
-      pauseWindows: [],
-      reminders: [15],
-      emoji: undefined,
-      tags: [],
-    };
-    addEvent(newEvent);
-  };
-
-  return (
-    <View style={styles.container}>
-      <Button title="Add Sample Data" onPress={handleAddSampleData} />
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Calendars</Text>
-        <FlatList
-          data={calendars}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.calendarRow}>
-              <View
-                style={[
-                  styles.colorIndicator,
-                  { backgroundColor: item.color },
-                  { opacity: visibleCalendarIds.includes(item.id) ? 1 : 0.5 },
-                ]}
-              />
-              <Text style={styles.calendarName}>{item.name}</Text>
-              <Button
-                title={visibleCalendarIds.includes(item.id) ? 'Hide' : 'Show'}
-                onPress={() => toggleCalendarVisibility(item.id)}
-              />
-            </View>
-          )}
-        />
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Events (from visible calendars)</Text>
-        <FlatList
-          data={getEventsWithEffectiveColors()}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={[
-              styles.eventRow,
-              { borderLeftWidth: 4, borderLeftColor: getEffectiveColor(item) }
-            ]}>
-              <Text style={styles.eventTitle}>{item.title}</Text>
-              <Text style={styles.eventTime}>
-                {new Date(item.startDate).toLocaleTimeString()} - {new Date(item.endDate).toLocaleTimeString()}
-              </Text>
-            </View>
-          )}
-        />
-      </View>
-    </View>
-  );
+const navigationTheme: Theme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: colors.primary,
+    background: colors.bg,
+    card: colors.bg,
+    text: colors.text,
+    border: colors.border,
+  },
 };
 
-// Set up the navigator
-const Stack = createNativeStackNavigator();
+function RootNavigator() {
+  const { ready, error } = useCalendarContext();
+  if (!ready) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+  if (error) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorTitle}>Couldn’t open your calendar</Text>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShadowVisible: false,
+        headerTintColor: colors.primary,
+        headerTitleStyle: { color: colors.text, fontWeight: '700' },
+        headerStyle: { backgroundColor: colors.bg },
+        contentStyle: { backgroundColor: colors.bg },
+        headerBackButtonDisplayMode: 'minimal',
+      }}
+    >
+      <Stack.Screen name="Calendar" component={CalendarScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
+      <Stack.Screen name="Calendars" component={CalendarsScreen} options={{ title: 'Calendars' }} />
+      <Stack.Screen name="CalendarEdit" component={CalendarEditScreen} options={{ title: 'Calendar' }} />
+      <Stack.Screen name="Templates" component={TemplatesScreen} options={{ title: 'Stamps' }} />
+      <Stack.Screen name="TemplateEdit" component={TemplateEditScreen} options={{ title: 'Stamp' }} />
+      <Stack.Screen name="HiddenEvents" component={HiddenEventsListScreen} options={{ title: 'Event List' }} />
+      <Stack.Group screenOptions={{ presentation: 'modal' }}>
+        <Stack.Screen name="EventEdit" component={EventEditScreen} options={{ title: 'Event' }} />
+        <Stack.Screen name="QuickAdd" component={QuickAddScreen} options={{ title: 'Quick Add' }} />
+        <Stack.Screen name="Stamp" component={StampScreen} options={{ title: 'Add from Stamp' }} />
+      </Stack.Group>
+    </Stack.Navigator>
+  );
+}
 
 export default function App() {
   return (
-    <CalendarProvider>
-      <NavigationContainer>
-        <Stack.Navigator>
-          <Stack.Screen
-            name="Home"
-            component={HomeScreen}
-            options={{ title: 'Calendar' }}
-          />
-          <Stack.Screen
-            name="HiddenEvents"
-            component={HiddenEventsListScreen}
-            options={{ title: 'Hidden Events' }}
-          />
-        </Stack.Navigator>
-      </NavigationContainer>
-      <StatusBar style="auto" />
-    </CalendarProvider>
+    <SafeAreaProvider>
+      <CalendarProvider>
+        <NavigationContainer theme={navigationTheme}>
+          <RootNavigator />
+        </NavigationContainer>
+        <StatusBar style="dark" />
+      </CalendarProvider>
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    padding: 20,
-  },
-  section: {
-    marginVertical: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  calendarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 10,
-  },
-  colorIndicator: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    marginRight: 10,
-  },
-  calendarName: {
-    flex: 1,
-    fontSize: 16,
-  },
-  eventRow: {
-    padding: 10,
-    borderBottomWidth: 1,
-    borderColor: '#eee',
-  },
-  eventTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  eventTime: {
-    fontSize: 14,
-    color: '#666',
-  },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.bg, gap: 8 },
+  errorTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
+  errorText: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
 });
