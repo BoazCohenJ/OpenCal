@@ -11,13 +11,14 @@ import {
   View,
 } from 'react-native';
 import { EventPill } from '../components/EventPill';
+import { EventGlyph, eventIconKey, Icon } from '../components/Icon';
 import { Button } from '../components/ui';
 import type { Occurrence } from '../services/occurrences';
-import { colors, radius, shadow } from '../theme';
+import { colors, fonts, radius, shadow } from '../theme';
 import { deepText, softBg } from '../utils/color';
 import { atMinutes, dayKey, formatTime, minutesSinceMidnight } from '../utils/dates';
 import { eventLabel, formatDelta } from '../utils/format';
-import { isAllDayLike, layoutTimed, PX_PER_MIN, type PositionedOccurrence } from './layout';
+import { isAllDayLike, layoutTimed, PX_PER_MIN, slotMinutesFromPress, type PositionedOccurrence } from './layout';
 import { GRID_HEIGHT, HourGutter, HourLines, NowLine } from './TimeGrid';
 
 const SNAP_MINUTES = 15;
@@ -106,13 +107,16 @@ function EventBlock({
     <View style={styles.blockInner}>
       {selectionMode ? (
         <View style={[styles.checkbox, { borderColor: occ.color }, selected && { backgroundColor: occ.color }]}>
-          {selected ? <Text style={styles.checkmark}>✓</Text> : null}
+          {selected ? <Icon name="check" size={12} color={colors.onInk} strokeWidth={3} /> : null}
         </View>
       ) : null}
       <View style={styles.blockBody}>
-        <Text numberOfLines={tall ? 2 : 1} style={[styles.blockTitle, { color: deepText(occ.color) }]}>
-          {eventLabel(occ.event)}
-        </Text>
+        <View style={styles.titleRow}>
+          {eventIconKey(occ.event.emoji) ? <EventGlyph value={occ.event.emoji} size={13} color={deepText(occ.color)} /> : null}
+          <Text numberOfLines={tall ? 2 : 1} style={[styles.blockTitle, { color: deepText(occ.color) }]}>
+            {eventLabel(occ.event)}
+          </Text>
+        </View>
         {tall ? (
           <Text numberOfLines={1} style={[styles.blockMeta, { color: deepText(occ.color) }]}>
             {formatTime(occ.start)} – {formatTime(occ.end)}
@@ -120,7 +124,7 @@ function EventBlock({
           </Text>
         ) : null}
       </View>
-      {occ.event.recurrenceRule ? <Text style={styles.repeatIcon}>↻</Text> : null}
+      {occ.event.recurrenceRule ? <Icon name="repeat" size={12} color={deepText(occ.color)} /> : null}
     </View>
   );
 
@@ -218,8 +222,7 @@ export function DayView({
       setSelected([]);
       return;
     }
-    const minutes = Math.floor(e.nativeEvent.locationY / PX_PER_MIN / 30) * 30;
-    onPressSlot(atMinutes(date, minutes));
+    onPressSlot(atMinutes(date, slotMinutesFromPress(e)));
   };
 
   const selectedHasRecurring = timed.some((p) => selected.includes(p.occ.event.id) && p.occ.event.recurrenceRule);
@@ -294,27 +297,26 @@ export function DayView({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   flex: { flex: 1 },
-  allDay: { padding: 10, gap: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  allDayLabel: { fontSize: 10, fontWeight: '700', color: colors.textFaint, letterSpacing: 0.6 },
+  allDay: { padding: 12, gap: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
+  allDayLabel: { fontSize: 10, fontWeight: '700', color: colors.textFaint, letterSpacing: 1.4 },
   allDayList: { gap: 4 },
   grid: { flexDirection: 'row' },
-  column: { flex: 1, borderLeftWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  column: { flex: 1, borderLeftWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
   block: {
     position: 'absolute',
-    borderRadius: 8,
+    borderRadius: 10,
     borderLeftWidth: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     overflow: 'hidden',
   },
   blockSelected: { borderWidth: 2, borderLeftWidth: 4 },
   blockInner: { flexDirection: 'row', gap: 6, flex: 1 },
   blockBody: { flex: 1 },
-  blockTitle: { fontSize: 13, fontWeight: '700' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  blockTitle: { flexShrink: 1, fontSize: 13, fontWeight: '700' },
   blockMeta: { fontSize: 11, opacity: 0.85, marginTop: 1 },
-  repeatIcon: { fontSize: 12, color: colors.textMuted },
-  checkbox: { width: 18, height: 18, borderRadius: 5, borderWidth: 2, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF' },
-  checkmark: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
+  checkbox: { width: 18, height: 18, borderRadius: 5, borderWidth: 2, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   toolbar: {
     position: 'absolute',
     left: 12,
@@ -326,7 +328,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   toolbarTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  toolbarTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
+  toolbarTitle: { fontSize: 18, fontFamily: fonts.display, color: colors.text },
   toolbarHint: { fontSize: 12, color: colors.textMuted, lineHeight: 17 },
   toolbarActions: { flexDirection: 'row', gap: 6 },
 });

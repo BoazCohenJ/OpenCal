@@ -138,6 +138,6 @@ const styles = StyleSheet.create({
   weekday: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceAlt },
   weekdayActive: { backgroundColor: colors.primary },
   weekdayText: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
-  weekdayTextActive: { color: '#FFFFFF' },
+  weekdayTextActive: { color: colors.onInk },
   summary: { fontSize: 13, color: colors.primary, fontWeight: '600' },
 });

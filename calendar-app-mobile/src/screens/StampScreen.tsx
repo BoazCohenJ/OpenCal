@@ -2,11 +2,13 @@ import { addDays, addMinutes, endOfDay, format } from 'date-fns';
 import React, { useLayoutEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { DateTimeField } from '../components/DateTimeField';
+import { EventGlyph, Icon } from '../components/Icon';
 import { Button, ColorDot, EmptyState, Field, HeaderButton, Section } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
 import { eventFromTemplate } from '../services/templates';
-import { colors, radius, spacing } from '../theme';
+import { colors, fonts, radius, spacing } from '../theme';
+import { deepText, softBg } from '../utils/color';
 import { formatTime, nextRoundedHour } from '../utils/dates';
 import { formatDuration, formatReminder } from '../utils/format';
 
@@ -26,7 +28,7 @@ export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         {templates.length === 0 ? (
           <EmptyState
-            emoji="🔖"
+            icon="stamp"
             title="No stamps yet"
             subtitle="Stamps are reusable events for things that happen often but not on a schedule, like “Coffee with John”."
           >
@@ -44,7 +46,9 @@ export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
                   onPress={() => setTemplateId(t.id)}
                   style={({ pressed }) => [styles.card, { borderLeftColor: color }, pressed && { opacity: 0.8 }]}
                 >
-                  <Text style={styles.cardEmoji}>{t.emoji ?? '🔖'}</Text>
+                  <View style={[styles.cardGlyph, { backgroundColor: softBg(color) }]}>
+                    <EventGlyph value={t.emoji} fallback="event" size={20} color={deepText(color)} />
+                  </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cardTitle}>{t.name}</Text>
                     <Text style={styles.cardMeta}>
@@ -53,7 +57,7 @@ export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
                       {t.location ? ` · ${t.location}` : ''}
                     </Text>
                   </View>
-                  <Text style={styles.chevron}>›</Text>
+                  <Icon name="chevron-right" size={18} color={colors.textFaint} />
                 </Pressable>
               );
             })}
@@ -77,7 +81,9 @@ export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={[styles.preview, { borderLeftColor: color }]}>
-        <Text style={styles.previewEmoji}>{template.emoji ?? '🔖'}</Text>
+        <View style={[styles.previewGlyph, { backgroundColor: softBg(color) }]}>
+          <EventGlyph value={template.emoji} fallback="event" size={26} color={deepText(color)} />
+        </View>
         <Text style={styles.previewTitle}>{template.title}</Text>
         <View style={styles.metaRow}>
           {calendar ? (
@@ -87,9 +93,19 @@ export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
             </View>
           ) : null}
           <Text style={styles.metaText}>{template.isAllDay ? `${days} day${days > 1 ? 's' : ''}` : formatDuration(template.durationMinutes)}</Text>
-          {template.location ? <Text style={styles.metaText}>📍 {template.location}</Text> : null}
+          {template.location ? (
+            <View style={styles.metaItem}>
+              <Icon name="map-pin" size={14} color={colors.textMuted} />
+              <Text style={styles.metaText}>{template.location}</Text>
+            </View>
+          ) : null}
         </View>
-        {template.reminders.length ? <Text style={styles.metaText}>🔔 {template.reminders.map(formatReminder).join(', ')}</Text> : null}
+        {template.reminders.length ? (
+          <View style={styles.metaItem}>
+            <Icon name="bell" size={14} color={colors.textMuted} />
+            <Text style={styles.metaText}>{template.reminders.map(formatReminder).join(', ')}</Text>
+          </View>
+        ) : null}
       </View>
 
       <Section title="When">
@@ -113,14 +129,33 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: 48 },
   heading: { fontSize: 15, color: colors.textMuted, marginBottom: spacing.md, fontWeight: '500' },
-  card: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: radius.lg, borderLeftWidth: 5, padding: 14, marginBottom: 10 },
-  cardEmoji: { fontSize: 26 },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderLeftWidth: 5,
+    padding: 14,
+    marginBottom: 10,
+  },
+  cardGlyph: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   cardTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
   cardMeta: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  chevron: { fontSize: 22, color: colors.textFaint },
-  preview: { backgroundColor: colors.surface, borderRadius: radius.lg, borderLeftWidth: 6, padding: 18, gap: 8, marginBottom: spacing.lg },
-  previewEmoji: { fontSize: 36 },
-  previewTitle: { fontSize: 22, fontWeight: '800', color: colors.text },
+  preview: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderLeftWidth: 6,
+    padding: 18,
+    gap: 8,
+    marginBottom: spacing.lg,
+  },
+  previewGlyph: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  previewTitle: { fontSize: 26, fontFamily: fonts.display, color: colors.text },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   metaText: { fontSize: 14, color: colors.textMuted },

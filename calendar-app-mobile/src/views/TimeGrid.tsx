@@ -48,9 +48,9 @@ export function NowLine() {
 
 const styles = StyleSheet.create({
   noPointer: { pointerEvents: 'none' },
-  hourLabel: { position: 'absolute', right: 8, fontSize: 11, color: colors.textFaint, fontWeight: '500' },
-  hourLine: { position: 'absolute', left: 0, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
+  hourLabel: { position: 'absolute', right: 8, fontSize: 10, color: colors.textFaint, fontWeight: '600', letterSpacing: 0.3 },
+  hourLine: { position: 'absolute', left: 0, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: colors.hairline },
   now: { position: 'absolute', left: -4, right: 0, flexDirection: 'row', alignItems: 'center', zIndex: 20 },
-  nowDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.nowLine },
+  nowDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: colors.nowLine, borderWidth: 2, borderColor: colors.surface },
   nowLine: { flex: 1, height: 2, backgroundColor: colors.nowLine },
 });

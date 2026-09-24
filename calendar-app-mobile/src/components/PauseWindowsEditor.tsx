@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { PauseWindow } from '../models/PauseWindow';
 import { colors, radius } from '../theme';
+import { Icon } from './Icon';
 import { dayKey, formatPauseWindow } from '../utils/dates';
 import { MiniMonth } from './MiniMonth';
 import { Sheet } from './Sheet';
@@ -43,7 +44,7 @@ export function PauseWindowsEditor({ value, onChange }: { value: PauseWindow[]; 
         const status = w.endDate < today ? 'Past' : w.startDate <= today ? 'Active now' : 'Upcoming';
         return (
           <View key={`${w.startDate}-${w.endDate}`} style={styles.item}>
-            <Text style={styles.icon}>⏸</Text>
+            <Icon name="pause" size={16} color={colors.textMuted} />
             <View style={styles.itemBody}>
               <Text style={styles.itemText}>{formatPauseWindow(w)}</Text>
               <Text style={[styles.status, status === 'Active now' && { color: colors.primary }]}>{status}</Text>
@@ -61,7 +62,7 @@ export function PauseWindowsEditor({ value, onChange }: { value: PauseWindow[]; 
       <Button
         small
         variant="secondary"
-        title="+ Add pause"
+        title="Add pause"
         onPress={() => {
           setRangeStart(undefined);
           setRangeEnd(undefined);
@@ -95,7 +96,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: 12,
   },
-  icon: { fontSize: 16 },
   itemBody: { flex: 1 },
   itemText: { fontSize: 15, fontWeight: '600', color: colors.text },
   status: { fontSize: 12, color: colors.textMuted, marginTop: 2 },

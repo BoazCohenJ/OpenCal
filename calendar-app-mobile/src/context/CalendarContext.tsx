@@ -1,13 +1,19 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
+import {
+  normalizeNotificationPrefs,
+  type NotificationPrefs,
+} from '../models/NotificationPrefs';
 import type { EventTemplate } from '../models/Template';
 import * as db from '../services/database';
-import { rescheduleReminders } from '../services/notifications';
+import { rescheduleReminders, type ScheduleResult } from '../services/notifications';
 import { expandEvents, getEffectiveColor, type Occurrence } from '../services/occurrences';
 import { newId } from '../utils/id';
 
 const HIDDEN_CALENDARS_KEY = 'hiddenCalendarIds';
+const NOTIFICATION_PREFS_KEY = 'notificationPrefs';
 const DEFAULT_CALENDARS = [
   { name: 'Personal', color: '#4F6BED' },
   { name: 'Work', color: '#F2994A' },
@@ -32,6 +38,12 @@ interface CalendarContextValue {
   deleteTemplate: (id: string) => void;
   moveTemplate: (id: string, direction: -1 | 1) => void;
   getEffectiveColor: (event: Event) => string;
+  notificationPrefs: NotificationPrefs;
+  updateNotificationPrefs: (patch: Partial<NotificationPrefs>) => void;
+  /** Result of the most recent reminder scheduling pass (null until the first one finishes). */
+  reminderStatus: ScheduleResult | null;
+  /** Re-runs scheduling now; with askPermission it may show the OS permission prompt. */
+  refreshReminders: (options?: { askPermission?: boolean }) => Promise<ScheduleResult>;
   /** Occurrences in [start, end). Excludes hidden calendars unless includeHidden is set. */
   getOccurrences: (start: Date, end: Date, options?: { includeHidden?: boolean }) => Occurrence[];
 }
@@ -51,6 +63,8 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
   const [events, setEvents] = useState<Event[]>([]);
   const [templates, setTemplates] = useState<EventTemplate[]>([]);
   const [hiddenCalendarIds, setHiddenCalendarIds] = useState<string[]>([]);
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPrefs>(() => normalizeNotificationPrefs(null));
+  const [reminderStatus, setReminderStatus] = useState<ScheduleResult | null>(null);
 
   useEffect(() => {
     try {
@@ -64,6 +78,7 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
       setEvents(db.loadEvents());
       setTemplates(db.loadTemplates());
       setHiddenCalendarIds(db.getSetting<string[]>(HIDDEN_CALENDARS_KEY, []));
+      setNotificationPrefs(normalizeNotificationPrefs(db.getSetting<Partial<NotificationPrefs> | null>(NOTIFICATION_PREFS_KEY, null)));
     } catch (e) {
       console.error('Failed to open the calendar database', e);
       setError(e instanceof Error ? e.message : String(e));
@@ -89,12 +104,43 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
     [events],
   );
 
-  // Keep scheduled reminders in sync with data (debounced).
+  const latest = useRef({ events, calendarsById, notificationPrefs });
+  useEffect(() => {
+    latest.current = { events, calendarsById, notificationPrefs };
+  }, [events, calendarsById, notificationPrefs]);
+
+  const refreshReminders = useCallback(async (options?: { askPermission?: boolean }) => {
+    const { events: ev, calendarsById: cals, notificationPrefs: prefs } = latest.current;
+    const result = await rescheduleReminders(ev, cals, prefs, options);
+    setReminderStatus(result);
+    return result;
+  }, []);
+
+  // Keep scheduled reminders in sync with data and prefs (debounced). Asking for permission here
+  // is fine: it only happens once reminders actually exist, and the OS shows the prompt at most once.
   useEffect(() => {
     if (!ready || error) return;
-    const id = setTimeout(() => void rescheduleReminders(events, calendarsById), 1000);
+    const id = setTimeout(() => void refreshReminders({ askPermission: true }), 800);
     return () => clearTimeout(id);
-  }, [ready, error, events, calendarsById]);
+  }, [ready, error, events, calendarsById, notificationPrefs, refreshReminders]);
+
+  // Only the next `horizonDays` are queued, so top the queue up (and pick up permission changes
+  // made in system settings) whenever the app returns to the foreground.
+  useEffect(() => {
+    if (!ready || error) return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refreshReminders();
+    });
+    return () => sub.remove();
+  }, [ready, error, refreshReminders]);
+
+  const updateNotificationPrefs = useCallback((patch: Partial<NotificationPrefs>) => {
+    setNotificationPrefs((prev) => {
+      const next = normalizeNotificationPrefs({ ...prev, ...patch });
+      db.setSetting(NOTIFICATION_PREFS_KEY, next);
+      return next;
+    });
+  }, []);
 
   const toggleCalendarVisibility = useCallback((id: string) => {
     setHiddenCalendarIds((prev) => {
@@ -199,12 +245,17 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
       deleteTemplate,
       moveTemplate,
       getEffectiveColor: effectiveColor,
+      notificationPrefs,
+      updateNotificationPrefs,
+      reminderStatus,
+      refreshReminders,
       getOccurrences,
     }),
     [
       ready, error, calendars, calendarsById, events, templates, allTags, visibleCalendarIds,
       toggleCalendarVisibility, saveCalendar, deleteCalendar, saveEvent, saveEvents, deleteEvent,
-      saveTemplate, deleteTemplate, moveTemplate, effectiveColor, getOccurrences,
+      saveTemplate, deleteTemplate, moveTemplate, effectiveColor, notificationPrefs, updateNotificationPrefs,
+      reminderStatus, refreshReminders, getOccurrences,
     ],
   );
 

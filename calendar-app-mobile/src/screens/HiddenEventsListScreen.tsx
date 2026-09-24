@@ -10,6 +10,7 @@ import { expandEvent, isPausedOn, nextOccurrence, type Occurrence } from '../ser
 import { colors, radius, spacing } from '../theme';
 import { formatRange } from '../utils/dates';
 import { eventLabel } from '../utils/format';
+import { EventGlyph, eventIconKey, Icon } from '../components/Icon';
 import { describeRRule } from '../utils/recurrence';
 
 interface RowData {
@@ -74,7 +75,7 @@ export function HiddenEventsListScreen({ navigation }: ScreenProps<'HiddenEvents
           clearButtonMode="while-editing"
         />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-          <Chip label="↻ Repeating only" selected={repeatingOnly} onPress={() => setRepeatingOnly((v) => !v)} />
+          <Chip label="Repeating only" selected={repeatingOnly} onPress={() => setRepeatingOnly((v) => !v)} />
           <Chip label="All calendars" selected={calendarId === null} onPress={() => setCalendarId(null)} />
           {calendars.map((c) => (
             <Chip key={c.id} label={c.name} color={c.color} selected={calendarId === c.id} onPress={() => setCalendarId(calendarId === c.id ? null : c.id)} />
@@ -110,7 +111,7 @@ export function HiddenEventsListScreen({ navigation }: ScreenProps<'HiddenEvents
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
           <EmptyState
-            emoji="🔎"
+            icon="search"
             title={events.length === 0 ? 'No events yet' : 'No events match these filters'}
             subtitle={events.length === 0 ? 'Create one from the calendar screen.' : 'Try removing a filter.'}
           />
@@ -127,18 +128,28 @@ export function HiddenEventsListScreen({ navigation }: ScreenProps<'HiddenEvents
               style={({ pressed }) => [styles.item, { borderLeftColor: getEffectiveColor(e) }, pressed && { opacity: 0.85 }]}
             >
               <View style={styles.itemTop}>
+                {eventIconKey(e.emoji) ? <EventGlyph value={e.emoji} size={16} color={getEffectiveColor(e)} /> : null}
                 <Text style={styles.itemTitle} numberOfLines={1}>
                   {eventLabel(e)}
                 </Text>
-                {e.recurrenceRule ? <Text style={styles.badge}>↻</Text> : null}
-                {paused ? <Text style={[styles.badge, styles.pausedBadge]}>⏸ Paused</Text> : null}
+                {e.recurrenceRule ? (
+                  <View style={styles.badge}>
+                    <Icon name="repeat" size={12} color={colors.textMuted} />
+                  </View>
+                ) : null}
+                {paused ? (
+                  <View style={[styles.badge, styles.pausedBadge]}>
+                    <Icon name="pause" size={11} color={colors.primary} />
+                    <Text style={styles.pausedText}>Paused</Text>
+                  </View>
+                ) : null}
               </View>
               <Text style={styles.itemMeta} numberOfLines={1}>
                 {cal?.name ?? 'No calendar'} · {e.recurrenceRule ? describeRRule(e.recurrenceRule, start) : formatRange(start, end, e.isAllDay)}
               </Text>
               <Text style={styles.itemNext} numberOfLines={1}>
                 {item.next ? `Next: ${formatRange(item.next.start, item.next.end, e.isAllDay)}` : 'Past'}
-                {e.location ? `  ·  📍 ${e.location}` : ''}
+                {e.location ? `  ·  ${e.location}` : ''}
               </Text>
               {e.tags.length ? <Text style={styles.tags}>{e.tags.map((t) => `#${t}`).join('  ')}</Text> : null}
             </Pressable>
@@ -152,18 +163,36 @@ export function HiddenEventsListScreen({ navigation }: ScreenProps<'HiddenEvents
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   filters: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: 8, paddingBottom: 4 },
-  search: { fontSize: 16, color: colors.text, backgroundColor: colors.surface, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 11 },
+  search: {
+    fontSize: 16,
+    color: colors.text,
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+  },
   chipRow: { gap: 8 },
   dateRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4 },
   summary: { fontSize: 13, color: colors.textMuted, fontWeight: '600' },
   clear: { fontSize: 13, color: colors.primary, fontWeight: '600' },
   list: { padding: spacing.lg, gap: 10, paddingBottom: 48 },
-  item: { backgroundColor: colors.surface, borderRadius: radius.lg, borderLeftWidth: 5, padding: 14, gap: 3 },
+  item: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderLeftWidth: 5,
+    padding: 14,
+    gap: 3,
+  },
   itemTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   itemTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: colors.text },
-  badge: { fontSize: 12, color: colors.textMuted, backgroundColor: colors.surfaceAlt, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, overflow: 'hidden' },
-  pausedBadge: { color: colors.primary, backgroundColor: colors.primarySoft },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.surfaceAlt, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  pausedBadge: { backgroundColor: colors.primarySoft },
+  pausedText: { fontSize: 12, color: colors.primary, fontWeight: '600' },
   itemMeta: { fontSize: 13, color: colors.textMuted },
   itemNext: { fontSize: 13, color: colors.text },
   tags: { fontSize: 12, color: colors.primary, marginTop: 2 },

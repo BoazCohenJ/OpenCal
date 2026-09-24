@@ -10,13 +10,14 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
-import { colors, radius, spacing } from '../theme';
+import { colors, fonts, radius, spacing } from '../theme';
 import { deepText, softBg } from '../utils/color';
+import { Icon, type IconName } from './Icon';
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
 const BUTTON_COLORS: Record<ButtonVariant, { bg: string; fg: string }> = {
-  primary: { bg: colors.primary, fg: '#FFFFFF' },
+  primary: { bg: colors.primary, fg: colors.onInk },
   secondary: { bg: colors.primarySoft, fg: colors.primary },
   danger: { bg: colors.dangerSoft, fg: colors.danger },
   ghost: { bg: 'transparent', fg: colors.primary },
@@ -63,7 +64,7 @@ export function IconButton({
   accessibilityLabel,
   size = 38,
 }: {
-  icon: string;
+  icon: IconName;
   onPress: () => void;
   accessibilityLabel: string;
   size?: number;
@@ -80,7 +81,7 @@ export function IconButton({
         pressed && styles.pressed,
       ]}
     >
-      <Text style={styles.iconText}>{icon}</Text>
+      <Icon name={icon} size={Math.round(size * 0.47)} />
     </Pressable>
   );
 }
@@ -111,6 +112,7 @@ export function Chip({
       accessibilityState={{ selected }}
       style={({ pressed }) => [
         styles.chip,
+        color && !selected && styles.chipOff,
         selected && styles.chipSelected,
         selected && color ? { backgroundColor: softBg(color), borderColor: color } : null,
         pressed && styles.pressed,
@@ -178,7 +180,7 @@ export function Row({
       </View>
       {value ? <Text style={styles.rowValue}>{value}</Text> : null}
       {right}
-      {onPress ? <Text style={styles.chevron}>›</Text> : null}
+      {onPress ? <Icon name="chevron-right" size={18} color={colors.textFaint} /> : null}
     </>
   );
   if (!onPress) return <View style={styles.row}>{content}</View>;
@@ -231,7 +233,7 @@ export function SwitchRow({
         value={value}
         onValueChange={onValueChange}
         trackColor={{ true: colors.primary, false: colors.border }}
-        thumbColor="#FFFFFF"
+        thumbColor={colors.surface}
       />
     </View>
   );
@@ -288,7 +290,7 @@ export function Stepper({
         onPress={() => onChange(Math.max(min, value - step))}
         accessibilityLabel="Decrease"
       >
-        <Text style={styles.stepperGlyph}>−</Text>
+        <Icon name="minus" size={16} color={colors.primary} strokeWidth={2.5} />
       </Pressable>
       <Text style={styles.stepperValue}>{format ? format(value) : value}</Text>
       <Pressable
@@ -297,16 +299,18 @@ export function Stepper({
         onPress={() => onChange(Math.min(max, value + step))}
         accessibilityLabel="Increase"
       >
-        <Text style={styles.stepperGlyph}>+</Text>
+        <Icon name="plus" size={16} color={colors.primary} strokeWidth={2.5} />
       </Pressable>
     </View>
   );
 }
 
-export function EmptyState({ emoji, title, subtitle, children }: { emoji: string; title: string; subtitle?: string; children?: React.ReactNode }) {
+export function EmptyState({ icon, title, subtitle, children }: { icon: IconName; title: string; subtitle?: string; children?: React.ReactNode }) {
   return (
     <View style={styles.empty}>
-      <Text style={styles.emptyEmoji}>{emoji}</Text>
+      <View style={styles.emptyIcon}>
+        <Icon name={icon} size={28} color={colors.primary} />
+      </View>
       <Text style={styles.emptyTitle}>{title}</Text>
       {subtitle ? <Text style={styles.emptySubtitle}>{subtitle}</Text> : null}
       {children}
@@ -323,19 +327,24 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.4 },
   bold: { fontWeight: '700' },
   button: {
-    paddingVertical: 13,
+    paddingVertical: 14,
     paddingHorizontal: spacing.lg,
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonSmall: { paddingVertical: 7, paddingHorizontal: spacing.md, borderRadius: radius.sm },
-  buttonText: { fontSize: 16, fontWeight: '600' },
+  buttonText: { fontSize: 16, fontWeight: '700', letterSpacing: 0.1 },
   buttonTextSmall: { fontSize: 14 },
-  iconButton: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  iconText: { fontSize: 18, color: colors.text },
+  iconButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
   headerButton: { paddingHorizontal: 4, paddingVertical: 4 },
-  headerButtonText: { fontSize: 16, color: colors.primary },
+  headerButtonText: { fontSize: 16, color: colors.primary, fontWeight: '500' },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -347,20 +356,27 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
+  chipOff: { borderStyle: 'dashed', backgroundColor: 'transparent' },
   chipSelected: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
   chipDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 2 },
   chipText: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
   chipTextSelected: { color: colors.primary, fontWeight: '600' },
   section: { marginBottom: spacing.lg },
   sectionTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.6,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.4,
     color: colors.textMuted,
-    marginBottom: 6,
+    marginBottom: 8,
     marginLeft: spacing.xs,
   },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, overflow: 'hidden' },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
   sectionFooter: { fontSize: 12, color: colors.textMuted, marginTop: 6, marginHorizontal: spacing.xs, lineHeight: 17 },
   row: {
     flexDirection: 'row',
@@ -372,34 +388,28 @@ const styles = StyleSheet.create({
   },
   rowLeft: { alignItems: 'center', justifyContent: 'center' },
   rowBody: { flex: 1 },
-  rowLabel: { fontSize: 16, color: colors.text },
+  rowLabel: { fontSize: 16, color: colors.text, fontWeight: '500' },
   rowSubtitle: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
   rowValue: { fontSize: 15, color: colors.textMuted },
-  chevron: { fontSize: 22, color: colors.textFaint, marginTop: -2 },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginLeft: spacing.lg },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.hairline, marginLeft: spacing.lg },
   field: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: 8 },
   fieldLabel: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
   input: {
     fontSize: 16,
     color: colors.text,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.bg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: 11,
   },
   inputMultiline: { minHeight: 88, textAlignVertical: 'top' },
-  segmented: { flexDirection: 'row', backgroundColor: colors.surfaceAlt, borderRadius: radius.md, padding: 3 },
-  segment: { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 9 },
-  segmentActive: {
-    backgroundColor: colors.surface,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
-  },
-  segmentText: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
-  segmentTextActive: { color: colors.text, fontWeight: '600' },
+  segmented: { flexDirection: 'row', backgroundColor: colors.surfaceAlt, borderRadius: radius.pill, padding: 3 },
+  segment: { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: radius.pill },
+  segmentActive: { backgroundColor: colors.ink },
+  segmentText: { fontSize: 14, color: colors.textMuted, fontWeight: '600' },
+  segmentTextActive: { color: colors.onInk, fontWeight: '700' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   stepperButton: {
     width: 34,
@@ -409,10 +419,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepperGlyph: { fontSize: 18, color: colors.primary, fontWeight: '600' },
   stepperValue: { minWidth: 56, textAlign: 'center', fontSize: 16, fontWeight: '600', color: colors.text },
   empty: { alignItems: 'center', padding: spacing.xl, gap: spacing.sm },
-  emptyEmoji: { fontSize: 40 },
-  emptyTitle: { fontSize: 17, fontWeight: '600', color: colors.text, textAlign: 'center' },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xs,
+  },
+  emptyTitle: { fontSize: 22, fontFamily: fonts.display, color: colors.text, textAlign: 'center' },
   emptySubtitle: { fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 20 },
 });

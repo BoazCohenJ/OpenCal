@@ -23,10 +23,42 @@ export function mix(hex: string, other: string, amount: number): string {
   return `#${c.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}`.toUpperCase();
 }
 
-export const softBg = (hex: string): string => mix(hex, '#FFFFFF', 0.82);
-export const deepText = (hex: string): string => mix(hex, '#000000', 0.45);
+export const softBg = (hex: string): string => mix(hex, '#FFFCF7', 0.8);
+export const deepText = (hex: string): string => mix(hex, '#1A1208', 0.5);
 
 export function readableOn(hex: string): string {
   const [r, g, b] = toRgb(hex);
-  return 0.299 * r + 0.587 * g + 0.114 * b > 165 ? '#1B1F2A' : '#FFFFFF';
+  return 0.299 * r + 0.587 * g + 0.114 * b > 165 ? '#221D17' : '#FFFCF7';
+}
+
+export interface Hsv {
+  /** 0–360 */
+  h: number;
+  /** 0–1 */
+  s: number;
+  /** 0–1 */
+  v: number;
+}
+
+export function hexToHsv(hex: string): Hsv {
+  const [r, g, b] = toRgb(hex).map((c) => c / 255) as [number, number, number];
+  const max = Math.max(r, g, b);
+  const d = max - Math.min(r, g, b);
+  let h = 0;
+  if (d) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h = (h * 60 + 360) % 360;
+  }
+  return { h, s: max ? d / max : 0, v: max };
+}
+
+export function hsvToHex({ h, s, v }: Hsv): string {
+  const c = v * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = v - c;
+  const [r, g, b] =
+    h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return `#${[r, g, b].map((n) => Math.round((n + m) * 255).toString(16).padStart(2, '0')).join('')}`.toUpperCase();
 }

@@ -14,8 +14,9 @@ export function formatReminder(minutes: number): string {
   return `${minutes} min before`;
 }
 
+/** Title with a legacy emoji prefix. SVG icons (`icon:<key>`) are rendered separately via EventGlyph. */
 export const eventLabel = (e: { title: string; emoji?: string }): string =>
-  e.emoji ? `${e.emoji} ${e.title}` : e.title;
+  e.emoji && !e.emoji.startsWith('icon:') ? `${e.emoji} ${e.title}` : e.title;
 
 export const formatDelta = (minutes: number): string =>
   `${minutes > 0 ? '+' : '−'}${formatDuration(Math.abs(minutes))}`;

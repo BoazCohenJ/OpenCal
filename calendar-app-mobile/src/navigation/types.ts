@@ -9,6 +9,7 @@ export type RootStackParamList = {
   QuickAdd: undefined;
   Stamp: { templateId?: string; start?: string } | undefined;
   Settings: undefined;
+  Notifications: undefined;
   Calendars: undefined;
   CalendarEdit: { calendarId?: string } | undefined;
   Templates: undefined;

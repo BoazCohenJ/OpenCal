@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, PALETTE, radius } from '../theme';
 import { normalizeHex, readableOn } from '../utils/color';
+import { ColorWheel } from './ColorWheel';
+import { Icon } from './Icon';
 import { Button } from './ui';
 
 /**
- * Palette + manual hex input. When `inheritColor` is given, clearing the value
+ * Palette, color wheel and manual hex input. When `inheritColor` is given, clearing the value
  * (Reset / empty hex) falls back to the inherited calendar color.
  */
 export function ColorPicker({
@@ -23,6 +25,8 @@ export function ColorPicker({
   }, [value]);
 
   const current = value ?? inheritColor ?? PALETTE[0]!;
+  const inPalette = PALETTE.some((c) => c.toUpperCase() === current.toUpperCase());
+  const [wheelOpen, setWheelOpen] = useState(() => !inPalette);
   const valid = text.trim() === '' || normalizeHex(text) !== null;
 
   const onChangeText = (t: string) => {
@@ -65,11 +69,21 @@ export function ColorPicker({
               accessibilityLabel={`Color ${c}`}
               style={[styles.swatch, { backgroundColor: c }, active && styles.swatchActive]}
             >
-              {active ? <Text style={[styles.check, { color: readableOn(c) }]}>✓</Text> : null}
+              {active ? <Icon name="check" size={16} color={readableOn(c)} strokeWidth={3} /> : null}
             </Pressable>
           );
         })}
+        <Pressable
+          onPress={() => setWheelOpen((o) => !o)}
+          accessibilityLabel={wheelOpen ? 'Hide color wheel' : 'Pick from color wheel'}
+          accessibilityState={{ expanded: wheelOpen }}
+          style={[styles.swatch, styles.customSwatch, !inPalette && { backgroundColor: current }, wheelOpen && styles.customOpen]}
+        >
+          <Icon name="pipette" size={16} color={inPalette ? colors.text : readableOn(current)} />
+        </Pressable>
       </View>
+
+      {wheelOpen ? <ColorWheel value={current} onChange={(hex) => onChange(hex)} /> : null}
 
       <View style={styles.hexRow}>
         <Text style={styles.hexLabel}>HEX</Text>
@@ -101,19 +115,21 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   swatch: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   swatchActive: { borderWidth: 3, borderColor: colors.surface, outlineColor: colors.text, transform: [{ scale: 1.08 }] },
-  check: { fontSize: 16, fontWeight: '800' },
+  customSwatch: { backgroundColor: colors.bg, borderWidth: 1.5, borderColor: colors.border, borderStyle: 'dashed' },
+  customOpen: { borderColor: colors.text, borderStyle: 'solid' },
   hexRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   hexLabel: { fontSize: 13, fontWeight: '700', color: colors.textMuted },
   hexInput: {
     flex: 1,
     fontSize: 16,
     color: colors.text,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.bg,
     borderRadius: radius.md,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: colors.border,
+    fontVariant: ['tabular-nums'],
   },
   hexInvalid: { borderColor: colors.danger },
   error: { fontSize: 12, color: colors.danger, marginTop: -6 },

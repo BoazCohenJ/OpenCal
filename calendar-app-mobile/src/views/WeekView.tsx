@@ -2,12 +2,13 @@ import { addDays, format, isSameDay } from 'date-fns';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { EventPill } from '../components/EventPill';
+import { EventGlyph, eventIconKey } from '../components/Icon';
 import { occurrencesForDay, type Occurrence } from '../services/occurrences';
-import { colors } from '../theme';
+import { colors, fonts } from '../theme';
 import { deepText, softBg } from '../utils/color';
 import { atMinutes, dayKey, minutesSinceMidnight } from '../utils/dates';
 import { eventLabel } from '../utils/format';
-import { isAllDayLike, layoutTimed, PX_PER_MIN } from './layout';
+import { isAllDayLike, layoutTimed, PX_PER_MIN, slotMinutesFromPress } from './layout';
 import { GRID_HEIGHT, GUTTER_WIDTH, HourGutter, HourLines, NowLine } from './TimeGrid';
 
 export function WeekView({
@@ -91,7 +92,7 @@ export function WeekView({
                 >
                   <Pressable
                     style={StyleSheet.absoluteFill}
-                    onPress={(e) => onPressSlot(atMinutes(day, Math.floor(e.nativeEvent.locationY / PX_PER_MIN / 30) * 30))}
+                    onPress={(e) => onPressSlot(atMinutes(day, slotMinutesFromPress(e)))}
                   />
                   {timed.map((pos) => {
                     const w = (colWidth - 2) / pos.columns;
@@ -111,6 +112,9 @@ export function WeekView({
                           },
                         ]}
                       >
+                        {pos.height > 40 && eventIconKey(pos.occ.event.emoji) ? (
+                          <EventGlyph value={pos.occ.event.emoji} size={11} color={deepText(pos.occ.color)} />
+                        ) : null}
                         <Text numberOfLines={pos.height > 40 ? 3 : 1} style={[styles.blockText, { color: deepText(pos.occ.color) }]}>
                           {eventLabel(pos.occ.event)}
                         </Text>
@@ -129,23 +133,23 @@ export function WeekView({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  headerRow: { flexDirection: 'row', paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  headerRow: { flexDirection: 'row', paddingTop: 10, paddingBottom: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
   dayHeader: { flex: 1, alignItems: 'center', gap: 2 },
-  dow: { fontSize: 11, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase' },
+  dow: { fontSize: 10, fontWeight: '700', color: colors.textFaint, textTransform: 'uppercase', letterSpacing: 1 },
   todayText: { color: colors.primary },
-  dateBadge: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  dateBadge: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   dateBadgeToday: { backgroundColor: colors.primary },
-  dateText: { fontSize: 15, fontWeight: '600', color: colors.text },
-  dateTextToday: { color: '#FFFFFF' },
-  allDayRow: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingVertical: 3 },
+  dateText: { fontSize: 16, fontFamily: fonts.display, color: colors.text },
+  dateTextToday: { color: colors.onInk },
+  allDayRow: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingVertical: 3 },
   allDayGutter: { justifyContent: 'center', alignItems: 'flex-end', paddingRight: 8 },
   allDayLabel: { fontSize: 10, color: colors.textFaint },
   allDayCell: { flex: 1, gap: 2, paddingHorizontal: 1 },
   more: { fontSize: 10, color: colors.textMuted, textAlign: 'center' },
   grid: { flexDirection: 'row' },
   columns: { flex: 1 },
-  dayColumn: { position: 'absolute', top: 0, bottom: 0, borderLeftWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  todayColumn: { backgroundColor: 'rgba(79, 107, 237, 0.04)' },
-  block: { position: 'absolute', borderRadius: 5, borderLeftWidth: 3, paddingHorizontal: 3, paddingVertical: 2, overflow: 'hidden' },
-  blockText: { fontSize: 10.5, fontWeight: '600' },
+  dayColumn: { position: 'absolute', top: 0, bottom: 0, borderLeftWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
+  todayColumn: { backgroundColor: 'rgba(226, 85, 58, 0.05)' },
+  block: { position: 'absolute', borderRadius: 6, borderLeftWidth: 3, paddingHorizontal: 3, paddingVertical: 3, overflow: 'hidden' },
+  blockText: { fontSize: 10.5, fontWeight: '700' },
 });

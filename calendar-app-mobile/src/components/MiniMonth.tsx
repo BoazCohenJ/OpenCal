@@ -1,8 +1,9 @@
 import { addDays, addMonths, format, isSameDay, isSameMonth, startOfDay, startOfMonth, startOfWeek } from 'date-fns';
 import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors } from '../theme';
+import { colors, fonts } from '../theme';
 import { dayKey, WEEK_STARTS_ON } from '../utils/dates';
+import { Icon } from './Icon';
 
 interface Props {
   month: Date;
@@ -25,11 +26,11 @@ export function MiniMonth({ month, onChangeMonth, onSelectDay, selected, rangeSt
     <View>
       <View style={styles.header}>
         <Pressable onPress={() => onChangeMonth(addMonths(month, -1))} hitSlop={12} style={styles.nav} accessibilityLabel="Previous month">
-          <Text style={styles.navText}>‹</Text>
+          <Icon name="chevron-left" size={18} />
         </Pressable>
         <Text style={styles.title}>{format(month, 'MMMM yyyy')}</Text>
         <Pressable onPress={() => onChangeMonth(addMonths(month, 1))} hitSlop={12} style={styles.nav} accessibilityLabel="Next month">
-          <Text style={styles.navText}>›</Text>
+          <Icon name="chevron-right" size={18} />
         </Pressable>
       </View>
       <View style={styles.row}>
@@ -75,8 +76,7 @@ export function MiniMonth({ month, onChangeMonth, onSelectDay, selected, rangeSt
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   nav: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: colors.surfaceAlt },
-  navText: { fontSize: 22, color: colors.text, marginTop: -2 },
-  title: { fontSize: 16, fontWeight: '700', color: colors.text },
+  title: { fontSize: 18, fontFamily: fonts.display, color: colors.text },
   row: { flexDirection: 'row' },
   dow: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: colors.textFaint, paddingVertical: 6 },
   cell: { flex: 1, alignItems: 'center', paddingVertical: 3 },
@@ -86,5 +86,5 @@ const styles = StyleSheet.create({
   dayText: { fontSize: 15, color: colors.text },
   outside: { color: colors.textFaint },
   today: { color: colors.primary, fontWeight: '700' },
-  selectedText: { color: '#FFFFFF', fontWeight: '700' },
+  selectedText: { color: colors.onInk, fontWeight: '700' },
 });

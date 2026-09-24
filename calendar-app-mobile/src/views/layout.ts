@@ -1,4 +1,5 @@
 import { addDays, startOfDay } from 'date-fns';
+import type { GestureResponderEvent } from 'react-native';
 import type { Occurrence } from '../services/occurrences';
 import { isMultiDay } from '../utils/dates';
 
@@ -12,6 +13,17 @@ export interface PositionedOccurrence {
   height: number;
   column: number;
   columns: number;
+}
+
+/**
+ * Minutes since midnight (snapped down to 30) for a tap on a time grid.
+ * React Native Web leaves `locationY` undefined on Pressable events, so fall back to the DOM `offsetY`.
+ */
+export function slotMinutesFromPress(e: GestureResponderEvent): number {
+  const native = e.nativeEvent as GestureResponderEvent['nativeEvent'] & { offsetY?: number };
+  const y = Number.isFinite(native.locationY) ? native.locationY : (native.offsetY ?? 0);
+  const minutes = Math.floor(y / PX_PER_MIN / 30) * 30;
+  return Math.min(Math.max(Number.isFinite(minutes) ? minutes : 0, 0), 24 * 60 - 30);
 }
 
 /** All-day and multi-day occurrences go in the all-day strip rather than the time grid. */

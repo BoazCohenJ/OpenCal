@@ -15,12 +15,14 @@ import {
 import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { EventGlyph, Icon } from '../components/Icon';
 import { Sheet } from '../components/Sheet';
 import { Button, Chip, IconButton, Segmented } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
 import type { Occurrence } from '../services/occurrences';
-import { colors, radius, shadow, spacing } from '../theme';
+import { colors, fonts, radius, shadow, spacing } from '../theme';
+import { deepText, softBg } from '../utils/color';
 import { nextRoundedHour, WEEK_STARTS_ON } from '../utils/dates';
 import { formatDuration } from '../utils/format';
 import { DayView } from '../views/DayView';
@@ -31,7 +33,7 @@ type ViewMode = 'day' | 'week' | 'month';
 
 export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
   const insets = useSafeAreaInsets();
-  const { calendars, visibleCalendarIds, toggleCalendarVisibility, getOccurrences, events, saveEvents, templates } =
+  const { calendars, calendarsById, visibleCalendarIds, toggleCalendarVisibility, getOccurrences, events, saveEvents, templates } =
     useCalendarContext();
   const [mode, setMode] = useState<ViewMode>('month');
   const [cursor, setCursor] = useState(() => startOfDay(new Date()));
@@ -55,13 +57,14 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
   const goToday = () => setCursor(startOfDay(new Date()));
 
   const now = new Date();
-  const title = mode === 'day' ? format(cursor, 'EEEE') : mode === 'week' ? format(range.start, 'MMMM yyyy') : format(cursor, 'MMMM');
-  const subtitle =
+  const title =
     mode === 'day'
-      ? format(cursor, 'MMMM d, yyyy')
+      ? format(cursor, 'EEEE')
       : mode === 'week'
-        ? `${format(range.start, 'MMM d')} – ${format(endOfWeek(range.start, { weekStartsOn: WEEK_STARTS_ON }), 'MMM d')}`
-        : format(cursor, 'yyyy');
+        ? `${format(range.start, 'MMM d')} – ${format(endOfWeek(range.start, { weekStartsOn: WEEK_STARTS_ON }), 'd')}`
+        : format(cursor, 'MMMM');
+  const eyebrow =
+    mode === 'day' ? format(cursor, 'MMMM d, yyyy') : mode === 'week' ? format(range.start, 'MMMM yyyy') : format(cursor, 'yyyy');
   const showingToday =
     mode === 'day' ? isSameDay(cursor, now) : mode === 'week' ? now >= range.start && now < range.end : isSameMonth(cursor, now);
 
@@ -99,17 +102,29 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <Pressable onPress={goToday} style={styles.titleBlock} accessibilityLabel="Go to today">
-            <Text style={styles.title}>{title}</Text>
-            <Text style={styles.subtitle}>{subtitle}</Text>
-          </Pressable>
+          <Text style={styles.eyebrow} numberOfLines={1}>
+            {eyebrow}
+          </Text>
           <View style={styles.headerActions}>
-            <IconButton icon="‹" onPress={() => step(-1)} accessibilityLabel="Previous" />
-            {!showingToday ? <Button small variant="secondary" title="Today" onPress={goToday} /> : null}
-            <IconButton icon="›" onPress={() => step(1)} accessibilityLabel="Next" />
-            <IconButton icon="⚙︎" onPress={() => navigation.navigate('Settings')} accessibilityLabel="Settings" />
+            <View style={styles.navPill}>
+              <Pressable onPress={() => step(-1)} hitSlop={6} style={styles.navArrow} accessibilityLabel="Previous">
+                <Icon name="chevron-left" size={18} />
+              </Pressable>
+              <Pressable onPress={goToday} disabled={showingToday} hitSlop={4} accessibilityLabel="Go to today">
+                <Text style={[styles.todayText, showingToday && styles.todayTextOn]}>Today</Text>
+              </Pressable>
+              <Pressable onPress={() => step(1)} hitSlop={6} style={styles.navArrow} accessibilityLabel="Next">
+                <Icon name="chevron-right" size={18} />
+              </Pressable>
+            </View>
+            <IconButton icon="settings" onPress={() => navigation.navigate('Settings')} accessibilityLabel="Settings" />
           </View>
         </View>
+        <Pressable onPress={goToday} accessibilityLabel="Go to today">
+          <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit>
+            {title}
+          </Text>
+        </Pressable>
         <Segmented
           options={[
             { value: 'day', label: 'Day' },
@@ -150,38 +165,40 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
       </View>
 
       {!selectionActive ? (
-        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10 }]}>
-          <Pressable
-            style={({ pressed }) => [styles.nlInput, pressed && { opacity: 0.8 }]}
-            onPress={() => navigation.navigate('QuickAdd')}
-            accessibilityLabel="Quick add with natural language"
-          >
-            <Text style={styles.nlIcon}>✨</Text>
-            <Text style={styles.nlPlaceholder} numberOfLines={1}>
-              “Lunch with John Fri 1pm at Cafe X”
-            </Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.roundButton, pressed && { opacity: 0.8 }]}
-            onPress={() => navigation.navigate('Stamp', { start: defaultStart().toISOString() })}
-            accessibilityLabel="Add from a stamp"
-          >
-            <Text style={styles.roundIcon}>🔖</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.fab, shadow, pressed && { opacity: 0.85 }]}
-            onPress={() => newEventAt(defaultStart())}
-            accessibilityLabel="New event"
-          >
-            <Text style={styles.fabIcon}>＋</Text>
-          </Pressable>
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+          <View style={[styles.dock, shadow]}>
+            <Pressable
+              style={({ pressed }) => [styles.nlInput, pressed && { opacity: 0.8 }]}
+              onPress={() => navigation.navigate('QuickAdd')}
+              accessibilityLabel="Quick add with natural language"
+            >
+              <Icon name="sparkles" size={18} color={colors.primary} />
+              <Text style={styles.nlPlaceholder} numberOfLines={1}>
+                “Lunch with John Fri 1pm at Cafe X”
+              </Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.roundButton, pressed && { opacity: 0.8 }]}
+              onPress={() => navigation.navigate('Stamp', { start: defaultStart().toISOString() })}
+              accessibilityLabel="Add from a stamp"
+            >
+              <Icon name="stamp" size={20} color={colors.onInk} />
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.fab, pressed && { opacity: 0.85 }]}
+              onPress={() => newEventAt(defaultStart())}
+              accessibilityLabel="New event"
+            >
+              <Icon name="plus" size={24} color={colors.onInk} strokeWidth={2.5} />
+            </Pressable>
+          </View>
         </View>
       ) : null}
 
       <Sheet visible={!!slot} onClose={() => setSlot(null)} title={slot ? format(slot, 'EEE, MMM d · h:mm a') : ''} actionLabel="Close">
         <View style={styles.slotSheet}>
           <Button
-            title="＋ New event here"
+            title="New event here"
             onPress={() => {
               const s = slot;
               setSlot(null);
@@ -196,7 +213,7 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
                 navigation.navigate('TemplateEdit');
               }}
             >
-              <Text style={styles.slotEmpty}>No stamps yet. Tap to create one (e.g. “☕ Coffee with John”).</Text>
+              <Text style={styles.slotEmpty}>No stamps yet. Tap to create one (e.g. “Coffee with John”).</Text>
             </Pressable>
           ) : (
             <ScrollView style={{ maxHeight: 280 }}>
@@ -210,12 +227,14 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
                     if (s) navigation.navigate('Stamp', { templateId: t.id, start: s.toISOString() });
                   }}
                 >
-                  <Text style={styles.stampEmoji}>{t.emoji ?? '🔖'}</Text>
+                  <View style={[styles.stampGlyph, { backgroundColor: softBg(t.color ?? calendarsById[t.calendarId]?.color ?? colors.primary) }]}>
+                    <EventGlyph value={t.emoji} fallback="event" size={18} color={deepText(t.color ?? calendarsById[t.calendarId]?.color ?? colors.primary)} />
+                  </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.stampName}>{t.name}</Text>
                     <Text style={styles.stampMeta}>{t.isAllDay ? 'All day' : formatDuration(t.durationMinutes)}</Text>
                   </View>
-                  <Text style={styles.chevron}>›</Text>
+                  <Icon name="chevron-right" size={18} color={colors.textFaint} />
                 </Pressable>
               ))}
             </ScrollView>
@@ -228,46 +247,67 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm, paddingBottom: spacing.sm },
-  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  titleBlock: { flexShrink: 1 },
-  title: { fontSize: 28, fontWeight: '800', color: colors.text, letterSpacing: -0.5 },
-  subtitle: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  calendarChips: { gap: 8, paddingVertical: 2 },
-  body: { flex: 1, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, overflow: 'hidden', backgroundColor: colors.surface },
-  bottomBar: {
+  header: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.md, paddingBottom: spacing.md },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, marginBottom: -spacing.md },
+  eyebrow: { flexShrink: 1, fontFamily: fonts.displayItalic, fontSize: 17, color: colors.primary },
+  title: { fontFamily: fonts.displayBold, fontSize: 42, lineHeight: 50, color: colors.text, letterSpacing: -1.2 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  navPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: spacing.lg,
-    paddingTop: 10,
+    height: 38,
+    borderRadius: radius.pill,
     backgroundColor: colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
+    paddingHorizontal: 2,
+  },
+  navArrow: { width: 32, height: 34, alignItems: 'center', justifyContent: 'center' },
+  todayText: { fontSize: 13, fontWeight: '700', color: colors.primary, paddingHorizontal: 2 },
+  todayTextOn: { color: colors.textFaint },
+  calendarChips: { gap: 8, paddingVertical: 2 },
+  body: {
+    flex: 1,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    overflow: 'hidden',
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 0,
+    borderColor: colors.border,
+  },
+  bottomBar: { paddingHorizontal: spacing.md, paddingTop: 10, backgroundColor: colors.surface },
+  dock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.ink,
   },
   nlInput: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.pill,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     height: 46,
   },
-  nlIcon: { fontSize: 16 },
-  nlPlaceholder: { flex: 1, color: colors.textFaint, fontSize: 14 },
-  roundButton: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  roundIcon: { fontSize: 20 },
-  fab: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  fabIcon: { color: '#FFFFFF', fontSize: 26, fontWeight: '600', marginTop: -2 },
+  nlPlaceholder: { flex: 1, color: 'rgba(255, 252, 247, 0.55)', fontSize: 14, fontFamily: fonts.displayItalic },
+  roundButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: 'rgba(255, 252, 247, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fab: { width: 50, height: 50, borderRadius: 25, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   slotSheet: { gap: 12 },
-  slotHeading: { fontSize: 12, fontWeight: '700', color: colors.textMuted, letterSpacing: 0.6, marginTop: 4 },
+  slotHeading: { fontSize: 11, fontWeight: '700', color: colors.textMuted, letterSpacing: 1.4, marginTop: 4 },
   slotEmpty: { fontSize: 14, color: colors.primary, lineHeight: 20 },
   stampRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 6, borderRadius: radius.md },
-  stampEmoji: { fontSize: 24, width: 32, textAlign: 'center' },
+  stampGlyph: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   stampName: { fontSize: 16, fontWeight: '600', color: colors.text },
   stampMeta: { fontSize: 13, color: colors.textMuted },
-  chevron: { fontSize: 22, color: colors.textFaint },
 });

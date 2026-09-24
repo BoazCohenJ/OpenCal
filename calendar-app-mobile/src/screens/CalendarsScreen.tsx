@@ -22,7 +22,7 @@ export function CalendarsScreen({ navigation }: ScreenProps<'Calendars'>) {
           const activePause = c.pauseWindows.find((w) => w.startDate <= today && w.endDate >= today);
           const upcoming = c.pauseWindows.filter((w) => w.startDate > today).length;
           const parts = [`${count} event${count === 1 ? '' : 's'}`];
-          if (activePause) parts.push(`⏸ paused ${formatPauseWindow(activePause)}`);
+          if (activePause) parts.push(`Paused ${formatPauseWindow(activePause)}`);
           else if (upcoming) parts.push(`${upcoming} upcoming pause${upcoming === 1 ? '' : 's'}`);
           if (!visibleCalendarIds.includes(c.id)) parts.push('hidden');
           return (

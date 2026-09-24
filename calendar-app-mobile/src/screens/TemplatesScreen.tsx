@@ -3,7 +3,9 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, EmptyState, HeaderButton } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
+import { EventGlyph, Icon } from '../components/Icon';
 import { colors, radius, spacing } from '../theme';
+import { deepText, softBg } from '../utils/color';
 import { formatDuration } from '../utils/format';
 
 export function TemplatesScreen({ navigation }: ScreenProps<'Templates'>) {
@@ -17,7 +19,7 @@ export function TemplatesScreen({ navigation }: ScreenProps<'Templates'>) {
     return (
       <View style={styles.screen}>
         <EmptyState
-          emoji="🔖"
+          icon="stamp"
           title="Save events you repeat often"
           subtitle="A stamp stores title, duration, color, reminders, calendar and location. Drop it on any date and just confirm the time."
         >
@@ -35,7 +37,9 @@ export function TemplatesScreen({ navigation }: ScreenProps<'Templates'>) {
         return (
           <View key={t.id} style={[styles.card, { borderLeftColor: color }]}>
             <Pressable style={styles.cardMain} onPress={() => navigation.navigate('TemplateEdit', { templateId: t.id })}>
-              <Text style={styles.emoji}>{t.emoji ?? '🔖'}</Text>
+              <View style={[styles.glyph, { backgroundColor: softBg(color) }]}>
+                <EventGlyph value={t.emoji} fallback="event" size={20} color={deepText(color)} />
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.name}>{t.name}</Text>
                 <Text style={styles.meta} numberOfLines={1}>
@@ -52,7 +56,7 @@ export function TemplatesScreen({ navigation }: ScreenProps<'Templates'>) {
                 style={[styles.order, i === 0 && styles.disabled]}
                 accessibilityLabel={`Move ${t.name} up`}
               >
-                <Text style={styles.orderText}>↑</Text>
+                <Icon name="arrow-up" size={16} />
               </Pressable>
               <Pressable
                 onPress={() => moveTemplate(t.id, 1)}
@@ -60,7 +64,7 @@ export function TemplatesScreen({ navigation }: ScreenProps<'Templates'>) {
                 style={[styles.order, i === templates.length - 1 && styles.disabled]}
                 accessibilityLabel={`Move ${t.name} down`}
               >
-                <Text style={styles.orderText}>↓</Text>
+                <Icon name="arrow-down" size={16} />
               </Pressable>
               <Button small variant="secondary" title="Use" onPress={() => navigation.navigate('Stamp', { templateId: t.id })} />
             </View>
@@ -75,14 +79,22 @@ export function TemplatesScreen({ navigation }: ScreenProps<'Templates'>) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, gap: 10 },
-  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.lg, borderLeftWidth: 5, paddingRight: 10 },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderLeftWidth: 5,
+    paddingRight: 10,
+  },
   cardMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  emoji: { fontSize: 26 },
+  glyph: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   name: { fontSize: 16, fontWeight: '700', color: colors.text },
   meta: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   order: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  orderText: { fontSize: 16, color: colors.text, fontWeight: '600' },
   disabled: { opacity: 0.3 },
   footer: { fontSize: 13, color: colors.textMuted, textAlign: 'center', marginTop: 8 },
 });

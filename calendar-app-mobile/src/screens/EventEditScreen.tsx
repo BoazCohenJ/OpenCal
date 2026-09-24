@@ -1,23 +1,29 @@
 import { addHours, endOfDay, setHours, startOfDay } from 'date-fns';
 import React, { useLayoutEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ColorPicker } from '../components/ColorPicker';
 import { DateTimeField } from '../components/DateTimeField';
-import { EmojiPicker } from '../components/EmojiPicker';
+import { IconButtonTile, IconPicker } from '../components/IconPicker';
 import { PauseWindowsEditor } from '../components/PauseWindowsEditor';
 import { RecurrenceEditor } from '../components/RecurrenceEditor';
 import { CalendarSelector, ReminderPicker, TagEditor } from '../components/Selectors';
 import { Button, Divider, Field, HeaderButton, Section, SwitchRow, TextField } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { Event } from '../models/Event';
+import type { NotificationPrefs } from '../models/NotificationPrefs';
 import type { EventDraft, ScreenProps } from '../navigation/types';
 import { templateFromEvent } from '../services/templates';
-import { colors, radius, spacing } from '../theme';
+import { colors, fonts, radius, spacing } from '../theme';
 import { confirmAsync, notify } from '../utils/confirm';
 import { formatPauseWindow, nextRoundedHour } from '../utils/dates';
 import { newId } from '../utils/id';
 
-function buildInitial(existing: Event | undefined, draft: EventDraft | undefined, defaultCalendarId: string): Event {
+function buildInitial(
+  existing: Event | undefined,
+  draft: EventDraft | undefined,
+  defaultCalendarId: string,
+  prefs: NotificationPrefs,
+): Event {
   if (existing) return existing;
   const start = draft?.startDate ? new Date(draft.startDate) : nextRoundedHour();
   const merged: Event = {
@@ -28,7 +34,7 @@ function buildInitial(existing: Event | undefined, draft: EventDraft | undefined
     isAllDay: false,
     calendarId: defaultCalendarId,
     pauseWindows: [],
-    reminders: [10],
+    reminders: [],
     tags: [],
   };
   if (draft) {
@@ -36,14 +42,15 @@ function buildInitial(existing: Event | undefined, draft: EventDraft | undefined
       if (v !== undefined) (merged as unknown as Record<string, unknown>)[k] = v;
     }
   }
+  if (!draft?.reminders) merged.reminders = [...(merged.isAllDay ? prefs.defaultAllDayReminders : prefs.defaultReminders)];
   return merged;
 }
 
 export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>) {
-  const { calendars, calendarsById, events, saveEvent, deleteEvent, saveTemplate, allTags } = useCalendarContext();
+  const { calendars, calendarsById, events, saveEvent, deleteEvent, saveTemplate, allTags, notificationPrefs } = useCalendarContext();
   const existing = route.params?.eventId ? events.find((e) => e.id === route.params?.eventId) : undefined;
   const [form, setForm] = useState<Event>(() => {
-    const initial = buildInitial(existing, route.params?.draft, calendars[0]?.id ?? '');
+    const initial = buildInitial(existing, route.params?.draft, calendars[0]?.id ?? '', notificationPrefs);
     return calendarsById[initial.calendarId] ? initial : { ...initial, calendarId: calendars[0]?.id ?? '' };
   });
   const [showEmoji, setShowEmoji] = useState(false);
@@ -52,22 +59,30 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
   const start = new Date(form.startDate);
   const end = new Date(form.endDate);
   const calendar = calendarsById[form.calendarId];
+  const eventColor = form.color ?? calendar?.color ?? colors.primary;
 
   const setStart = (d: Date) => {
     const duration = Math.max(0, end.getTime() - start.getTime());
     update({ startDate: d.toISOString(), endDate: new Date(d.getTime() + duration).toISOString() });
   };
   const setEnd = (d: Date) => update({ endDate: (form.isAllDay ? endOfDay(d) : d).toISOString() });
-  const setAllDay = (allDay: boolean) =>
+  const setAllDay = (allDay: boolean) => {
+    // On new events, swap to the matching default reminders unless the user already changed them.
+    const from = allDay ? notificationPrefs.defaultReminders : notificationPrefs.defaultAllDayReminders;
+    const to = allDay ? notificationPrefs.defaultAllDayReminders : notificationPrefs.defaultReminders;
+    const untouched = !existing && form.reminders.join() === from.join();
+    const reminders = untouched ? { reminders: [...to] } : {};
     update(
       allDay
-        ? { isAllDay: true, startDate: startOfDay(start).toISOString(), endDate: endOfDay(end < start ? start : end).toISOString() }
+        ? { ...reminders, isAllDay: true, startDate: startOfDay(start).toISOString(), endDate: endOfDay(end < start ? start : end).toISOString() }
         : {
+            ...reminders,
             isAllDay: false,
             startDate: setHours(startOfDay(start), 9).toISOString(),
             endDate: setHours(startOfDay(start), 10).toISOString(),
           },
     );
+  };
 
   const normalized = (): Event | null => {
     const title = form.title.trim();
@@ -132,9 +147,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.titleCard}>
-        <Pressable style={styles.emojiButton} onPress={() => setShowEmoji((v) => !v)} accessibilityLabel="Choose emoji">
-          <Text style={[styles.emojiText, !form.emoji && styles.emojiPlaceholder]}>{form.emoji ?? '☺︎'}</Text>
-        </Pressable>
+        <IconButtonTile value={form.emoji} color={eventColor} onPress={() => setShowEmoji((v) => !v)} />
         <TextInput
           style={styles.titleInput}
           placeholder="Event title"
@@ -146,8 +159,9 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
         />
       </View>
       {showEmoji ? (
-        <Section title="Emoji" footer="Shown next to the title in every view.">
-          <EmojiPicker
+        <Section title="Icon" footer="Shown next to the title in every view.">
+          <IconPicker
+            color={eventColor}
             value={form.emoji}
             onChange={(emoji) => {
               update({ emoji });
@@ -208,7 +222,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
       </Section>
 
       <View style={styles.actions}>
-        <Button variant="secondary" title="🔖  Save as stamp" onPress={saveAsStamp} />
+        <Button variant="secondary" title="Save as stamp" onPress={saveAsStamp} />
         {existing ? <Button variant="danger" title="Delete event" onPress={remove} /> : null}
       </View>
     </ScrollView>
@@ -224,13 +238,12 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     padding: 12,
     marginBottom: spacing.lg,
   },
-  emojiButton: { width: 48, height: 48, borderRadius: 14, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  emojiText: { fontSize: 26 },
-  emojiPlaceholder: { color: colors.textFaint, fontSize: 24 },
-  titleInput: { flex: 1, fontSize: 22, fontWeight: '700', color: colors.text, paddingVertical: 6 },
+  titleInput: { flex: 1, fontSize: 22, fontFamily: fonts.display, color: colors.text, paddingVertical: 6 },
   inherited: { fontSize: 13, color: colors.textMuted, paddingHorizontal: 16, paddingBottom: 14 },
   actions: { gap: 10, marginTop: 4 },
 });

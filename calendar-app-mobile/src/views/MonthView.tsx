@@ -3,11 +3,12 @@ import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { EventPill } from '../components/EventPill';
 import { occurrencesForDay, type Occurrence } from '../services/occurrences';
-import { colors } from '../theme';
+import { colors, fonts } from '../theme';
 import { dayKey, WEEK_STARTS_ON } from '../utils/dates';
 import { isAllDayLike } from './layout';
 
 const MAX_PER_CELL = 3;
+const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
 
 export function MonthView({
   month,
@@ -45,8 +46,8 @@ export function MonthView({
     <View style={styles.container}>
       <View style={styles.weekdays}>
         {days.slice(0, 7).map((d) => (
-          <Text key={d.getDay()} style={styles.weekday}>
-            {format(d, 'EEE')}
+          <Text key={d.getDay()} style={[styles.weekday, isWeekend(d) && styles.weekdayWeekend]}>
+            {format(d, 'EEEEE')}
           </Text>
         ))}
       </View>
@@ -60,7 +61,7 @@ export function MonthView({
               <Pressable
                 key={dayKey(d)}
                 onPress={() => onPressDay(d)}
-                style={({ pressed }) => [styles.cell, !inMonth && styles.cellOutside, pressed && styles.cellPressed]}
+                style={({ pressed }) => [styles.cell, isWeekend(d) && styles.cellWeekend, pressed && styles.cellPressed]}
                 accessibilityLabel={`${format(d, 'EEEE, MMMM d')}, ${list.length} events`}
               >
                 <View style={[styles.dayBadge, isToday && styles.dayBadgeToday]}>
@@ -91,24 +92,18 @@ export function MonthView({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  weekdays: { flexDirection: 'row', paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  weekday: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase' },
-  week: { flex: 1, flexDirection: 'row' },
-  cell: {
-    flex: 1,
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: 2,
-    overflow: 'hidden',
-  },
-  cellOutside: { backgroundColor: '#FAFBFD' },
+  weekdays: { flexDirection: 'row', paddingTop: 12, paddingBottom: 8 },
+  weekday: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '700', color: colors.textFaint, letterSpacing: 1 },
+  weekdayWeekend: { color: colors.primary, opacity: 0.7 },
+  week: { flex: 1, flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
+  cell: { flex: 1, paddingHorizontal: 2, paddingTop: 4, overflow: 'hidden' },
+  cellWeekend: { backgroundColor: colors.weekend },
   cellPressed: { backgroundColor: colors.primarySoft },
-  dayBadge: { alignSelf: 'center', width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  dayBadge: { alignSelf: 'center', width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginBottom: 3 },
   dayBadgeToday: { backgroundColor: colors.primary },
-  dayText: { fontSize: 12, fontWeight: '600', color: colors.text },
-  dayTextOutside: { color: colors.textFaint },
-  dayTextToday: { color: '#FFFFFF' },
+  dayText: { fontSize: 14, fontFamily: fonts.display, color: colors.text },
+  dayTextOutside: { color: colors.textFaint, opacity: 0.6 },
+  dayTextToday: { color: colors.onInk },
   events: { gap: 2 },
-  more: { fontSize: 10, color: colors.textMuted, fontWeight: '600', paddingLeft: 2 },
+  more: { fontSize: 10, color: colors.textMuted, fontWeight: '700', paddingLeft: 3 },
 });

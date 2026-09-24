@@ -1,27 +1,48 @@
+// Warm "paper planner" palette: cream paper, ink text, one tomato accent.
 export const colors = {
-  bg: '#F6F7FB',
-  surface: '#FFFFFF',
-  surfaceAlt: '#F0F2F7',
-  border: '#E3E6EE',
-  text: '#1B1F2A',
-  textMuted: '#6B7280',
-  textFaint: '#9CA3AF',
-  primary: '#4F6BED',
-  primarySoft: '#E8ECFD',
-  danger: '#E5484D',
-  dangerSoft: '#FDECEC',
-  nowLine: '#E5484D',
+  bg: '#F5EFE6',
+  surface: '#FFFCF7',
+  surfaceAlt: '#EEE6D9',
+  border: '#E5DBCB',
+  hairline: '#EDE5D8',
+  text: '#221D17',
+  textMuted: '#7C7266',
+  textFaint: '#B1A797',
+  ink: '#221D17',
+  onInk: '#FFFCF7',
+  primary: '#E2553A',
+  primarySoft: '#FBE3DA',
+  weekend: '#FAF5EE',
+  danger: '#B83227',
+  dangerSoft: '#F6DDD8',
+  nowLine: '#E2553A',
+  backdrop: 'rgba(34, 29, 23, 0.4)',
 };
 
-export const radius = { sm: 8, md: 12, lg: 16, pill: 999 };
+/** Font families loaded in App.tsx. Body text uses the platform system font. */
+export const fonts = {
+  display: 'Fraunces_600SemiBold',
+  displayBold: 'Fraunces_800ExtraBold',
+  displayItalic: 'Fraunces_500Medium_Italic',
+};
+
+export const radius = { sm: 8, md: 12, lg: 18, xl: 26, pill: 999 };
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 };
 
 export const shadow = {
-  shadowColor: '#000',
-  shadowOpacity: 0.08,
-  shadowRadius: 12,
-  shadowOffset: { width: 0, height: 4 },
-  elevation: 3,
+  shadowColor: '#3A2A18',
+  shadowOpacity: 0.12,
+  shadowRadius: 16,
+  shadowOffset: { width: 0, height: 6 },
+  elevation: 4,
+};
+
+export const softShadow = {
+  shadowColor: '#3A2A18',
+  shadowOpacity: 0.06,
+  shadowRadius: 8,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 1,
 };
 
 export const PALETTE = [

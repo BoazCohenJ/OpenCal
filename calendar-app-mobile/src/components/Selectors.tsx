@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Calendar } from '../models/Calendar';
 import { colors, radius } from '../theme';
 import { formatReminder } from '../utils/format';
+import { Icon } from './Icon';
 import { Chip, TextField } from './ui';
 
 const REMINDER_OPTIONS = [0, 5, 10, 15, 30, 60, 120, 1440, 10080];
@@ -64,7 +65,7 @@ export function TagEditor({
           {value.map((t) => (
             <Pressable key={t} style={styles.tag} onPress={() => onChange(value.filter((x) => x !== t))} accessibilityLabel={`Remove tag ${t}`}>
               <Text style={styles.tagText}>#{t}</Text>
-              <Text style={styles.tagRemove}>✕</Text>
+              <Icon name="x" size={12} color={colors.primary} strokeWidth={2.5} />
             </Pressable>
           ))}
         </View>
@@ -105,5 +106,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   tagText: { color: colors.primary, fontWeight: '600', fontSize: 14 },
-  tagRemove: { color: colors.primary, fontSize: 11, fontWeight: '700' },
 });

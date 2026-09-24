@@ -6,7 +6,8 @@ import { Button, Chip, HeaderButton, Section } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
 import { parseEventText } from '../services/naturalLanguage';
-import { colors, radius, spacing } from '../theme';
+import { Icon, type IconName } from '../components/Icon';
+import { colors, fonts, radius, spacing } from '../theme';
 import { formatRange, nextRoundedHour } from '../utils/dates';
 
 const EXAMPLES = ['Lunch with John Fri 1pm at Cafe X', 'Dentist next Tuesday 9:30am', 'Team offsite Oct 12 - Oct 14', 'Call mom tomorrow 7pm'];
@@ -65,15 +66,15 @@ export function QuickAddScreen({ navigation }: ScreenProps<'QuickAdd'>) {
         </View>
       ) : (
         <Section title="We understood" footer="You can fix anything on the next screen before saving.">
-          <PreviewRow icon="📝" label="Title" value={parsed.title || 'Untitled'} muted={!parsed.title} />
+          <PreviewRow icon="title" label="Title" value={parsed.title || 'Untitled'} muted={!parsed.title} />
           <PreviewRow
-            icon="🗓️"
+            icon="calendar"
             label="When"
             value={parsed.start && parsed.end ? formatRange(parsed.start, parsed.end, parsed.isAllDay) : 'No date found, defaults to the next hour'}
             muted={!parsed.start}
             hint={parsed.dateText ? `from “${parsed.dateText}”` : undefined}
           />
-          <PreviewRow icon="📍" label="Where" value={parsed.location ?? 'No location'} muted={!parsed.location} />
+          <PreviewRow icon="map-pin" label="Where" value={parsed.location ?? 'No location'} muted={!parsed.location} />
         </Section>
       )}
 
@@ -86,10 +87,12 @@ export function QuickAddScreen({ navigation }: ScreenProps<'QuickAdd'>) {
   );
 }
 
-function PreviewRow({ icon, label, value, muted, hint }: { icon: string; label: string; value: string; muted?: boolean; hint?: string }) {
+function PreviewRow({ icon, label, value, muted, hint }: { icon: IconName; label: string; value: string; muted?: boolean; hint?: string }) {
   return (
     <View style={styles.row}>
-      <Text style={styles.rowIcon}>{icon}</Text>
+      <View style={styles.rowIcon}>
+        <Icon name={icon} size={16} color={colors.primary} />
+      </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.rowLabel}>{label}</Text>
         <Text style={[styles.rowValue, muted && styles.muted]}>{value}</Text>
@@ -102,13 +105,20 @@ function PreviewRow({ icon, label, value, muted, hint }: { icon: string; label: 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: 48 },
-  inputCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 16, marginBottom: spacing.lg },
-  input: { fontSize: 20, fontWeight: '600', color: colors.text, minHeight: 60 },
+  inputCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: 16,
+    marginBottom: spacing.lg,
+  },
+  input: { fontSize: 22, fontFamily: fonts.display, color: colors.text, minHeight: 60 },
   examples: { marginBottom: spacing.lg, gap: 8 },
-  examplesTitle: { fontSize: 12, fontWeight: '600', color: colors.textMuted, letterSpacing: 0.6 },
+  examplesTitle: { fontSize: 11, fontWeight: '700', color: colors.textMuted, letterSpacing: 1.4 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   row: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
-  rowIcon: { fontSize: 18, marginTop: 2 },
+  rowIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   rowLabel: { fontSize: 12, fontWeight: '600', color: colors.textMuted },
   rowValue: { fontSize: 16, color: colors.text, marginTop: 2 },
   muted: { color: colors.textFaint },

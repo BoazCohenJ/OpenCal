@@ -1,13 +1,13 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { ColorPicker } from '../components/ColorPicker';
-import { EmojiPicker } from '../components/EmojiPicker';
+import { IconButtonTile, IconPicker } from '../components/IconPicker';
 import { CalendarSelector, ReminderPicker, TagEditor } from '../components/Selectors';
 import { Button, Chip, Divider, Field, HeaderButton, Section, Stepper, SwitchRow, TextField } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { EventTemplate } from '../models/Template';
 import type { ScreenProps } from '../navigation/types';
-import { colors, radius, spacing } from '../theme';
+import { colors, fonts, radius, spacing } from '../theme';
 import { confirmAsync, notify } from '../utils/confirm';
 import { formatDuration } from '../utils/format';
 import { newId } from '../utils/id';
@@ -15,7 +15,7 @@ import { newId } from '../utils/id';
 const DURATIONS = [15, 30, 45, 60, 90, 120, 180];
 
 export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateEdit'>) {
-  const { templates, calendars, calendarsById, saveTemplate, deleteTemplate, allTags } = useCalendarContext();
+  const { templates, calendars, calendarsById, saveTemplate, deleteTemplate, allTags, notificationPrefs } = useCalendarContext();
   const existing = templates.find((t) => t.id === route.params?.templateId);
   const [form, setForm] = useState<EventTemplate>(
     () =>
@@ -26,7 +26,7 @@ export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateE
         durationMinutes: 60,
         isAllDay: false,
         calendarId: calendars[0]?.id ?? '',
-        reminders: [10],
+        reminders: [...notificationPrefs.defaultReminders],
         tags: [],
         sortOrder: templates.length,
       },
@@ -34,6 +34,7 @@ export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateE
   const [showEmoji, setShowEmoji] = useState(false);
   const update = (patch: Partial<EventTemplate>) => setForm((f) => ({ ...f, ...patch }));
   const calendar = calendarsById[form.calendarId];
+  const stampColor = form.color ?? calendar?.color ?? colors.primary;
   const days = Math.max(1, Math.round(form.durationMinutes / 1440));
 
   const save = () => {
@@ -72,9 +73,7 @@ export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateE
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.titleCard}>
-        <Pressable style={styles.emojiButton} onPress={() => setShowEmoji((v) => !v)} accessibilityLabel="Choose emoji">
-          <Text style={styles.emojiText}>{form.emoji ?? '🔖'}</Text>
-        </Pressable>
+        <IconButtonTile value={form.emoji} color={stampColor} onPress={() => setShowEmoji((v) => !v)} />
         <TextInput
           style={styles.titleInput}
           placeholder="Event title, e.g. Coffee with John"
@@ -85,8 +84,9 @@ export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateE
         />
       </View>
       {showEmoji ? (
-        <Section title="Emoji">
-          <EmojiPicker
+        <Section title="Icon">
+          <IconPicker
+            color={stampColor}
             value={form.emoji}
             onChange={(emoji) => {
               update({ emoji });
@@ -157,9 +157,17 @@ export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateE
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: 48 },
-  titleCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: radius.lg, padding: 12, marginBottom: spacing.lg },
-  emojiButton: { width: 48, height: 48, borderRadius: 14, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  emojiText: { fontSize: 26 },
-  titleInput: { flex: 1, fontSize: 20, fontWeight: '700', color: colors.text, paddingVertical: 6 },
+  titleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: 12,
+    marginBottom: spacing.lg,
+  },
+  titleInput: { flex: 1, fontSize: 20, fontFamily: fonts.display, color: colors.text, paddingVertical: 6 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });

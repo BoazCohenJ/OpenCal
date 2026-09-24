@@ -1,3 +1,9 @@
+import {
+  Fraunces_500Medium_Italic,
+  Fraunces_600SemiBold,
+  Fraunces_800ExtraBold,
+  useFonts,
+} from '@expo-google-fonts/fraunces';
 import { DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
@@ -11,12 +17,13 @@ import { CalendarScreen } from './src/screens/CalendarScreen';
 import { CalendarsScreen } from './src/screens/CalendarsScreen';
 import { EventEditScreen } from './src/screens/EventEditScreen';
 import { HiddenEventsListScreen } from './src/screens/HiddenEventsListScreen';
+import { NotificationsScreen } from './src/screens/NotificationsScreen';
 import { QuickAddScreen } from './src/screens/QuickAddScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { StampScreen } from './src/screens/StampScreen';
 import { TemplateEditScreen } from './src/screens/TemplateEditScreen';
 import { TemplatesScreen } from './src/screens/TemplatesScreen';
-import { colors } from './src/theme';
+import { colors, fonts } from './src/theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -34,7 +41,8 @@ const navigationTheme: Theme = {
 
 function RootNavigator() {
   const { ready, error } = useCalendarContext();
-  if (!ready) {
+  const [fontsLoaded, fontError] = useFonts({ Fraunces_500Medium_Italic, Fraunces_600SemiBold, Fraunces_800ExtraBold });
+  if (!ready || (!fontsLoaded && !fontError)) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={colors.primary} />
@@ -54,7 +62,7 @@ function RootNavigator() {
       screenOptions={{
         headerShadowVisible: false,
         headerTintColor: colors.primary,
-        headerTitleStyle: { color: colors.text, fontWeight: '700' },
+        headerTitleStyle: { color: colors.text, fontFamily: fonts.display, fontSize: 20 },
         headerStyle: { backgroundColor: colors.bg },
         contentStyle: { backgroundColor: colors.bg },
         headerBackButtonDisplayMode: 'minimal',
@@ -62,6 +70,7 @@ function RootNavigator() {
     >
       <Stack.Screen name="Calendar" component={CalendarScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
       <Stack.Screen name="Calendars" component={CalendarsScreen} options={{ title: 'Calendars' }} />
       <Stack.Screen name="CalendarEdit" component={CalendarEditScreen} options={{ title: 'Calendar' }} />
       <Stack.Screen name="Templates" component={TemplatesScreen} options={{ title: 'Stamps' }} />
@@ -91,6 +100,6 @@ export default function App() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.bg, gap: 8 },
-  errorTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
+  errorTitle: { fontSize: 22, fontFamily: fonts.display, color: colors.text },
   errorText: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
 });
