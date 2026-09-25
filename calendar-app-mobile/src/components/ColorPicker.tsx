@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { createStyles, PALETTE, radius, useTheme } from '../theme';
 import { normalizeHex, readableOn } from '../utils/color';
@@ -23,9 +23,12 @@ export function ColorPicker({
   const styles = useStyles();
   const { colors } = useTheme();
   const [text, setText] = useState(value ?? '');
-  useEffect(() => {
-    setText((prev) => (normalizeHex(prev, false) === (value ?? null) ? prev : value ?? ''));
-  }, [value]);
+  // Follow outside changes (palette, wheel, reset) but keep a half-typed value that already matches.
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
+    if (normalizeHex(text, false) !== (value ?? null)) setText(value ?? '');
+  }
 
   const current = value ?? inheritColor ?? PALETTE[0]!;
   const inPalette = PALETTE.some((c) => c.toUpperCase() === current.toUpperCase());

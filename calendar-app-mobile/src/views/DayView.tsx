@@ -1,5 +1,5 @@
 import { isSameDay } from 'date-fns';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   GestureResponderEvent,
@@ -66,28 +66,29 @@ function EventBlock({
   const styles = useStyles();
   const { colors } = useTheme();
   const latest = useRef({ drag, onToggle });
-  latest.current = { drag, onToggle };
+  useLayoutEffect(() => {
+    latest.current = { drag, onToggle };
+  });
 
-  const responder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderTerminationRequest: () => false,
-        onShouldBlockNativeResponder: () => true,
-        onPanResponderGrant: () => latest.current.drag.onStart(),
-        onPanResponderMove: (_, g) => latest.current.drag.onMove(g.dy),
-        onPanResponderRelease: (_, g) => {
-          if (Math.abs(g.dy) < TAP_SLOP && Math.abs(g.dx) < TAP_SLOP) {
-            latest.current.drag.onEnd(null);
-            latest.current.onToggle();
-          } else {
-            latest.current.drag.onEnd(g.dy);
-          }
-        },
-        onPanResponderTerminate: () => latest.current.drag.onEnd(null),
-      }),
-    [],
+  // eslint-disable-next-line react-hooks/refs -- the handlers read refs when a gesture fires, never during render
+  const [responder] = useState(() =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => true,
+      onPanResponderGrant: () => latest.current.drag.onStart(),
+      onPanResponderMove: (_, g) => latest.current.drag.onMove(g.dy),
+      onPanResponderRelease: (_, g) => {
+        if (Math.abs(g.dy) < TAP_SLOP && Math.abs(g.dx) < TAP_SLOP) {
+          latest.current.drag.onEnd(null);
+          latest.current.onToggle();
+        } else {
+          latest.current.drag.onEnd(g.dy);
+        }
+      },
+      onPanResponderTerminate: () => latest.current.drag.onEnd(null),
+    }),
   );
 
   const { occ } = pos;
@@ -172,13 +173,18 @@ export function DayView({
   const [scrollEnabled, setScrollEnabled] = useState(true);
   const [dragMinutes, setDragMinutes] = useState(0);
   const [columnWidth, setColumnWidth] = useState(0);
-  const dragY = useRef(new Animated.Value(0)).current;
+  const [dragY] = useState(() => new Animated.Value(0));
   const scrollRef = useRef<ScrollView>(null);
   const lastSnap = useRef(0);
   const selectionMode = selected.length > 0;
   const isToday = isSameDay(date, new Date());
 
-  useEffect(() => setSelected([]), [key]);
+  // Leaving the day clears the selection (adjust-state-on-prop-change, no extra effect pass).
+  const [prevKey, setPrevKey] = useState(key);
+  if (key !== prevKey) {
+    setPrevKey(key);
+    setSelected([]);
+  }
   useEffect(() => onSelectionModeChange?.(selectionMode), [selectionMode, onSelectionModeChange]);
   useEffect(() => () => onSelectionModeChange?.(false), [onSelectionModeChange]);
 
@@ -190,7 +196,9 @@ export function DayView({
   }, [key]);
 
   const latest = useRef({ selected, onMoveEvents });
-  latest.current = { selected, onMoveEvents };
+  useLayoutEffect(() => {
+    latest.current = { selected, onMoveEvents };
+  });
 
   const drag = useMemo<DragHandlers>(
     () => ({

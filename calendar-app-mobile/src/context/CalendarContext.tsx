@@ -61,38 +61,57 @@ export const useCalendarContext = (): CalendarContextValue => {
   return ctx;
 };
 
-export function CalendarProvider({ children }: { children: React.ReactNode }) {
-  const [ready, setReady] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [calendars, setCalendars] = useState<Calendar[]>([]);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [templates, setTemplates] = useState<EventTemplate[]>([]);
-  const [hiddenCalendarIds, setHiddenCalendarIds] = useState<string[]>([]);
-  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPrefs>(() => normalizeNotificationPrefs(null));
-  const [reminderStatus, setReminderStatus] = useState<ScheduleResult | null>(null);
-  const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
+interface InitialData {
+  calendars: Calendar[];
+  events: Event[];
+  templates: EventTemplate[];
+  hiddenCalendarIds: string[];
+  themeMode: ThemeMode;
+  notificationPrefs: NotificationPrefs;
+}
 
-  useEffect(() => {
-    try {
-      db.initDatabase();
-      if (db.loadCalendars().length === 0) {
-        DEFAULT_CALENDARS.forEach((c, i) =>
-          db.saveCalendar({ id: newId(), name: c.name, color: c.color, sortOrder: i, pauseWindows: [] }),
-        );
-      }
-      setCalendars(db.loadCalendars());
-      setEvents(db.loadEvents());
-      setTemplates(db.loadTemplates());
-      setHiddenCalendarIds(db.getSetting<string[]>(HIDDEN_CALENDARS_KEY, []));
-      setThemeModeState(db.getSetting<ThemeMode>(THEME_MODE_KEY, 'system'));
-      setNotificationPrefs(normalizeNotificationPrefs(db.getSetting<Partial<NotificationPrefs> | null>(NOTIFICATION_PREFS_KEY, null)));
-    } catch (e) {
-      console.error('Failed to open the calendar database', e);
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setReady(true);
+/** Opens (and if needed seeds) the database synchronously; runs once, before the first render. */
+function loadInitialData(): { data: InitialData; error: null } | { data: null; error: string } {
+  try {
+    db.initDatabase();
+    if (db.loadCalendars().length === 0) {
+      DEFAULT_CALENDARS.forEach((c, i) =>
+        db.saveCalendar({ id: newId(), name: c.name, color: c.color, sortOrder: i, pauseWindows: [] }),
+      );
     }
-  }, []);
+    return {
+      error: null,
+      data: {
+        calendars: db.loadCalendars(),
+        events: db.loadEvents(),
+        templates: db.loadTemplates(),
+        hiddenCalendarIds: db.getSetting<string[]>(HIDDEN_CALENDARS_KEY, []),
+        themeMode: db.getSetting<ThemeMode>(THEME_MODE_KEY, 'system'),
+        notificationPrefs: normalizeNotificationPrefs(
+          db.getSetting<Partial<NotificationPrefs> | null>(NOTIFICATION_PREFS_KEY, null),
+        ),
+      },
+    };
+  } catch (e) {
+    console.error('Failed to open the calendar database', e);
+    return { data: null, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export function CalendarProvider({ children }: { children: React.ReactNode }) {
+  const [initial] = useState(loadInitialData);
+  // The database is synchronous, so data is ready on the first render.
+  const ready = true;
+  const error = initial.error;
+  const [calendars, setCalendars] = useState<Calendar[]>(initial.data?.calendars ?? []);
+  const [events, setEvents] = useState<Event[]>(initial.data?.events ?? []);
+  const [templates, setTemplates] = useState<EventTemplate[]>(initial.data?.templates ?? []);
+  const [hiddenCalendarIds, setHiddenCalendarIds] = useState<string[]>(initial.data?.hiddenCalendarIds ?? []);
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPrefs>(
+    () => initial.data?.notificationPrefs ?? normalizeNotificationPrefs(null),
+  );
+  const [reminderStatus, setReminderStatus] = useState<ScheduleResult | null>(null);
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(initial.data?.themeMode ?? 'system');
 
   const calendarsById = useMemo(() => {
     const map: Record<string, Calendar> = {};
