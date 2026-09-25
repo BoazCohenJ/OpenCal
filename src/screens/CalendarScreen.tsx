@@ -12,8 +12,8 @@ import {
   startOfMonth,
   startOfWeek,
 } from 'date-fns';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EventGlyph, Icon } from '../components/Icon';
 import { Sheet } from '../components/Sheet';
@@ -80,6 +80,8 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
     transition.setValue(0);
     Animated.timing(transition, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
   }, [cursorMs, mode, transition]);
+  // Follows the finger during a horizontal swipe (see swipe responder below).
+  const [dragX] = useState(() => new Animated.Value(0));
   // Stable animated nodes (see Segmented): only rebuilt when the slide direction changes.
   const bodyMotion = useMemo(
     () => ({
@@ -87,9 +89,10 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
       transform: [
         { translateX: transition.interpolate({ inputRange: [0, 1], outputRange: [direction * 36, 0] }) },
         { translateY: transition.interpolate({ inputRange: [0, 1], outputRange: [direction === 0 ? 10 : 0, 0] }) },
+        { translateX: dragX },
       ],
     }),
-    [transition, direction],
+    [transition, direction, dragX],
   );
 
   const changeMode = (m: ViewMode) => {
@@ -102,6 +105,32 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
       mode === 'day' ? addDays(c, dir) : mode === 'week' || mode === 'schedule' ? addWeeks(c, dir) : addMonths(c, dir),
     );
   };
+  // Swipe left/right on Day, Week and Month to move by one period. Only clearly horizontal
+  // gestures are claimed, so vertical scrolling, taps and the Day view event drag keep working.
+  const swipe = useRef({ enabled: false, step });
+  useLayoutEffect(() => {
+    swipe.current = { enabled: mode !== 'schedule' && !selectionActive, step };
+  });
+  const springBack = () => Animated.spring(dragX, { toValue: 0, useNativeDriver: true, speed: 30, bounciness: 6 }).start();
+  // eslint-disable-next-line react-hooks/refs -- the handlers read refs when a gesture fires, never during render
+  const [swipeResponder] = useState(() =>
+    PanResponder.create({
+      onMoveShouldSetPanResponderCapture: (_, g) =>
+        swipe.current.enabled && Math.abs(g.dx) > 16 && Math.abs(g.dx) > Math.abs(g.dy) * 1.8,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderMove: (_, g) => dragX.setValue(g.dx * 0.55),
+      onPanResponderRelease: (_, g) => {
+        if (Math.abs(g.dx) > 70 || Math.abs(g.vx) > 0.45) {
+          dragX.setValue(0);
+          swipe.current.step(g.dx < 0 ? 1 : -1);
+        } else {
+          springBack();
+        }
+      },
+      onPanResponderTerminate: springBack,
+    }),
+  );
+
   const goToday = () => {
     const today = startOfDay(new Date());
     setDirection(today < cursor ? -1 : 1);
@@ -235,7 +264,7 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
         </ScrollView>
       </View>
 
-      <Animated.View style={[styles.body, bodyMotion]}>
+      <Animated.View style={[styles.body, bodyMotion]} {...swipeResponder.panHandlers}>
         {mode === 'schedule' ? (
           <ScheduleView start={cursor} getOccurrences={getOccurrences} onPressEvent={openEvent} onPressDay={openDay} />
         ) : mode === 'month' ? (
