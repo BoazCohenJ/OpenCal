@@ -4,10 +4,6 @@
 
 <h1 align="center">OpenCal</h1>
 
-
-https://github.com/user-attachments/assets/96c68291-76bc-4ca8-a030-11c235435344
-
-
 <p align="center">
   A calm, local-first calendar for Android (and iOS/web) built with Expo.<br/>
   No accounts, no sync, no ads: your calendar lives on your phone.
@@ -16,6 +12,13 @@ https://github.com/user-attachments/assets/96c68291-76bc-4ca8-a030-11c235435344
 <p align="center">
   <a href="https://github.com/BoazCohenJ/OpenCal/releases/latest"><b>Download the latest Android APK</b></a>
 </p>
+
+<p align="center">
+  <b>The 45-second tour</b> (sound on): Quick Add, stamps, pausing a repeat, scheduled Do Not Disturb,<br/>
+  reminders to the minute, calendar defaults and custom colors, all real footage from the app.
+</p>
+
+https://github.com/user-attachments/assets/96c68291-76bc-4ca8-a030-11c235435344
 
 <p align="center">
   <img src="docs/screenshots/month.png" width="24%" alt="Month view" />
@@ -88,6 +91,7 @@ src/context/            app state (CalendarContext)
 src/services/           database, occurrences/recurrence, notifications, focus windows
 src/models/             data types
 scripts/make-logo.js    generates the app icon, splash and favicon
+promo/                  renders the promo video from code (see promo/README.md)
 ```
 
 ## License
