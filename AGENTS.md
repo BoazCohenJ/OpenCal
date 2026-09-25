@@ -34,6 +34,24 @@ Run lint and typecheck before declaring any task done.
 Use EAS to build, sign, and submit the app in the cloud (`eas build`, `eas submit`) and to ship over-the-air updates (`eas update`) — no local Xcode or Android Studio required. Run EAS CLI as `bunx eas-cli <command>` in Bun projects, or `npx eas-cli@latest <command>` otherwise; substitute that for bare `eas` in docs examples.
 Docs: https://docs.expo.dev/eas/index.md
 
+## Releases and over-the-air updates (how this project ships)
+
+The phone runs an installed **preview** APK (`eas.json` → `preview` profile, channel `preview`, package `com.boazcohen.opencal`). Pushing to `main` updates it over the air:
+
+- `.github/workflows/eas-update.yml` runs on every push to `main` (Markdown and `.claude/` changes are ignored): `npm ci` → `tsc --noEmit` → `expo lint` → `eas update --channel preview --environment preview --platform android`. A failing typecheck or lint blocks the update. It needs the `EXPO_TOKEN` repository secret and skips with a notice without it.
+- The app checks for updates on launch and when it returns to the foreground (`src/components/UpdateWatcher.tsx`), downloads them, and offers a **Restart** toast.
+- `--environment` is required by `eas update` for Expo SDK 55+; keep it in any manual command.
+
+**Runtime version rule (important):** `app.json` uses `"runtimeVersion": { "policy": "appVersion" }`, so an update only reaches builds whose `version` matches. JS/asset-only changes (screens, logic, styles, images bundled by JS) ship automatically. Anything native does **not**:
+
+- adding/upgrading a package with native code (check with `npx expo install` output or the package docs),
+- changing native config in `app.json` (permissions, icons, splash, package id, plugins),
+- upgrading the Expo SDK.
+
+For those, in the same change: bump `version` in `app.json` (e.g. `1.0.0` → `1.1.0`), commit, then build and reinstall: `npx eas-cli@latest build -p android --profile preview`. Never ship JS that depends on new native code to an old version, since it would crash on the installed build.
+
+`fingerprint` was deliberately not used: Windows checkouts convert line endings (CRLF) while CI checks out LF, which can make fingerprints differ between builds and updates so updates would never apply.
+
 ## Rules
 
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
