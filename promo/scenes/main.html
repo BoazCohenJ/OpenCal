@@ -1,0 +1,488 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>OpenCal promo: main</title>
+<style>
+  @font-face { font-family: F6; src: url(../../node_modules/@expo-google-fonts/fraunces/600SemiBold/Fraunces_600SemiBold.ttf); }
+  @font-face { font-family: F8; src: url(../../node_modules/@expo-google-fonts/fraunces/800ExtraBold/Fraunces_800ExtraBold.ttf); }
+  @font-face { font-family: F5i; src: url(../../node_modules/@expo-google-fonts/fraunces/500Medium_Italic/Fraunces_500Medium_Italic.ttf); }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #F5EFE6; }
+  .layer { position: absolute; inset: 0; overflow: hidden; }
+  .full { position: absolute; left: 0; top: 0; }
+  .dots { position: absolute; inset: -80px; background-size: 38px 38px; }
+  .blob { position: absolute; width: 900px; height: 900px; margin: -450px 0 0 -450px; border-radius: 50%; }
+  .star { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #F2EBE0; }
+  #sun { position: absolute; width: 300px; height: 300px; margin: -150px 0 0 -150px; border-radius: 50%;
+         background: radial-gradient(circle at 40% 38%, #FFD08A, #F4A259 45%, #E2553A 100%); box-shadow: 0 0 120px 40px rgba(244,162,89,.45); }
+  #moon { position: absolute; width: 150px; height: 150px; margin: -75px 0 0 -75px; border-radius: 50%;
+          box-shadow: inset -34px 18px 0 0 #F2EBE0; filter: drop-shadow(0 0 30px rgba(242,235,224,.35)); transform: rotate(-20deg); }
+  .pills { position: absolute; left: 0; right: 0; top: 610px; display: flex; justify-content: center; gap: 30px; }
+  .pill { display: flex; align-items: center; gap: 14px; padding: 16px 38px 18px 28px; border: 3px solid #221D17; border-radius: 999px;
+          font: 50px F6; color: #221D17; background: #FFFCF7; box-shadow: 0 10px 28px rgba(58,42,24,.10); }
+  .pill svg { width: 44px; height: 44px; overflow: visible; }
+  .corner { position: absolute; left: 64px; top: 44px; display: flex; align-items: center; gap: 16px; font: 50px F8; letter-spacing: -1px; }
+  .corner svg { width: 96px; height: 96px; }
+  .cap { position: absolute; top: 380px; width: 780px; }
+  .cap .l { white-space: nowrap; font: 104px/1.0 F8; letter-spacing: -2px; }
+  .cap .w { display: inline-block; margin-right: 0.24em; }
+  .cap .sub { margin-top: 30px; font: 40px/1.3 F6; white-space: normal; }
+  .pw { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+  .phone { position: absolute; left: -222px; top: -464px; width: 444px; height: 928px; border-radius: 66px; background: #0E0B09;
+           box-shadow: 0 40px 90px rgba(40,28,16,.36), inset 0 0 0 2px #3A3129; }
+  .screen { position: absolute; left: 14px; top: 14px; width: 416px; height: 900px; border-radius: 52px; overflow: hidden; background: #F5EFE6; }
+  .screen img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  .marks { position: absolute; left: 0; top: 0; overflow: visible; }
+  .chip { position: absolute; display: flex; align-items: center; gap: 14px; height: 70px; padding: 0 30px 2px 24px; border-radius: 999px;
+          font: 32px F6; color: #F2EBE0; background: #1F1B16; border: 2px solid #39322A; white-space: nowrap; box-sizing: border-box; }
+  .chip i { width: 14px; height: 14px; border-radius: 50%; background: #F06A4D; }
+  .end-meta { position: absolute; left: 0; right: 0; text-align: center; }
+  .btn { display: inline-block; padding: 20px 46px 24px; border-radius: 999px; background: #E2553A; color: #FFFCF7; font: 40px F8;
+         box-shadow: 0 14px 34px rgba(226,85,58,.35); }
+</style>
+</head>
+<body>
+<div id="stage" class="layer"></div>
+<script src="lib.js"></script>
+<script src="../out/footage/footage.js"></script>
+<script>
+// Main part: continues from the intro's last frame, then cuts to the beat of the main track.
+// Day turns to night partway through (sun sets, moon rises) and the app is simply in dark mode after.
+const LIGHT = { text: INK, muted: '#7C7266' };
+const DARK = { text: '#F2EBE0', muted: '#A99F92' };
+const FOOT = '../out/footage/';
+const K = 416 / 390; // app CSS px -> phone screen px
+
+// Beat grid of "Light Tone" (~95.75 BPM). D is where its drop lands: the phone slams in.
+const B = 60 / 95.75;
+const D = 1.9;
+const beat = (n) => D + n * B;
+
+const PROMISES = ['Open source', 'No account', 'No ads'];
+// Feature beats: [from, to) in beats; clip seconds [trim, until] are squeezed into that span.
+// side = where the phone sits (the caption takes the other side). zooms are in clip seconds, app px.
+const SEQ = [
+  { name: 'quickadd', from: 0, to: 8, trim: 0.3, until: 8.4, side: 'R', title: ['Just type it.'], sub: 'Plain words become events.',
+    zooms: [{ at: 1.0, until: 5.0, s: 1.42, ax: 195, ay: 250 }] },
+  { name: 'stamp', from: 8, to: 13, trim: 0.3, until: 3.9, side: 'L', title: ['One-tap', 'stamps.'], sub: 'Your regulars, dropped into any free slot.',
+    zooms: [{ at: 1.9, until: 3.9, s: 1.35, ax: 230, ay: 700 }] },
+  { name: 'pause', from: 13, to: 19, trim: 0.35, until: 7.8, side: 'R', title: ['Pause a repeat.'], sub: 'Skip a few weeks. It resumes on its own.',
+    zooms: [{ at: 5.9, until: 7.8, s: 1.3, ax: 195, ay: 560 }] },
+  // (sunset: beats 19-22)
+  { name: 'dnd', from: 22, to: 27, trim: 0.3, until: 4.8, side: 'L', dark: true, title: ['Do Not Disturb,', 'on a schedule.'], sub: 'Set it once, like an event.' },
+  { name: 'reminder', from: 27, to: 32, trim: 2.3, until: 7.5, side: 'R', dark: true, title: ['Reminders to', 'the minute.'], sub: 'Seven minutes before? Sure.',
+    zooms: [{ at: 3.2, until: 5.2, s: 1.3, ax: 195, ay: 700 }] },
+  { name: 'defaults', from: 32, to: 37, trim: 0.9, until: 5.8, side: 'L', dark: true, title: ['Calendars with', 'defaults.'], sub: 'New events inherit reminders, repeat and place.' },
+  { name: 'wheel', from: 37, to: 44, trim: 0.3, until: 9.2, side: 'R', dark: true, title: ['Any color.', 'Saved by name.'], sub: 'Pick it on the wheel, keep it as “Sunset”.',
+    zooms: [{ at: 1.2, until: 3.8, s: 1.3, ax: 195, ay: 640 }, { at: 7.3, until: 9.2, s: 1.3, ax: 150, ay: 420 }] },
+];
+const SUNSET = [19, 22]; // beats: sun sets, moon rises; dark mode is on at the second
+const CHIPS_AT = 44;
+const END_AT = 48;
+const CHIPS = [
+  'Swipe between days', 'Four views', 'Drag to reschedule', 'Dark mode', 'Pause whole calendars', 'Quiet hours',
+  'All-day reminders', 'Event icons', 'Event list & filters', '20 named colors', 'Undo on stamps', 'Stays on your phone',
+];
+const SIDE_X = { R: 1330, L: 590 };
+const CAP_X = { R: 170, L: 1010 }; // caption position when the phone is on that side
+
+const T = {
+  settle: [0.0, 0.45], pills: [0.25, 0.45, 0.65], whip: [1.4, 1.85], corner: [D + 0.1, D + 0.55],
+  sunrise: [beat(END_AT) - 0.1, beat(END_AT) + 0.9],
+};
+T.endIn = T.sunrise[1] - 0.3;
+T.ring = [T.endIn, T.endIn + 0.5];
+T.end = T.endIn + 4.4;
+
+const CUES = [];
+const els = {};
+
+// ---------- sky ----------
+// Sky colors (top, bottom) along the sunset: day -> golden -> dusk -> night.
+const SKY = [
+  [0, '#F5EFE6', '#F5EFE6'],
+  [0.35, '#F6D9B8', '#F2B48A'],
+  [0.65, '#6E4A5E', '#C8735A'],
+  [1, '#15120F', '#1C1714'],
+];
+const hex2rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const mix = (a, b, k) => {
+  const A = hex2rgb(a), Bc = hex2rgb(b);
+  return `rgb(${A.map((v, i) => Math.round(lerp(v, Bc[i], k))).join(',')})`;
+};
+function skyAt(n) {
+  for (let i = 1; i < SKY.length; i++) {
+    if (n <= SKY[i][0]) {
+      const k = (n - SKY[i - 1][0]) / (SKY[i][0] - SKY[i - 1][0]);
+      return [mix(SKY[i - 1][1], SKY[i][1], k), mix(SKY[i - 1][2], SKY[i][2], k)];
+    }
+  }
+  return [SKY[SKY.length - 1][1], SKY[SKY.length - 1][2]];
+}
+
+// ---------- building ----------
+function brandSVG(id, wordColor) {
+  return `<svg class="full" width="1920" height="1080" viewBox="0 0 1920 1080">
+    <g id="${id}Logo">${logoMark(id)}</g>
+    <text id="${id}Word" x="960" y="760" text-anchor="middle" font-family="F8" font-size="140" fill="${wordColor}" letter-spacing="-2">OpenCal</text>
+  </svg>`;
+}
+
+function captionHTML(id, cap, colors, x) {
+  const words = cap.title.map((line) => `<div class="l">${line.split(' ').map((w) => `<span class="w" style="color:${colors.text}">${w}</span>`).join('')}</div>`).join('');
+  return `<div class="cap" id="${id}" style="left:${x}px">${words}${cap.sub ? `<div class="sub w" style="color:${colors.muted}">${cap.sub}</div>` : ''}</div>`;
+}
+
+/** Pen ellipse (1.1 turns, drifting outward) around a point in phone px. */
+function penEllipse(cx, cy, rx, ry) {
+  const pts = [];
+  for (let i = 0; i <= 120; i++) {
+    const t = i / 120, a = ((-100 + 400 * t) * Math.PI) / 180, g = 0.96 + 0.1 * t;
+    pts.push(`${(cx + rx * g * Math.cos(a)).toFixed(1)} ${(cy + ry * g * Math.sin(a)).toFixed(1)}`);
+  }
+  return `M ${pts[0]} L ${pts.slice(1).join(' L ')}`;
+}
+
+function phoneHTML(id, clips) {
+  const marks = [];
+  for (const c of clips) {
+    (FOOTAGE[c.name]?.cues || []).forEach((m, i) => {
+      if (m.type !== 'mark') return;
+      const r = m.rect;
+      const cx = 14 + (r.x + r.w / 2) * K, cy = 14 + (r.y + r.h / 2) * K;
+      marks.push(`<path id="mk-${id}-${c.name}-${i}" d="${penEllipse(cx, cy, (r.w * K) / 2 + 22, (r.h * K) / 2 + 16)}" pathLength="1" fill="none" stroke="${TOMATO}" stroke-width="7" stroke-linecap="round" opacity="0"/>`);
+    });
+  }
+  return `<div class="pw" id="pw${id}"><div class="phone" id="phone${id}"><div class="screen">
+      ${clips.map((c) => `<img id="img-${id}-${c.name}" style="display:none">`).join('')}
+    </div><svg class="marks" width="444" height="928">${marks.join('')}</svg></div></div>`;
+}
+
+function build() {
+  const r = rng(42);
+  const stars = Array.from({ length: 70 }, (_, i) => `<div class="star" id="star${i}" style="left:${Math.round(r() * 1920)}px;top:${Math.round(r() * 760)}px"></div>`).join('');
+  $('stage').innerHTML =
+    `<div class="layer" id="sky"></div>${stars}<div id="sun"></div><div id="moon"></div>
+     <div class="dots" id="dots"></div>
+     <div class="blob" id="blob1" style="background:radial-gradient(circle, rgba(226,85,58,.10), rgba(226,85,58,0) 65%)"></div>
+     <div class="blob" id="blob2" style="background:radial-gradient(circle, rgba(242,153,74,.10), rgba(242,153,74,0) 65%)"></div>` +
+    `<div id="hero">${brandSVG('b', INK)}
+      <div class="pills">${PROMISES.map((p, i) => `<div class="pill" id="pill${i}"><svg viewBox="0 0 44 44"><path id="tick${i}" d="M7 24 L18 34 L38 9" pathLength="1" fill="none" stroke="${TOMATO}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>${p}</div>`).join('')}</div></div>` +
+    `<div class="corner" id="corner"><svg viewBox="0 0 1000 1000">${logoMark('cm')}</svg><span id="cornerWord">OpenCal</span></div>` +
+    SEQ.map((c, i) => captionHTML(`cap${i}`, c, c.dark ? DARK : LIGHT, CAP_X[c.side])).join('') +
+    captionHTML('capMore', { title: ['And much more.'], sub: '' }, DARK, CAP_X.R) +
+    `<div id="chips">${CHIPS.map((c, i) => `<div class="chip" id="chip${i}"><i></i>${c}</div>`).join('')}</div>` +
+    phoneHTML('Main', SEQ) +
+    `<div id="endCard"><svg class="full" width="1920" height="1080" viewBox="0 0 1920 1080">
+      <g transform="translate(960 300) scale(0.3) translate(-500 -500)" id="eLogoG">${logoMark('e')}</g>
+      <text id="eWord" x="960" y="590" text-anchor="middle" font-family="F8" font-size="128" fill="${INK}" letter-spacing="-2">OpenCal</text>
+    </svg>
+    <div class="end-meta" id="eTag" style="top:630px;font:44px F5i;color:#7C7266">The calendar that does more, and stays yours.</div>
+    <div class="end-meta" id="eMeta" style="top:730px;font:34px F6;color:${INK}">Open source · MIT · <span style="color:${TOMATO}">github.com/BoazCohenJ/OpenCal</span></div>
+    <div class="end-meta" id="eBtn" style="top:820px"><span class="btn">Download for Android</span></div></div>`;
+
+  for (const el of document.querySelectorAll('[id]')) els[el.id] = el;
+  els.capMore.style.top = '250px';
+  for (const c of SEQ) {
+    c.start = beat(c.from);
+    c.end = beat(c.to);
+    c.rate = (c.until - c.trim) / (c.end - c.start);
+  }
+  layoutChips();
+  buildPoses();
+  buildCues();
+}
+
+// Chips: rows on the left, each bursting out of the phone.
+const chipLayout = [];
+function layoutChips() {
+  const X0 = 170, MAXW = 900, Y0 = 410, ROW = 92, GAP = 18;
+  let x = X0, y = Y0;
+  CHIPS.forEach((_, i) => {
+    const el = els[`chip${i}`];
+    const w = el.offsetWidth;
+    if (x + w > X0 + MAXW) {
+      x = X0;
+      y += ROW;
+    }
+    chipLayout.push({ el, x, y, w, t: beat(CHIPS_AT) + 0.15 + i * 0.075 });
+    x += w + GAP;
+  });
+}
+
+// ---------- phone choreography ----------
+const poses = [];
+function move(t0, t1, to, { ease: e = ease.inOut, swing = 0 } = {}) {
+  poses.push({ t0, t1, to, e, swing });
+}
+function buildPoses() {
+  const P = (side, extra = {}) => ({ x: SIDE_X[side], y: 540, s: 1, ry: 0, rz: 0, ...extra });
+  poses.push({ t0: -1, t1: -1, to: { x: 1560, y: 1500, s: 1.1, ry: -30, rz: 24 } });
+  move(D - 0.38, D + 0.02, P('R'), { ease: ease.outBack });
+  for (let i = 1; i < SEQ.length; i++) {
+    const tb = SEQ[i].start;
+    if (SEQ[i].name === 'dnd') continue; // handled by the sunset moves
+    move(tb - 0.32, tb + 0.24, P(SEQ[i].side), { swing: SEQ[i].side === 'L' ? 1 : -1 });
+  }
+  // Sunset: the phone steps to the middle and watches the sky, then swings left as night falls.
+  const s0 = beat(SUNSET[0]), s1 = beat(SUNSET[1]);
+  move(s0 - 0.1, s0 + 0.55, { x: 960, y: 560, s: 0.86, ry: 0, rz: 0 });
+  move(s1 - 0.32, s1 + 0.24, P('L'), { swing: 1 });
+  const tc = beat(CHIPS_AT);
+  move(tc, tc + 0.6, P('R', { x: 1370, s: 0.94, rz: 2 }));
+  // Sunrise: the phone drops away for the end card.
+  move(T.sunrise[0], T.sunrise[0] + 0.6, { x: 1450, y: 1700, s: 0.9, ry: 10, rz: 14 }, { ease: ease.in });
+  poses.sort((a, b) => a.t0 - b.t0);
+}
+function poseAt(t) {
+  let cur = poses[0].to;
+  for (let i = 1; i < poses.length; i++) {
+    const p = poses[i];
+    if (t < p.t0) break;
+    const k = p.e(seg(t, p.t0, p.t1));
+    const prev = cur;
+    cur = {};
+    for (const key of ['x', 'y', 's', 'ry', 'rz']) cur[key] = lerp(prev[key], p.to[key], k);
+    if (t < p.t1 && p.swing) {
+      const w = Math.sin(Math.PI * seg(t, p.t0, p.t1));
+      cur.ry += 22 * p.swing * w;
+      cur.s *= 1 - 0.08 * w;
+    }
+  }
+  return cur;
+}
+const poseCSS = (p, dy = 0) =>
+  `translate(${p.x}px, ${p.y + dy}px) perspective(1800px) rotateY(${p.ry}deg) rotateZ(${p.rz}deg) scale(${p.s})`;
+
+// ---------- cues ----------
+function buildCues() {
+  T.pills.forEach((p) => {
+    CUES.push({ t: p, type: 'pop', gain: 0.8 });
+    CUES.push({ t: p + 0.1, type: 'pen', dur: 0.14 });
+  });
+  CUES.push({ t: T.whip[0], type: 'whoosh', dur: 0.55 });
+  CUES.push({ t: D, type: 'thump' });
+  for (let i = 1; i < SEQ.length; i++) CUES.push({ t: SEQ[i].start - 0.32, type: 'whoosh', dur: 0.55, soft: true });
+  for (const c of SEQ) {
+    for (const cue of FOOTAGE[c.name].cues) {
+      const t = c.start + (cue.t - c.trim) / c.rate;
+      if (t < c.start || t > c.end - 0.05) continue;
+      if (cue.type === 'mark') CUES.push({ t, type: 'pen', dur: 0.22 });
+      else if (cue.type === 'swipe') CUES.push({ t, type: 'whoosh', dur: 0.28, soft: true });
+      else CUES.push({ t, type: cue.type });
+    }
+  }
+  CUES.push({ t: beat(SUNSET[0]), type: 'whoosh', dur: 1.6, soft: true });
+  CUES.push({ t: beat(SUNSET[1]) - 0.5, type: 'shine', dur: 1.2 });
+  chipLayout.forEach((c) => CUES.push({ t: c.t, type: 'pop', gain: 0.3 }));
+  CUES.push({ t: T.sunrise[0], type: 'whoosh', dur: 0.9, big: true });
+  CUES.push({ t: T.ring[0], type: 'pen', dur: T.ring[1] - T.ring[0] });
+}
+
+// ---------- per-frame ----------
+const imgState = {};
+async function setFrame(img, src) {
+  if (imgState[img.id] === src) return;
+  imgState[img.id] = src;
+  img.src = src;
+  try {
+    await img.decode();
+  } catch {
+    /* next frame retries */
+  }
+}
+
+let tNow = 0;
+function capAnim(el, tIn, tOut, dir = 1) {
+  if (!el) return;
+  const parts = el.querySelectorAll('.w');
+  let any = false;
+  parts.forEach((w, i) => {
+    const pin = ease.outBack(seg(tNow, tIn + i * 0.05, tIn + i * 0.05 + 0.42));
+    const oin = seg(tNow, tIn + i * 0.05, tIn + i * 0.05 + 0.15);
+    const pout = ease.in(seg(tNow, tOut + i * 0.02, tOut + i * 0.02 + 0.24));
+    const o = oin * (1 - pout);
+    w.style.opacity = o;
+    w.style.transform = `translate(${-90 * dir * pout}px, ${70 * (1 - pin)}px) rotate(${6 * (1 - pin)}deg)`;
+    if (o > 0.001) any = true;
+  });
+  el.style.display = any ? '' : 'none';
+}
+
+function zoomAt(c, clipT) {
+  let z = 1, ax = 195, ay = 422;
+  for (const zz of c.zooms || []) {
+    const k = ease.inOut(seg(clipT, zz.at, zz.at + 0.45)) * (1 - ease.inOut(seg(clipT, zz.until - 0.4, zz.until)));
+    if (k > 0) {
+      z = lerp(1, zz.s, k);
+      ax = zz.ax;
+      ay = zz.ay;
+    }
+  }
+  return { z, ax, ay };
+}
+
+function drawMarks(c, t, showUntil) {
+  (FOOTAGE[c.name].cues || []).forEach((m, i) => {
+    if (m.type !== 'mark') return;
+    const el = els[`mk-Main-${c.name}-${i}`];
+    const ts = c.start + (m.t - c.trim) / c.rate;
+    const on = t >= ts && t < showUntil;
+    drawOn(el, ease.out(seg(t, ts, ts + 0.3)));
+    // drawOn sets style.opacity; override it here (style beats the SVG attribute).
+    el.style.opacity = on ? 1 - seg(t, Math.min(ts + 0.9, showUntil - 0.25), Math.min(ts + 1.1, showUntil - 0.05)) : 0;
+  });
+}
+
+async function seek(t) {
+  tNow = t;
+  const waits = [];
+
+  // Sky: day -> sunset -> night (and back at the end).
+  const set = ease.inOut(seg(t, beat(SUNSET[0]) - 0.2, beat(SUNSET[1]) - 0.05));
+  const rise = ease.inOut(seg(t, ...T.sunrise));
+  const night = set * (1 - rise);
+  const [top, bottom] = skyAt(set < 1 ? set : 1 - rise);
+  els.sky.style.background = `linear-gradient(${top}, ${bottom})`;
+  els.dots.style.backgroundImage = `radial-gradient(circle, ${night > 0.5 ? `rgba(242,235,224,${0.06 * night})` : `rgba(34,29,23,${0.085 * (1 - night * 2)})`} 2px, transparent 2.4px)`;
+  els.dots.style.transform = `translate(${(t * 16) % 38}px, ${(t * 9) % 38}px)`;
+  els.blob1.style.left = `${1500 + 260 * Math.sin(t * 0.35)}px`;
+  els.blob1.style.top = `${300 + 160 * Math.cos(t * 0.3)}px`;
+  els.blob2.style.left = `${380 + 220 * Math.cos(t * 0.28)}px`;
+  els.blob2.style.top = `${820 + 140 * Math.sin(t * 0.33)}px`;
+  els.blob1.style.opacity = els.blob2.style.opacity = 1 - 0.6 * night;
+  // Sun sinks behind the phone on the left; at the end it comes back up for the end card.
+  const sunDown = ease.in(seg(t, beat(SUNSET[0]) - 0.2, beat(SUNSET[1]) - 0.3));
+  const sunUp = ease.out(seg(t, ...T.sunrise));
+  const sunOn = (t > beat(SUNSET[0]) - 0.4 && sunDown < 1) || sunUp > 0;
+  els.sun.style.display = sunOn ? '' : 'none';
+  if (sunUp > 0) {
+    els.sun.style.left = `${lerp(1560, 1500, sunUp)}px`;
+    els.sun.style.top = `${lerp(1300, 380, sunUp)}px`;
+    els.sun.style.opacity = 1 - seg(t, T.sunrise[1] - 0.35, T.sunrise[1] + 0.3);
+  } else {
+    els.sun.style.left = `${lerp(560, 640, sunDown)}px`;
+    els.sun.style.top = `${lerp(330, 1300, sunDown)}px`;
+    els.sun.style.opacity = seg(t, beat(SUNSET[0]) - 0.4, beat(SUNSET[0]) - 0.1);
+  }
+  // Moon rises on the right, then settles faintly high in the sky for the night.
+  const moonUp = ease.out(seg(t, beat(SUNSET[0]) + 0.7, beat(SUNSET[1]) + 0.2));
+  const moonSettle = ease.inOut(seg(t, beat(SUNSET[1]) + 0.3, beat(SUNSET[1]) + 1.3));
+  els.moon.style.display = moonUp > 0 && rise < 1 ? '' : 'none';
+  els.moon.style.left = `${lerp(1380, 960, moonSettle)}px`;
+  els.moon.style.top = `${lerp(lerp(1250, 250, moonUp), 110, moonSettle)}px`;
+  els.moon.style.opacity = (1 - 0.65 * moonSettle) * (1 - rise);
+  els.moon.style.transform = `rotate(-20deg) scale(${1 - 0.45 * moonSettle})`;
+  for (let i = 0; i < 70; i++) {
+    const tw = 0.55 + 0.45 * Math.sin(t * (1.5 + (i % 7) * 0.4) + i);
+    els[`star${i}`].style.opacity = seg(night, 0.6, 1) * tw * 0.8;
+  }
+
+  // Camera shake on the drop.
+  const sh = t > D && t < D + 0.45 ? 12 * Math.exp(-(t - D) * 8) : 0;
+  els.stage.style.transform = `translate(${sh * Math.sin(t * 95)}px, ${sh * Math.cos(t * 77)}px)`;
+
+  // Hero: intro's end frame -> settle -> pills -> whip out.
+  const st = ease.out(seg(t, ...T.settle));
+  els.bLogo.setAttribute('transform', `translate(960 ${lerp(420, 265, st)}) scale(${lerp(330, 210, st) / 1000}) translate(-500 -500)`);
+  els.bWord.setAttribute('transform', `translate(960 ${lerp(760, 505, st)}) scale(${lerp(1, 0.76, st)}) translate(-960 -760)`);
+  drawOn(els['b-ring'], 1);
+  PROMISES.forEach((_, i) => {
+    const pin = ease.outBack(seg(t, T.pills[i], T.pills[i] + 0.28));
+    const el = els[`pill${i}`];
+    el.style.opacity = seg(t, T.pills[i], T.pills[i] + 0.1);
+    el.style.transform = `scale(${lerp(0.5, 1, pin)})`;
+    drawOn(els[`tick${i}`], ease.out(seg(t, T.pills[i] + 0.1, T.pills[i] + 0.3)));
+  });
+  const wp = ease.in(seg(t, ...T.whip));
+  const speed = Math.sin(Math.PI * seg(t, ...T.whip));
+  els.hero.style.transform = `translateX(${-1700 * wp}px) skewX(${12 * speed}deg)`;
+  els.hero.style.filter = speed > 0.01 ? `blur(${10 * speed}px)` : '';
+  els.hero.style.display = wp >= 1 ? 'none' : '';
+
+  // Corner brand: slides in on the drop; its wordmark turns cream at night.
+  const cb = ease.out(seg(t, ...T.corner)) * (1 - seg(t, T.sunrise[0], T.sunrise[0] + 0.3));
+  els.corner.style.opacity = cb;
+  els.corner.style.transform = `translateX(${-60 * (1 - Math.min(1, cb * 1.2))}px)`;
+  els.cornerWord.style.color = mix(INK, DARK.text, seg(night, 0.5, 0.9));
+  drawOn(els['cm-ring'], 1);
+
+  // Main phone.
+  const pose = poseAt(t);
+  els.pwMain.style.transform = poseCSS(pose, Math.sin(t * 1.6) * 5);
+  els.pwMain.style.display = t >= D - 0.4 && t < T.sunrise[0] + 0.65 ? '' : 'none';
+  els.phoneMain.style.boxShadow = `0 40px 90px rgba(${night > 0.5 ? '0,0,0,.6' : '40,28,16,.36'}), inset 0 0 0 2px #3A3129`;
+
+  let zoom = { z: 1, ax: 195, ay: 422 };
+  SEQ.forEach((c, i) => {
+    const next = SEQ[i + 1];
+    const until = next ? next.start + 0.2 : T.sunrise[0] + 0.7;
+    const img = els[`img-Main-${c.name}`];
+    const on = t < until && (i === 0 ? t >= D - 0.4 : t >= c.start);
+    img.style.display = on ? '' : 'none';
+    drawMarks(c, t, next ? next.start : beat(CHIPS_AT));
+    if (!on) return;
+    img.style.opacity = i === 0 ? 1 : ease.inOut(seg(t, c.start, c.start + 0.18));
+    const f = FOOTAGE[c.name];
+    const clipT = clamp(c.trim + (t - c.start) * c.rate, c.trim, c.until);
+    const idx = clamp(Math.round(clipT * f.fps), 0, f.frames - 1);
+    waits.push(setFrame(img, `${FOOT}${c.name}/${String(idx).padStart(5, '0')}.jpg`));
+    if (t >= c.start && t < (next ? next.start : Infinity)) zoom = zoomAt(c, clipT);
+  });
+  els.phoneMain.style.transformOrigin = `${14 + zoom.ax * K}px ${14 + zoom.ay * K}px`;
+  els.phoneMain.style.transform = `scale(${zoom.z})`;
+
+  // Captions (none during the sunset: it speaks for itself).
+  SEQ.forEach((c, i) => {
+    const next = SEQ[i + 1];
+    const out = next ? (c.name === 'pause' ? beat(SUNSET[0]) - 0.1 : next.start - 0.3) : beat(CHIPS_AT) - 0.3;
+    capAnim(els[`cap${i}`], c.start + 0.08, out, c.side === 'R' ? 1 : -1);
+  });
+  capAnim(els.capMore, beat(CHIPS_AT) + 0.05, T.sunrise[0]);
+
+  // Chips burst out of the phone, then leave with the sunrise.
+  const chipsOut = ease.in(seg(t, T.sunrise[0], T.sunrise[0] + 0.4));
+  for (const c of chipLayout) {
+    const p = ease.outBack(seg(t, c.t, c.t + 0.42));
+    const m = ease.out(seg(t, c.t, c.t + 0.42));
+    const sx = pose.x - c.w / 2, sy = pose.y - 35;
+    c.el.style.display = t >= c.t && chipsOut < 1 ? '' : 'none';
+    c.el.style.left = `${lerp(sx, c.x, m)}px`;
+    c.el.style.top = `${lerp(sy, c.y, m) + 700 * chipsOut}px`;
+    c.el.style.transform = `scale(${lerp(0.2, 1, p)}) rotate(${(1 - m) * 12}deg)`;
+    c.el.style.opacity = seg(t, c.t, c.t + 0.08) * (1 - chipsOut);
+  }
+
+  // End card, as the sun comes back up.
+  const e0 = T.endIn;
+  els.endCard.style.display = t >= e0 ? '' : 'none';
+  const lg = ease.outBack(seg(t, e0, e0 + 0.45));
+  els.eLogoG.setAttribute('transform', `translate(960 300) scale(${0.3 * lerp(0.5, 1, lg)}) translate(-500 -500)`);
+  els.eLogoG.style.opacity = seg(t, e0, e0 + 0.15);
+  drawOn(els['e-ring'], ease.inOut(seg(t, ...T.ring)));
+  const wd = ease.outBack(seg(t, e0 + 0.15, e0 + 0.55));
+  els.eWord.setAttribute('transform', `translate(960 590) scale(${lerp(0.85, 1, wd)}) translate(-960 -590)`);
+  els.eWord.style.opacity = seg(t, e0 + 0.15, e0 + 0.3);
+  [['eTag', 0.35], ['eMeta', 0.5], ['eBtn', 0.65]].forEach(([id, d]) => {
+    const p = ease.out(seg(t, e0 + d, e0 + d + 0.4));
+    els[id].style.opacity = p;
+    els[id].style.transform = `translateY(${30 * (1 - p)}px)`;
+  });
+  const bp = ease.outBack(seg(t, e0 + 0.65, e0 + 1.0));
+  const pulse = 1 + 0.03 * Math.max(0, Math.sin(((t - e0) / B) * Math.PI)) * seg(t, e0 + 1.1, e0 + 1.3);
+  els.eBtn.firstElementChild.style.transform = `scale(${lerp(0.7, 1, bp) * pulse})`;
+
+  await Promise.all(waits);
+}
+
+window.DURATION = T.end;
+window.CUES = CUES;
+window.MARKERS = { drop: D, beat: B };
+Promise.all(['600 38px F6', '800 96px F8', '500 44px F5i'].map((f) => document.fonts.load(f))).then(() => {
+  build();
+  window.seek = seek;
+  return seek(0);
+});
+</script>
+</body>
+</html>

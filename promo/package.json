@@ -1,0 +1,11 @@
+{
+  "name": "opencal-promo",
+  "private": true,
+  "description": "Renders the OpenCal promo video: HTML motion-graphics scenes + scripted web-build footage, assembled with ffmpeg.",
+  "scripts": {
+    "render": "node render.js"
+  },
+  "dependencies": {
+    "puppeteer-core": "^25.12.0"
+  }
+}
