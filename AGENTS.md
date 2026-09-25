@@ -56,6 +56,17 @@ For those, in the same change: bump `version` in `app.json` (e.g. `1.0.0` → `1
 
 App icon, Android adaptive/monochrome icons, splash image and favicon are all rendered from one geometry by `scripts/make-logo.js` (see its header for usage); the in-app `src/components/Logo.tsx` mirrors it. Regenerating them is a native change (version bump + rebuild).
 
+### Keeping the GitHub page up to date
+
+- **README.md:** when a change adds, removes or noticeably changes a user-facing feature, update the Features list (and screenshots in `docs/screenshots/` if a shown screen changed) in the same change. Keep the Development, Tech stack and Project structure sections accurate when tooling or folders change.
+- **Releases (the APK "packages"):** every new build (i.e. every `version` bump) gets a GitHub Release named `vX.Y.Z` on the commit that was built, with the APK attached and short notes of what changed since the previous release:
+  ```bash
+  npx eas-cli@latest build -p android --profile preview          # wait for FINISHED, copy the .apk URL
+  curl -L -o OpenCal-X.Y.Z.apk "<apk url from the build>"
+  gh release create vX.Y.Z OpenCal-X.Y.Z.apk --target <built commit sha> --title "OpenCal X.Y.Z" --notes "<what changed>"
+  ```
+  Over-the-air-only changes don't get their own release; list them in the notes of the next release.
+
 `fingerprint` was deliberately not used: Windows checkouts convert line endings (CRLF) while CI checks out LF, which can make fingerprints differ between builds and updates so updates would never apply.
 
 ## Rules
