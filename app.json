@@ -8,7 +8,8 @@
     },
     "updates": {
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/b5ca84c4-07aa-47b4-9423-718e1eed757e"
     },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -32,6 +33,12 @@
     },
     "plugins": [
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b5ca84c4-07aa-47b4-9423-718e1eed757e"
+      }
+    },
+    "owner": "boazcohen"
   }
 }
