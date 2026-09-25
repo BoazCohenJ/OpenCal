@@ -2,7 +2,7 @@
   "expo": {
     "name": "OpenCal",
     "slug": "opencal",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -20,7 +20,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#F5EFE6",
+        "backgroundColor": "#E2553A",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -32,7 +32,20 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#F5EFE6",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#15120F"
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {

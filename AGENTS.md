@@ -54,6 +54,8 @@ The phone runs an installed **preview** APK (`eas.json` → `preview` profile, c
 
 For those, in the same change: bump `version` in `app.json` (e.g. `1.0.0` → `1.1.0`), commit, then build and reinstall: `npx eas-cli@latest build -p android --profile preview`. Never ship JS that depends on new native code to an old version, since it would crash on the installed build.
 
+App icon, Android adaptive/monochrome icons, splash image and favicon are all rendered from one geometry by `scripts/make-logo.js` (see its header for usage); the in-app `src/components/Logo.tsx` mirrors it. Regenerating them is a native change (version bump + rebuild).
+
 `fingerprint` was deliberately not used: Windows checkouts convert line endings (CRLF) while CI checks out LF, which can make fingerprints differ between builds and updates so updates would never apply.
 
 ## Rules

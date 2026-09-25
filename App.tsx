@@ -6,10 +6,12 @@ import {
 } from '@expo-google-fonts/fraunces';
 import { DarkTheme, DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import React, { useMemo } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import React, { useEffect, useMemo } from 'react';
+import { Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Logo } from './src/components/Logo';
 import { ToastProvider } from './src/components/Toast';
 import { UpdateWatcher } from './src/components/UpdateWatcher';
 import { CalendarProvider, useCalendarContext } from './src/context/CalendarContext';
@@ -31,15 +33,24 @@ import { createStyles, fonts, ThemeProvider, useTheme } from './src/theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+// Keep the native launch screen up until fonts are loaded, then fade into the app.
+void SplashScreen.preventAutoHideAsync().catch(() => undefined);
+SplashScreen.setOptions({ duration: 250, fade: true });
+
 function RootNavigator() {
   const styles = useStyles();
   const { colors } = useTheme();
   const { ready, error } = useCalendarContext();
   const [fontsLoaded, fontError] = useFonts({ Fraunces_500Medium_Italic, Fraunces_600SemiBold, Fraunces_800ExtraBold });
-  if (!ready || (!fontsLoaded && !fontError)) {
+  const loading = !ready || (!fontsLoaded && !fontError);
+  useEffect(() => {
+    if (!loading) void SplashScreen.hideAsync().catch(() => undefined);
+  }, [loading]);
+  if (loading) {
+    // Same logo, size and paper colour as the native splash, so any handoff is seamless.
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={colors.primary} />
+        <Logo size={180} />
       </View>
     );
   }

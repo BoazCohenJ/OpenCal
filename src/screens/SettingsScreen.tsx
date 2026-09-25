@@ -1,5 +1,6 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
+import { Logo } from '../components/Logo';
 import { Divider, Row, Section, Segmented } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
@@ -52,7 +53,7 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
         />
       </Section>
       <Section title="About" footer="All data is stored locally on this device. Nothing is synced.">
-        <Row label="OpenCal" value={APP_VERSION} subtitle={updateInfo()} />
+        <Row label="OpenCal" value={APP_VERSION} subtitle={updateInfo()} left={<Logo size={34} variant="tile" />} />
       </Section>
     </ScrollView>
   );
