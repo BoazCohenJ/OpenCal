@@ -42,7 +42,7 @@ Docs: https://docs.expo.dev/eas/index.md
 
 The phone runs an installed **preview** APK (`eas.json` → `preview` profile, channel `preview`, package `com.boazcohen.opencal`). Pushing to `main` updates it over the air:
 
-- `.github/workflows/eas-update.yml` runs on every push to `main` (Markdown and `.claude/` changes are ignored): `npm ci` → `tsc --noEmit` → `expo lint` → `eas update --channel preview --environment preview --platform android`. A failing typecheck or lint blocks the update. It needs the `EXPO_TOKEN` repository secret and skips with a notice without it.
+- `.github/workflows/eas-update.yml` runs on every push to `main` (changes only to Markdown, `.claude/`, `promo/`, `docs/`, `scripts/` or `LICENSE` are ignored, since they aren't in the app bundle): `npm ci` → `tsc --noEmit` → `expo lint` → `eas update --channel preview --environment preview --platform android`. A failing typecheck or lint blocks the update. It needs the `EXPO_TOKEN` repository secret and skips with a notice without it.
 - The app checks for updates on launch and when it returns to the foreground (`src/components/UpdateWatcher.tsx`), downloads them, and offers a **Restart** toast.
 - `--environment` is required by `eas update` for Expo SDK 55+; keep it in any manual command.
 
@@ -52,7 +52,7 @@ The phone runs an installed **preview** APK (`eas.json` → `preview` profile, c
 - changing native config in `app.json` (permissions, icons, splash, package id, plugins),
 - upgrading the Expo SDK.
 
-For those, in the same change: bump `version` in `app.json` (e.g. `1.0.0` → `1.1.0`), commit, then build and reinstall: `npx eas-cli@latest build -p android --profile preview`. Never ship JS that depends on new native code to an old version, since it would crash on the installed build.
+For those, in the same change: bump `version` in `app.json` (e.g. `1.0.0` → `1.1.0`; keep `package.json` in step with `npm version X.Y.Z --no-git-tag-version`), commit, then build and reinstall: `npx eas-cli@latest build -p android --profile preview`. Never ship JS that depends on new native code to an old version, since it would crash on the installed build.
 
 App icon, Android adaptive/monochrome icons, splash image and favicon are all rendered from one geometry by `scripts/make-logo.js` (see its header for usage); the in-app `src/components/Logo.tsx` mirrors it. Regenerating them is a native change (version bump + rebuild).
 

@@ -59,7 +59,7 @@ Requirements: Node 22+ and npm.
 
 ```bash
 npm install
-npx expo start          # press "w" for web, or scan the QR code with a development build
+npx expo start          # press "w" for web, or scan the QR code with Expo Go
 npx tsc --noEmit        # typecheck
 npx expo lint           # lint
 ```
@@ -90,7 +90,10 @@ src/components/         shared UI (pickers, sheets, toast, logo…)
 src/context/            app state (CalendarContext)
 src/services/           database, occurrences/recurrence, notifications, focus windows
 src/models/             data types
+src/navigation/         route and param types
+src/utils/              dates, recurrence, colors, formatting helpers
 scripts/make-logo.js    generates the app icon, splash and favicon
+docs/screenshots/       README screenshots
 promo/                  renders the promo video from code (see promo/README.md)
 ```
 

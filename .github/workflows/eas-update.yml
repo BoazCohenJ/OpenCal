@@ -10,6 +10,11 @@ on:
     paths-ignore:
       - '**.md'
       - '.claude/**'
+      # Not part of the app bundle: promo video tooling, README screenshots, logo generator.
+      - 'promo/**'
+      - 'docs/**'
+      - 'scripts/**'
+      - 'LICENSE'
   workflow_dispatch:
 
 concurrency:
