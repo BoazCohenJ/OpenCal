@@ -4,6 +4,7 @@ import { Divider, Row, Section, Segmented } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
 import { notificationsSupported } from '../services/notifications';
+import { APP_VERSION, updateInfo } from '../services/appInfo';
 import { createStyles, spacing, type ThemeMode } from '../theme';
 
 export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
@@ -51,7 +52,7 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
         />
       </Section>
       <Section title="About" footer="All data is stored locally on this device. Nothing is synced.">
-        <Row label="OpenCal" value="1.0.0" />
+        <Row label="OpenCal" value={APP_VERSION} subtitle={updateInfo()} />
       </Section>
     </ScrollView>
   );

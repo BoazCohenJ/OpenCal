@@ -11,6 +11,7 @@ import React, { useMemo } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ToastProvider } from './src/components/Toast';
+import { UpdateWatcher } from './src/components/UpdateWatcher';
 import { CalendarProvider, useCalendarContext } from './src/context/CalendarContext';
 import type { RootStackParamList } from './src/navigation/types';
 import { CalendarDeleteScreen } from './src/screens/CalendarDeleteScreen';
@@ -123,6 +124,7 @@ function AppShell() {
         <NavigationContainer theme={navigationTheme}>
           <RootNavigator />
         </NavigationContainer>
+        <UpdateWatcher />
       </ToastProvider>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
     </View>

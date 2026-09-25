@@ -1,0 +1,68 @@
+# Publishes an over-the-air update to installed "preview" builds whenever main changes.
+# Needs the EXPO_TOKEN repository secret (expo.dev → Account settings → Access tokens).
+# Native changes (new native packages, app.json permissions/icons, Expo SDK upgrades) can't
+# ship this way: bump "version" in app.json and make a new build instead.
+name: Publish app update
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.claude/**'
+  workflow_dispatch:
+
+concurrency:
+  group: eas-update
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: Check for Expo token
+        id: gate
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::notice::EXPO_TOKEN secret is not set, so no update was published."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.ready == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: expo/expo-github-action@v8
+        if: steps.gate.outputs.ready == 'true'
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        if: steps.gate.outputs.ready == 'true'
+        run: npm ci
+
+      - name: Typecheck and lint
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          npx tsc --noEmit
+          npx expo lint
+
+      - name: Publish update
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          eas update \
+            --channel preview \
+            --environment preview \
+            --platform android \
+            --message "$(git log -1 --pretty=%s)" \
+            --non-interactive
