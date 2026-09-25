@@ -88,4 +88,4 @@ scripts/make-logo.js    generates the app icon, splash and favicon
 
 ## License
 
-See [LICENSE](LICENSE).
+[MIT](LICENSE) © Boaz Cohen
