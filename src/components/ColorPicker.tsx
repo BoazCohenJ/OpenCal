@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import { createStyles, PALETTE, radius, useTheme } from '../theme';
+import { useCalendarContext } from '../context/CalendarContext';
+import type { SavedColor } from '../models/SavedColor';
+import { createStyles, NAMED_PALETTE, PALETTE, radius, useTheme } from '../theme';
 import { normalizeHex, readableOn } from '../utils/color';
+import { colorName } from '../utils/colorNames';
+import { confirmAsync } from '../utils/confirm';
 import { ColorWheel } from './ColorWheel';
 import { Sheet } from './Sheet';
 import { Icon } from './Icon';
-import { Button } from './ui';
+import { Button, TextField } from './ui';
 
 /**
- * Palette, color wheel and manual hex input. When `inheritColor` is given, clearing the value
+ * Named palette, the user's saved colors, color wheel and manual hex input. When `inheritColor` is given, clearing the value
  * (Reset / empty hex) falls back to the inherited calendar color.
  */
 export function ColorPicker({
@@ -30,9 +34,30 @@ export function ColorPicker({
     if (normalizeHex(text, false) !== (value ?? null)) setText(value ?? '');
   }
 
+  const { savedColors, saveColor, deleteSavedColor } = useCalendarContext();
   const current = value ?? inheritColor ?? PALETTE[0]!;
-  const inPalette = PALETTE.some((c) => c.toUpperCase() === current.toUpperCase());
+  const upper = current.toUpperCase();
+  const inPalette = PALETTE.includes(upper);
+  const saved = savedColors.find((c) => c.hex === upper);
+  const name = colorName(current, savedColors);
   const [wheelOpen, setWheelOpen] = useState(false);
+  // Save / rename sheet: `editing` is set when renaming an existing saved color.
+  const [naming, setNaming] = useState<{ hex: string; editing?: SavedColor } | null>(null);
+  const [draftName, setDraftName] = useState('');
+  const openNaming = (hex: string, editing?: SavedColor) => {
+    setDraftName(editing?.name ?? '');
+    setNaming({ hex, editing });
+  };
+  const commitName = () => {
+    const trimmed = draftName.trim();
+    if (!naming || !trimmed) return;
+    saveColor(trimmed, naming.hex);
+    setNaming(null);
+  };
+  const removeSaved = async (c: SavedColor) => {
+    setNaming(null);
+    if (await confirmAsync(`Delete “${c.name}”?`, 'Events already using this color keep it.', 'Delete', true)) deleteSavedColor(c.id);
+  };
   const valid = text.trim() === '' || normalizeHex(text) !== null;
 
   const onChangeText = (t: string) => {
@@ -57,22 +82,26 @@ export function ColorPicker({
           <Text style={[styles.previewLetter, { color: readableOn(current) }]}>Aa</Text>
         </View>
         <View style={styles.previewInfo}>
-          <Text style={styles.previewTitle}>
-            {value ? 'Custom color' : inheritColor ? 'Using calendar color' : 'Color'}
+          <Text style={styles.previewTitle} numberOfLines={1}>
+            {value ? (name ?? 'Custom color') : inheritColor ? `Calendar color${name ? ` · ${name}` : ''}` : (name ?? 'Color')}
           </Text>
-          <Text style={styles.previewHex}>{current.toUpperCase()}</Text>
+          <Text style={styles.previewHex}>{upper}</Text>
         </View>
+        {value && !inPalette && !saved ? (
+          <Button small variant="secondary" title="Save" onPress={() => openNaming(upper)} />
+        ) : null}
         {value && inheritColor ? <Button small variant="secondary" title="Reset" onPress={() => onChange(undefined)} /> : null}
       </View>
 
       <View style={styles.grid}>
-        {PALETTE.map((c) => {
-          const active = current.toUpperCase() === c.toUpperCase();
+        {NAMED_PALETTE.map(({ hex: c, name: swatchName }) => {
+          const active = upper === c;
           return (
             <Pressable
               key={c}
               onPress={() => onChange(c)}
-              accessibilityLabel={`Color ${c}`}
+              accessibilityLabel={swatchName}
+              accessibilityState={{ selected: active }}
               style={[styles.swatch, { backgroundColor: c }, active && styles.swatchActive]}
             >
               {active ? <Icon name="check" size={16} color={readableOn(c)} strokeWidth={3} /> : null}
@@ -88,6 +117,36 @@ export function ColorPicker({
         </Pressable>
       </View>
 
+      {savedColors.length > 0 ? (
+        <View style={styles.savedBlock}>
+          <Text style={styles.savedTitle}>YOUR COLORS</Text>
+          <View style={styles.savedRow}>
+            {savedColors.map((c) => {
+              const active = upper === c.hex;
+              return (
+                <Pressable
+                  key={c.id}
+                  onPress={() => onChange(c.hex)}
+                  onLongPress={() => openNaming(c.hex, c)}
+                  delayLongPress={350}
+                  accessibilityLabel={`${c.name}. Long press to rename or delete`}
+                  accessibilityState={{ selected: active }}
+                  style={({ pressed }) => [styles.savedChip, active && styles.savedChipActive, pressed && styles.pressed]}
+                >
+                  <View style={[styles.savedDot, { backgroundColor: c.hex }]}>
+                    {active ? <Icon name="check" size={11} color={readableOn(c.hex)} strokeWidth={3} /> : null}
+                  </View>
+                  <Text style={styles.savedName} numberOfLines={1}>
+                    {c.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.savedHint}>Long-press a saved color to rename or delete it.</Text>
+        </View>
+      ) : null}
+
       {/* In a sheet so opening the wheel never shifts the form around it. */}
       <Sheet visible={wheelOpen} onClose={() => setWheelOpen(false)} title="Custom color">
         <View style={styles.wheelSheet}>
@@ -96,7 +155,47 @@ export function ColorPicker({
             <Text style={styles.wheelHex}>{current.toUpperCase()}</Text>
           </View>
           <ColorWheel value={current} onChange={(hex) => onChange(hex)} />
+          {!inPalette && !saved ? (
+            <Button
+              variant="secondary"
+              title="Save this color"
+              onPress={() => {
+                setWheelOpen(false);
+                // Let the wheel sheet slide away before the naming sheet opens.
+                setTimeout(() => openNaming(upper), 260);
+              }}
+            />
+          ) : null}
         </View>
+      </Sheet>
+
+      <Sheet
+        visible={naming !== null}
+        onClose={() => setNaming(null)}
+        title={naming?.editing ? 'Edit color' : 'Save color'}
+        actionLabel="Cancel"
+      >
+        {naming ? (
+          <View style={styles.nameSheet}>
+            <View style={styles.wheelPreview}>
+              <View style={[styles.wheelSwatch, { backgroundColor: naming.hex }]} />
+              <Text style={styles.wheelHex}>{naming.hex}</Text>
+            </View>
+            <TextField
+              value={draftName}
+              onChangeText={setDraftName}
+              placeholder="Name, e.g. Ocean"
+              autoFocus
+              maxLength={24}
+              returnKeyType="done"
+              onSubmitEditing={commitName}
+            />
+            <Button title={naming.editing ? 'Save name' : 'Save color'} onPress={commitName} disabled={!draftName.trim()} />
+            {naming.editing ? (
+              <Button variant="danger" title="Delete saved color" onPress={() => void removeSaved(naming.editing!)} />
+            ) : null}
+          </View>
+        ) : null}
       </Sheet>
 
       <View style={styles.hexRow}>
@@ -135,6 +234,28 @@ const useStyles = createStyles((colors) => ({
   wheelPreview: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   wheelSwatch: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: colors.surface },
   wheelHex: { fontSize: 17, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] },
+  pressed: { opacity: 0.7 },
+  savedBlock: { gap: 8 },
+  savedTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.4, color: colors.textMuted },
+  savedRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  savedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingVertical: 5,
+    paddingLeft: 5,
+    paddingRight: 12,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+    maxWidth: 170,
+  },
+  savedChipActive: { borderColor: colors.text },
+  savedDot: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  savedName: { flexShrink: 1, fontSize: 14, fontWeight: '600', color: colors.text },
+  savedHint: { fontSize: 12, color: colors.textFaint },
+  nameSheet: { gap: 14, paddingBottom: 8 },
   hexRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   hexLabel: { fontSize: 13, fontWeight: '700', color: colors.textMuted },
   hexInput: {

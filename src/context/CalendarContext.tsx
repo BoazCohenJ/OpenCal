@@ -6,6 +6,7 @@ import {
   normalizeNotificationPrefs,
   type NotificationPrefs,
 } from '../models/NotificationPrefs';
+import type { SavedColor } from '../models/SavedColor';
 import type { EventTemplate } from '../models/Template';
 import * as db from '../services/database';
 import { rescheduleReminders, type ScheduleResult } from '../services/notifications';
@@ -16,6 +17,7 @@ import { newId } from '../utils/id';
 const HIDDEN_CALENDARS_KEY = 'hiddenCalendarIds';
 const NOTIFICATION_PREFS_KEY = 'notificationPrefs';
 const THEME_MODE_KEY = 'themeMode';
+const SAVED_COLORS_KEY = 'savedColors';
 const DEFAULT_CALENDARS = [
   { name: 'Personal', color: '#4F6BED' },
   { name: 'Work', color: '#F2994A' },
@@ -43,6 +45,11 @@ interface CalendarContextValue {
   getEffectiveColor: (event: Event) => string;
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
+  /** Colors the user named in the color picker, oldest first. */
+  savedColors: SavedColor[];
+  /** Adds a named color, or renames it if that hex is already saved. */
+  saveColor: (name: string, hex: string) => void;
+  deleteSavedColor: (id: string) => void;
   notificationPrefs: NotificationPrefs;
   updateNotificationPrefs: (patch: Partial<NotificationPrefs>) => void;
   /** Result of the most recent reminder scheduling pass (null until the first one finishes). */
@@ -68,6 +75,7 @@ interface InitialData {
   hiddenCalendarIds: string[];
   themeMode: ThemeMode;
   notificationPrefs: NotificationPrefs;
+  savedColors: SavedColor[];
 }
 
 /** Opens (and if needed seeds) the database synchronously; runs once, before the first render. */
@@ -87,6 +95,7 @@ function loadInitialData(): { data: InitialData; error: null } | { data: null; e
         templates: db.loadTemplates(),
         hiddenCalendarIds: db.getSetting<string[]>(HIDDEN_CALENDARS_KEY, []),
         themeMode: db.getSetting<ThemeMode>(THEME_MODE_KEY, 'system'),
+        savedColors: db.getSetting<SavedColor[]>(SAVED_COLORS_KEY, []),
         notificationPrefs: normalizeNotificationPrefs(
           db.getSetting<Partial<NotificationPrefs> | null>(NOTIFICATION_PREFS_KEY, null),
         ),
@@ -112,6 +121,7 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
   );
   const [reminderStatus, setReminderStatus] = useState<ScheduleResult | null>(null);
   const [themeMode, setThemeModeState] = useState<ThemeMode>(initial.data?.themeMode ?? 'system');
+  const [savedColors, setSavedColors] = useState<SavedColor[]>(initial.data?.savedColors ?? []);
 
   const calendarsById = useMemo(() => {
     const map: Record<string, Calendar> = {};
@@ -163,6 +173,26 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
   const setThemeMode = useCallback((mode: ThemeMode) => {
     db.setSetting(THEME_MODE_KEY, mode);
     setThemeModeState(mode);
+  }, []);
+
+  const saveColor = useCallback((name: string, hex: string) => {
+    setSavedColors((prev) => {
+      const upper = hex.toUpperCase();
+      const existing = prev.find((c) => c.hex === upper);
+      const next = existing
+        ? prev.map((c) => (c.id === existing.id ? { ...c, name } : c))
+        : [...prev, { id: newId(), name, hex: upper }];
+      db.setSetting(SAVED_COLORS_KEY, next);
+      return next;
+    });
+  }, []);
+
+  const deleteSavedColor = useCallback((id: string) => {
+    setSavedColors((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      db.setSetting(SAVED_COLORS_KEY, next);
+      return next;
+    });
   }, []);
 
   const updateNotificationPrefs = useCallback((patch: Partial<NotificationPrefs>) => {
@@ -281,6 +311,9 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
       getEffectiveColor: effectiveColor,
       themeMode,
       setThemeMode,
+      savedColors,
+      saveColor,
+      deleteSavedColor,
       notificationPrefs,
       updateNotificationPrefs,
       reminderStatus,
@@ -290,7 +323,7 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
     [
       ready, error, calendars, calendarsById, events, templates, allTags, visibleCalendarIds,
       toggleCalendarVisibility, saveCalendar, deleteCalendarWithPlan, saveEvent, saveEvents, deleteEvent,
-      saveTemplate, deleteTemplate, moveTemplate, effectiveColor, themeMode, setThemeMode, notificationPrefs, updateNotificationPrefs,
+      saveTemplate, deleteTemplate, moveTemplate, effectiveColor, themeMode, setThemeMode, savedColors, saveColor, deleteSavedColor, notificationPrefs, updateNotificationPrefs,
       reminderStatus, refreshReminders, getOccurrences,
     ],
   );

@@ -85,12 +85,31 @@ export const shadow = {
   elevation: 4,
 };
 
-export const PALETTE = [
-  '#4F6BED', '#3B82F6', '#06B6D4', '#14B8A6', '#10B981',
-  '#22C55E', '#84CC16', '#EAB308', '#F59E0B', '#F2994A',
-  '#EF4444', '#E5484D', '#EC4899', '#D946EF', '#A855F7',
-  '#8B5CF6', '#6366F1', '#64748B', '#78716C', '#1F2937',
+/** Built-in swatches with display names (shown in the color picker). */
+export const NAMED_PALETTE: { hex: string; name: string }[] = [
+  { hex: '#4F6BED', name: 'Iris' },
+  { hex: '#3B82F6', name: 'Cobalt' },
+  { hex: '#06B6D4', name: 'Lagoon' },
+  { hex: '#14B8A6', name: 'Teal' },
+  { hex: '#10B981', name: 'Emerald' },
+  { hex: '#22C55E', name: 'Leaf' },
+  { hex: '#84CC16', name: 'Lime' },
+  { hex: '#EAB308', name: 'Mustard' },
+  { hex: '#F59E0B', name: 'Amber' },
+  { hex: '#F2994A', name: 'Apricot' },
+  { hex: '#EF4444', name: 'Cherry' },
+  { hex: '#E5484D', name: 'Poppy' },
+  { hex: '#EC4899', name: 'Flamingo' },
+  { hex: '#D946EF', name: 'Orchid' },
+  { hex: '#A855F7', name: 'Amethyst' },
+  { hex: '#8B5CF6', name: 'Violet' },
+  { hex: '#6366F1', name: 'Indigo' },
+  { hex: '#64748B', name: 'Slate' },
+  { hex: '#78716C', name: 'Stone' },
+  { hex: '#1F2937', name: 'Ink' },
 ];
+
+export const PALETTE = NAMED_PALETTE.map((c) => c.hex);
 
 interface ThemeValue {
   colors: Palette;
