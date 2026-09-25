@@ -25,9 +25,13 @@ Run lint and typecheck before declaring any task done.
 
 ## Navigation & Routing
 
-- Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
-- Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
-- Docs: https://docs.expo.dev/router/introduction.md
+This app uses **React Navigation** (native stack), not Expo Router. Don't migrate it or create `src/app/` routes.
+
+- One stack navigator in `App.tsx` (`RootNavigator`). Pushed screens slide in from the right; editors (`EventEdit`, `QuickAdd`, `FocusEdit`, `Stamp`) live in a `presentation: 'modal'` group.
+- Screens live in `src/screens/`, calendar views (schedule/day/week/month) in `src/views/`, shared UI in `src/components/`.
+- Every route and its params are typed in `src/navigation/types.ts` (`RootStackParamList`). To add a screen: add it there, register it in `App.tsx`, and type the component as `ScreenProps<'Name'>`.
+- Navigate with `navigation.navigate` / `push` / `goBack` / `popToTop` from the screen's props. Header buttons are set with `navigation.setOptions` in `useLayoutEffect`.
+- Docs: https://reactnavigation.org/docs/native-stack-navigator
 
 ## Building with EAS
 
