@@ -7,13 +7,15 @@ import { Button, ColorDot, EmptyState, Field, HeaderButton, Section } from '../c
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
 import { eventFromTemplate } from '../services/templates';
-import { colors, fonts, radius, spacing } from '../theme';
+import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { deepText, softBg } from '../utils/color';
 import { formatTime, nextRoundedHour } from '../utils/dates';
 import { formatDuration, formatReminder } from '../utils/format';
 
 /** Drop a saved stamp onto a date/time: everything pre-fills, only the time needs confirming. */
 export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { templates, calendars, calendarsById, saveEvent } = useCalendarContext();
   const [templateId, setTemplateId] = useState(route.params?.templateId);
   const [start, setStart] = useState(() => (route.params?.start ? new Date(route.params.start) : nextRoundedHour()));
@@ -125,7 +127,7 @@ export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: 48 },
   heading: { fontSize: 15, color: colors.textMuted, marginBottom: spacing.md, fontWeight: '500' },
@@ -161,4 +163,4 @@ const styles = StyleSheet.create({
   metaText: { fontSize: 14, color: colors.textMuted },
   ends: { fontSize: 13, color: colors.textMuted, paddingHorizontal: 16, paddingBottom: 14 },
   actions: { gap: 8 },
-});
+}));

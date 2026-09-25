@@ -7,12 +7,14 @@ import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
 import { parseEventText } from '../services/naturalLanguage';
 import { Icon, type IconName } from '../components/Icon';
-import { colors, fonts, radius, spacing } from '../theme';
+import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { formatRange, nextRoundedHour } from '../utils/dates';
 
 const EXAMPLES = ['Lunch with John Fri 1pm at Cafe X', 'Dentist next Tuesday 9:30am', 'Team offsite Oct 12 - Oct 14', 'Call mom tomorrow 7pm'];
 
 export function QuickAddScreen({ navigation }: ScreenProps<'QuickAdd'>) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { calendars } = useCalendarContext();
   const [text, setText] = useState('');
   const [calendarId, setCalendarId] = useState(calendars[0]?.id ?? '');
@@ -26,7 +28,9 @@ export function QuickAddScreen({ navigation }: ScreenProps<'QuickAdd'>) {
   const review = () => {
     const start = parsed.start ?? nextRoundedHour();
     const end = parsed.end ?? addHours(start, 1);
-    navigation.replace('EventEdit', {
+    // Push (not replace) so "Edit text" in the editor returns here with the text intact.
+    navigation.push('EventEdit', {
+      fromQuickAdd: true,
       draft: {
         title: parsed.title,
         location: parsed.location,
@@ -88,6 +92,8 @@ export function QuickAddScreen({ navigation }: ScreenProps<'QuickAdd'>) {
 }
 
 function PreviewRow({ icon, label, value, muted, hint }: { icon: IconName; label: string; value: string; muted?: boolean; hint?: string }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   return (
     <View style={styles.row}>
       <View style={styles.rowIcon}>
@@ -102,7 +108,7 @@ function PreviewRow({ icon, label, value, muted, hint }: { icon: IconName; label
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: 48 },
   inputCard: {
@@ -123,4 +129,4 @@ const styles = StyleSheet.create({
   rowValue: { fontSize: 16, color: colors.text, marginTop: 2 },
   muted: { color: colors.textFaint },
   hint: { fontSize: 12, color: colors.primary, marginTop: 2 },
-});
+}));

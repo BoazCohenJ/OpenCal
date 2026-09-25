@@ -1,8 +1,8 @@
 import { format, isAfter, startOfMonth } from 'date-fns';
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import type { PauseWindow } from '../models/PauseWindow';
-import { colors, radius } from '../theme';
+import { createStyles, radius, useTheme } from '../theme';
 import { Icon } from './Icon';
 import { dayKey, formatPauseWindow } from '../utils/dates';
 import { MiniMonth } from './MiniMonth';
@@ -11,6 +11,8 @@ import { Button } from './ui';
 
 /** List of date-range pauses with a range picker to add new ones. */
 export function PauseWindowsEditor({ value, onChange }: { value: PauseWindow[]; onChange: (v: PauseWindow[]) => void }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(startOfMonth(new Date()));
   const [rangeStart, setRangeStart] = useState<Date | undefined>();
@@ -85,7 +87,7 @@ export function PauseWindowsEditor({ value, onChange }: { value: PauseWindow[]; 
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   container: { padding: 16, gap: 10 },
   empty: { fontSize: 14, color: colors.textMuted },
   item: {
@@ -101,4 +103,4 @@ const styles = StyleSheet.create({
   status: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   remove: { color: colors.danger, fontWeight: '600', fontSize: 14 },
   hint: { fontSize: 14, color: colors.textMuted, marginBottom: 10 },
-});
+}));

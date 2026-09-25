@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { EventPill } from '../components/EventPill';
 import { EventGlyph, eventIconKey } from '../components/Icon';
 import { occurrencesForDay, type Occurrence } from '../services/occurrences';
-import { colors, fonts } from '../theme';
+import { createStyles, fonts } from '../theme';
 import { deepText, softBg } from '../utils/color';
 import { atMinutes, dayKey, minutesSinceMidnight } from '../utils/dates';
 import { eventLabel } from '../utils/format';
@@ -24,6 +24,7 @@ export function WeekView({
   onPressSlot: (start: Date) => void;
   onPressDay: (d: Date) => void;
 }) {
+  const styles = useStyles();
   const [width, setWidth] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
   const today = new Date();
@@ -131,7 +132,7 @@ export function WeekView({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   container: { flex: 1, backgroundColor: colors.surface },
   headerRow: { flexDirection: 'row', paddingTop: 10, paddingBottom: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
   dayHeader: { flex: 1, alignItems: 'center', gap: 2 },
@@ -140,7 +141,7 @@ const styles = StyleSheet.create({
   dateBadge: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   dateBadgeToday: { backgroundColor: colors.primary },
   dateText: { fontSize: 16, fontFamily: fonts.display, color: colors.text },
-  dateTextToday: { color: colors.onInk },
+  dateTextToday: { color: colors.onPrimary },
   allDayRow: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingVertical: 3 },
   allDayGutter: { justifyContent: 'center', alignItems: 'flex-end', paddingRight: 8 },
   allDayLabel: { fontSize: 10, color: colors.textFaint },
@@ -152,4 +153,4 @@ const styles = StyleSheet.create({
   todayColumn: { backgroundColor: 'rgba(226, 85, 58, 0.05)' },
   block: { position: 'absolute', borderRadius: 6, borderLeftWidth: 3, paddingHorizontal: 3, paddingVertical: 3, overflow: 'hidden' },
   blockText: { fontSize: 10.5, fontWeight: '700' },
-});
+}));

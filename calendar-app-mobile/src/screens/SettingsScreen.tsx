@@ -1,13 +1,14 @@
 import React from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
-import { Divider, Row, Section } from '../components/ui';
+import { ScrollView, View } from 'react-native';
+import { Divider, Row, Section, Segmented } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
 import { notificationsSupported } from '../services/notifications';
-import { colors, spacing } from '../theme';
+import { createStyles, spacing, type ThemeMode } from '../theme';
 
 export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
-  const { calendars, templates, events, notificationPrefs, reminderStatus } = useCalendarContext();
+  const styles = useStyles();
+  const { calendars, templates, events, notificationPrefs, reminderStatus, themeMode, setThemeMode } = useCalendarContext();
 
   const notificationSummary = !notificationsSupported
     ? 'Mobile only'
@@ -28,6 +29,19 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
         <Divider />
         <Row label="Event list" subtitle="Find and edit any event with filters" value={String(events.length)} onPress={() => navigation.navigate('HiddenEvents')} />
       </Section>
+      <Section title="Appearance">
+        <View style={styles.segment}>
+          <Segmented<ThemeMode>
+            options={[
+              { value: 'system', label: 'System' },
+              { value: 'light', label: 'Light' },
+              { value: 'dark', label: 'Dark' },
+            ]}
+            value={themeMode}
+            onChange={setThemeMode}
+          />
+        </View>
+      </Section>
       <Section title="Reminders">
         <Row
           label="Notifications"
@@ -43,7 +57,8 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg },
-});
+  segment: { padding: spacing.md },
+}));

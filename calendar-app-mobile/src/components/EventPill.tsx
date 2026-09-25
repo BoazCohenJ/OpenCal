@@ -1,7 +1,7 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import type { Occurrence } from '../services/occurrences';
-import { colors } from '../theme';
+import { createStyles } from '../theme';
 import { deepText, readableOn, softBg } from '../utils/color';
 import { eventLabel } from '../utils/format';
 import { EventGlyph, eventIconKey } from './Icon';
@@ -17,6 +17,7 @@ export function EventPill({
   variant?: 'soft' | 'solid' | 'dot';
   compact?: boolean;
 }) {
+  const styles = useStyles();
   const label = eventLabel(occ.event);
   const hasIcon = eventIconKey(occ.event.emoji) !== null;
   if (variant === 'dot') {
@@ -50,7 +51,7 @@ export function EventPill({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   pill: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 7, borderLeftWidth: 3, paddingHorizontal: 7, paddingVertical: 5 },
   pillCompact: { gap: 3, paddingHorizontal: 4, paddingVertical: 1.5, borderRadius: 4, borderLeftWidth: 0 },
   pillText: { flex: 1, fontSize: 13, fontWeight: '700' },
@@ -58,4 +59,4 @@ const styles = StyleSheet.create({
   dotRow: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 1 },
   dot: { width: 3, height: 10, borderRadius: 2 },
   dotText: { flex: 1, fontSize: 12, color: colors.text },
-});
+}));

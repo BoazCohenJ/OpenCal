@@ -1,7 +1,7 @@
 import { addDays, addMonths, format, isSameDay, isSameMonth, startOfDay, startOfMonth, startOfWeek } from 'date-fns';
 import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fonts } from '../theme';
+import { Pressable, Text, View } from 'react-native';
+import { createStyles, fonts } from '../theme';
 import { dayKey, WEEK_STARTS_ON } from '../utils/dates';
 import { Icon } from './Icon';
 
@@ -15,6 +15,7 @@ interface Props {
 }
 
 export function MiniMonth({ month, onChangeMonth, onSelectDay, selected, rangeStart, rangeEnd }: Props) {
+  const styles = useStyles();
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(month), { weekStartsOn: WEEK_STARTS_ON });
     return Array.from({ length: 42 }, (_, i) => addDays(start, i));
@@ -73,7 +74,7 @@ export function MiniMonth({ month, onChangeMonth, onSelectDay, selected, rangeSt
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   nav: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: colors.surfaceAlt },
   title: { fontSize: 18, fontFamily: fonts.display, color: colors.text },
@@ -86,5 +87,5 @@ const styles = StyleSheet.create({
   dayText: { fontSize: 15, color: colors.text },
   outside: { color: colors.textFaint },
   today: { color: colors.primary, fontWeight: '700' },
-  selectedText: { color: colors.onInk, fontWeight: '700' },
-});
+  selectedText: { color: colors.onPrimary, fontWeight: '700' },
+}));

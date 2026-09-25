@@ -32,13 +32,20 @@ export function saveCalendar(calendar: Calendar): void {
   write(storageKeys.calendars, [...loadCalendars().filter((item) => item.id !== calendar.id), calendar]);
 }
 
-export function deleteCalendar(id: string, reassignTo: string | null): void {
-  write(storageKeys.calendars, loadCalendars().filter((item) => item.id !== id));
-  const events = loadEvents().map((event) => event.calendarId === id && reassignTo
-    ? { ...event, calendarId: reassignTo }
-    : event
-  ).filter((event) => reassignTo || event.calendarId !== id);
+export function deleteCalendarWithPlan(
+  id: string,
+  plan: Record<string, string | null>,
+  templatesTo: string | null,
+): void {
+  const events = loadEvents()
+    .map((event) => (event.calendarId === id && plan[event.id] ? { ...event, calendarId: plan[event.id]! } : event))
+    .filter((event) => event.calendarId !== id);
   write(storageKeys.events, events);
+  write(
+    storageKeys.templates,
+    loadTemplates().map((t) => (t.calendarId === id ? { ...t, calendarId: templatesTo ?? '' } : t)),
+  );
+  write(storageKeys.calendars, loadCalendars().filter((item) => item.id !== id));
 }
 
 export function loadEvents(): Event[] {

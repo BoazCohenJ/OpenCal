@@ -6,22 +6,44 @@ import { DateTimeField } from '../components/DateTimeField';
 import { IconButtonTile, IconPicker } from '../components/IconPicker';
 import { PauseWindowsEditor } from '../components/PauseWindowsEditor';
 import { RecurrenceEditor } from '../components/RecurrenceEditor';
-import { CalendarSelector, ReminderPicker, TagEditor } from '../components/Selectors';
+import { ReminderEditor } from '../components/ReminderEditor';
+import { CalendarSelector, TagEditor } from '../components/Selectors';
 import { Button, Divider, Field, HeaderButton, Section, SwitchRow, TextField } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
+import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
 import type { NotificationPrefs } from '../models/NotificationPrefs';
 import type { EventDraft, ScreenProps } from '../navigation/types';
 import { templateFromEvent } from '../services/templates';
-import { colors, fonts, radius, spacing } from '../theme';
+import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { confirmAsync, notify } from '../utils/confirm';
 import { formatPauseWindow, nextRoundedHour } from '../utils/dates';
 import { newId } from '../utils/id';
+import { animateNextLayout } from '../utils/motion';
+
+/** Fields a calendar can pre-fill. Once the user edits one, switching calendars leaves it alone. */
+type InheritedField = 'reminders' | 'recurrenceRule' | 'location' | 'tags';
+const INHERITED: InheritedField[] = ['reminders', 'recurrenceRule', 'location', 'tags'];
+
+function defaultRemindersFor(calendar: Calendar | undefined, allDay: boolean, prefs: NotificationPrefs): number[] {
+  return [...(calendar?.defaults?.reminders ?? (allDay ? prefs.defaultAllDayReminders : prefs.defaultReminders))];
+}
+
+/** What a new event in `calendar` starts with for each inherited field. */
+function inheritedValues(calendar: Calendar | undefined, allDay: boolean, prefs: NotificationPrefs): Pick<Event, InheritedField> {
+  return {
+    reminders: defaultRemindersFor(calendar, allDay, prefs),
+    recurrenceRule: calendar?.defaults?.recurrenceRule,
+    location: calendar?.defaults?.location,
+    tags: [...(calendar?.defaults?.tags ?? [])],
+  };
+}
 
 function buildInitial(
   existing: Event | undefined,
   draft: EventDraft | undefined,
   defaultCalendarId: string,
+  calendarsById: Record<string, Calendar>,
   prefs: NotificationPrefs,
 ): Event {
   if (existing) return existing;
@@ -42,20 +64,44 @@ function buildInitial(
       if (v !== undefined) (merged as unknown as Record<string, unknown>)[k] = v;
     }
   }
-  if (!draft?.reminders) merged.reminders = [...(merged.isAllDay ? prefs.defaultAllDayReminders : prefs.defaultReminders)];
+  const calendar = calendarsById[merged.calendarId] ?? calendarsById[defaultCalendarId];
+  const inherited = inheritedValues(calendar, merged.isAllDay, prefs);
+  for (const field of INHERITED) {
+    if (draft?.[field] === undefined) (merged as unknown as Record<string, unknown>)[field] = inherited[field];
+  }
   return merged;
 }
 
 export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { calendars, calendarsById, events, saveEvent, deleteEvent, saveTemplate, allTags, notificationPrefs } = useCalendarContext();
   const existing = route.params?.eventId ? events.find((e) => e.id === route.params?.eventId) : undefined;
   const [form, setForm] = useState<Event>(() => {
-    const initial = buildInitial(existing, route.params?.draft, calendars[0]?.id ?? '', notificationPrefs);
+    const initial = buildInitial(existing, route.params?.draft, calendars[0]?.id ?? '', calendarsById, notificationPrefs);
     return calendarsById[initial.calendarId] ? initial : { ...initial, calendarId: calendars[0]?.id ?? '' };
   });
   const [showEmoji, setShowEmoji] = useState(false);
+  const fromQuickAdd = route.params?.fromQuickAdd ?? false;
+  // Fields the user (or the Quick Add text) set explicitly; calendar defaults never overwrite these.
+  const [touched, setTouched] = useState<Set<InheritedField>>(
+    () => new Set(existing ? INHERITED : INHERITED.filter((f) => route.params?.draft?.[f] !== undefined)),
+  );
 
   const update = (patch: Partial<Event>) => setForm((f) => ({ ...f, ...patch }));
+  const edit = (patch: Partial<Pick<Event, InheritedField>>) => {
+    setTouched((t) => new Set([...t, ...(Object.keys(patch) as InheritedField[])]));
+    update(patch);
+  };
+  const changeCalendar = (calendarId: string) => {
+    if (existing) return update({ calendarId });
+    const inherited = inheritedValues(calendarsById[calendarId], form.isAllDay, notificationPrefs);
+    const patch: Partial<Event> = { calendarId };
+    for (const field of INHERITED) {
+      if (!touched.has(field)) (patch as Record<string, unknown>)[field] = inherited[field];
+    }
+    update(patch);
+  };
   const start = new Date(form.startDate);
   const end = new Date(form.endDate);
   const calendar = calendarsById[form.calendarId];
@@ -68,10 +114,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
   const setEnd = (d: Date) => update({ endDate: (form.isAllDay ? endOfDay(d) : d).toISOString() });
   const setAllDay = (allDay: boolean) => {
     // On new events, swap to the matching default reminders unless the user already changed them.
-    const from = allDay ? notificationPrefs.defaultReminders : notificationPrefs.defaultAllDayReminders;
-    const to = allDay ? notificationPrefs.defaultAllDayReminders : notificationPrefs.defaultReminders;
-    const untouched = !existing && form.reminders.join() === from.join();
-    const reminders = untouched ? { reminders: [...to] } : {};
+    const reminders = !existing && !touched.has('reminders') ? { reminders: defaultRemindersFor(calendar, allDay, notificationPrefs) } : {};
     update(
       allDay
         ? { ...reminders, isAllDay: true, startDate: startOfDay(start).toISOString(), endDate: endOfDay(end < start ? start : end).toISOString() }
@@ -111,18 +154,27 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
     const event = normalized();
     if (!event) return;
     saveEvent(event);
-    navigation.goBack();
+    // From Quick Add, close both the editor and the text screen underneath it.
+    if (fromQuickAdd) navigation.popToTop();
+    else navigation.goBack();
   };
   const saveRef = useRef(save);
-  saveRef.current = save;
+  useLayoutEffect(() => {
+    saveRef.current = save;
+  });
 
   useLayoutEffect(() => {
     navigation.setOptions({
       title: existing ? 'Edit Event' : 'New Event',
-      headerLeft: () => <HeaderButton title="Cancel" onPress={() => navigation.goBack()} />,
+      headerLeft: () =>
+        fromQuickAdd ? (
+          <HeaderButton title="‹ Edit text" onPress={() => navigation.goBack()} />
+        ) : (
+          <HeaderButton title="Cancel" onPress={() => navigation.goBack()} />
+        ),
       headerRight: () => <HeaderButton title="Save" bold onPress={() => saveRef.current()} />,
     });
-  }, [navigation, existing]);
+  }, [navigation, existing, fromQuickAdd]);
 
   const remove = async () => {
     if (!existing) return;
@@ -147,7 +199,10 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.titleCard}>
-        <IconButtonTile value={form.emoji} color={eventColor} onPress={() => setShowEmoji((v) => !v)} />
+        <IconButtonTile value={form.emoji} color={eventColor} onPress={() => {
+            animateNextLayout();
+            setShowEmoji((v) => !v);
+          }} />
         <TextInput
           style={styles.titleInput}
           placeholder="Event title"
@@ -172,7 +227,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
       ) : null}
 
       <Section title="Calendar">
-        <CalendarSelector calendars={calendars} value={form.calendarId} onChange={(calendarId) => update({ calendarId })} />
+        <CalendarSelector calendars={calendars} value={form.calendarId} onChange={changeCalendar} />
       </Section>
 
       <Section title="When">
@@ -187,7 +242,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
       </Section>
 
       <Section title="Repeat">
-        <RecurrenceEditor value={form.recurrenceRule} start={start} onChange={(recurrenceRule) => update({ recurrenceRule })} />
+        <RecurrenceEditor value={form.recurrenceRule} start={start} onChange={(recurrenceRule) => edit({ recurrenceRule })} />
       </Section>
 
       {form.recurrenceRule ? (
@@ -202,18 +257,23 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
       ) : null}
 
       <Section title="Reminders">
-        <ReminderPicker value={form.reminders} onChange={(reminders) => update({ reminders })} />
+        <ReminderEditor
+          value={form.reminders}
+          onChange={(reminders) => edit({ reminders })}
+          allDay={form.isAllDay}
+          allDayTime={notificationPrefs.allDayTime}
+        />
       </Section>
 
       <Section title="Details">
         <Field label="Location">
-          <TextField value={form.location ?? ''} onChangeText={(location) => update({ location })} placeholder="Add a place" />
+          <TextField value={form.location ?? ''} onChangeText={(location) => edit({ location })} placeholder="Add a place" />
         </Field>
         <Field label="Notes">
           <TextField value={form.description ?? ''} onChangeText={(description) => update({ description })} placeholder="Add a description" multiline />
         </Field>
         <Field label="Tags">
-          <TagEditor value={form.tags} onChange={(tags) => update({ tags })} suggestions={allTags} />
+          <TagEditor value={form.tags} onChange={(tags) => edit({ tags })} suggestions={allTags} />
         </Field>
       </Section>
 
@@ -229,7 +289,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: 48 },
   titleCard: {
@@ -246,4 +306,4 @@ const styles = StyleSheet.create({
   titleInput: { flex: 1, fontSize: 22, fontFamily: fonts.display, color: colors.text, paddingVertical: 6 },
   inherited: { fontSize: 13, color: colors.textMuted, paddingHorizontal: 16, paddingBottom: 14 },
   actions: { gap: 10, marginTop: 4 },
-});
+}));

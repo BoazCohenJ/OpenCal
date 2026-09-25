@@ -14,7 +14,7 @@ import { EventPill } from '../components/EventPill';
 import { EventGlyph, eventIconKey, Icon } from '../components/Icon';
 import { Button } from '../components/ui';
 import type { Occurrence } from '../services/occurrences';
-import { colors, fonts, radius, shadow } from '../theme';
+import { createStyles, fonts, radius, shadow, useTheme } from '../theme';
 import { deepText, softBg } from '../utils/color';
 import { atMinutes, dayKey, formatTime, minutesSinceMidnight } from '../utils/dates';
 import { eventLabel, formatDelta } from '../utils/format';
@@ -63,6 +63,8 @@ function EventBlock({
   onToggle: () => void;
   onLongPress: () => void;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const latest = useRef({ drag, onToggle });
   latest.current = { drag, onToggle };
 
@@ -107,7 +109,7 @@ function EventBlock({
     <View style={styles.blockInner}>
       {selectionMode ? (
         <View style={[styles.checkbox, { borderColor: occ.color }, selected && { backgroundColor: occ.color }]}>
-          {selected ? <Icon name="check" size={12} color={colors.onInk} strokeWidth={3} /> : null}
+          {selected ? <Icon name="check" size={12} color={colors.onPrimary} strokeWidth={3} /> : null}
         </View>
       ) : null}
       <View style={styles.blockBody}>
@@ -162,6 +164,7 @@ export function DayView({
   onMoveEvents: (eventIds: string[], deltaMinutes: number) => void;
   onSelectionModeChange?: (active: boolean) => void;
 }) {
+  const styles = useStyles();
   const key = dayKey(date);
   const allDay = useMemo(() => occurrences.filter(isAllDayLike), [occurrences]);
   const timed = useMemo(() => layoutTimed(occurrences.filter((o) => !isAllDayLike(o)), date), [occurrences, date]);
@@ -294,7 +297,7 @@ export function DayView({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   container: { flex: 1, backgroundColor: colors.surface },
   flex: { flex: 1 },
   allDay: { padding: 12, gap: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
@@ -331,4 +334,4 @@ const styles = StyleSheet.create({
   toolbarTitle: { fontSize: 18, fontFamily: fonts.display, color: colors.text },
   toolbarHint: { fontSize: 12, color: colors.textMuted, lineHeight: 17 },
   toolbarActions: { flexDirection: 'row', gap: 6 },
-});
+}));

@@ -1,25 +1,9 @@
 import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import type { Calendar } from '../models/Calendar';
-import { colors, radius } from '../theme';
-import { formatReminder } from '../utils/format';
+import { createStyles, radius, useTheme } from '../theme';
 import { Icon } from './Icon';
 import { Chip, TextField } from './ui';
-
-const REMINDER_OPTIONS = [0, 5, 10, 15, 30, 60, 120, 1440, 10080];
-
-export function ReminderPicker({ value, onChange }: { value: number[]; onChange: (v: number[]) => void }) {
-  const toggle = (m: number) =>
-    onChange(value.includes(m) ? value.filter((x) => x !== m) : [...value, m].sort((a, b) => a - b));
-  return (
-    <View style={styles.wrap}>
-      <Chip label="None" selected={value.length === 0} onPress={() => onChange([])} />
-      {REMINDER_OPTIONS.map((m) => (
-        <Chip key={m} label={formatReminder(m).replace(' before', '')} selected={value.includes(m)} onPress={() => toggle(m)} />
-      ))}
-    </View>
-  );
-}
 
 export function CalendarSelector({
   calendars,
@@ -30,6 +14,7 @@ export function CalendarSelector({
   value: string;
   onChange: (id: string) => void;
 }) {
+  const styles = useStyles();
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hRow}>
       {calendars.map((c) => (
@@ -48,6 +33,8 @@ export function TagEditor({
   onChange: (tags: string[]) => void;
   suggestions?: string[];
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const [text, setText] = useState('');
   const add = (raw: string) => {
     const parts = raw
@@ -91,8 +78,7 @@ export function TagEditor({
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 16 },
+const useStyles = createStyles((colors) => ({
   wrapTight: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   hRow: { gap: 8, padding: 16 },
   tagEditor: { gap: 10 },
@@ -106,4 +92,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   tagText: { color: colors.primary, fontWeight: '600', fontSize: 14 },
-});
+}));

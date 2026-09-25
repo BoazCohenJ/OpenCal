@@ -1,7 +1,7 @@
 import { format, startOfMonth } from 'date-fns';
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fonts, radius } from '../theme';
+import { Pressable, Text, View } from 'react-native';
+import { createStyles, fonts, radius, useTheme } from '../theme';
 import { Icon } from './Icon';
 import { MiniMonth } from './MiniMonth';
 import { Sheet } from './Sheet';
@@ -11,6 +11,7 @@ const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
 const NUDGES = [-15, -1, 1, 15];
 
 function GridCell({ label, active, near, onPress }: { label: string; active: boolean; near?: boolean; onPress: () => void }) {
+  const styles = useStyles();
   return (
     <Pressable
       onPress={onPress}
@@ -28,6 +29,7 @@ function GridCell({ label, active, near, onPress }: { label: string; active: boo
  * 5-minute grid, plus nudges for exact minutes. Any time is at most three taps away, no scrolling.
  */
 export function TimePicker({ value, onChange }: { value: Date; onChange: (d: Date) => void }) {
+  const styles = useStyles();
   const h24 = value.getHours();
   const pm = h24 >= 12;
   const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
@@ -112,6 +114,7 @@ export function DateTimeField({
   onChange: (d: Date) => void;
   mode?: 'date' | 'datetime';
 }) {
+  const styles = useStyles();
   const [open, setOpen] = useState<'date' | 'time' | null>(null);
   const [month, setMonth] = useState(startOfMonth(value));
   return (
@@ -161,6 +164,8 @@ export function OptionalDateButton({
   value: Date | null;
   onChange: (d: Date | null) => void;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(startOfMonth(value ?? new Date()));
   return (
@@ -196,7 +201,7 @@ export function OptionalDateButton({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   row: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   pill: {
     flexDirection: 'row',
@@ -235,8 +240,8 @@ const styles = StyleSheet.create({
   cellNear: { borderColor: colors.primary, borderStyle: 'dashed' },
   cellActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   cellText: { fontSize: 16, fontWeight: '600', color: colors.text, fontVariant: ['tabular-nums'] },
-  cellTextActive: { color: colors.onInk, fontWeight: '800' },
+  cellTextActive: { color: colors.onPrimary, fontWeight: '800' },
   nudges: { flexDirection: 'row', gap: 6, marginTop: 8 },
   nudge: { flex: 1, paddingVertical: 9, borderRadius: radius.pill, backgroundColor: colors.primarySoft, alignItems: 'center' },
   nudgeText: { fontSize: 13, fontWeight: '700', color: colors.primary },
-});
+}));

@@ -7,7 +7,7 @@ import { useCalendarContext } from '../context/CalendarContext';
 import type { Event } from '../models/Event';
 import type { ScreenProps } from '../navigation/types';
 import { expandEvent, isPausedOn, nextOccurrence, type Occurrence } from '../services/occurrences';
-import { colors, radius, spacing } from '../theme';
+import { createStyles, radius, spacing, useTheme } from '../theme';
 import { formatRange } from '../utils/dates';
 import { eventLabel } from '../utils/format';
 import { EventGlyph, eventIconKey, Icon } from '../components/Icon';
@@ -20,6 +20,8 @@ interface RowData {
 
 /** "Hidden" events list under Settings: a flat, filterable list of every event (not a grid). */
 export function HiddenEventsListScreen({ navigation }: ScreenProps<'HiddenEvents'>) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { events, calendars, calendarsById, allTags, getEffectiveColor } = useCalendarContext();
   const [search, setSearch] = useState('');
   const [repeatingOnly, setRepeatingOnly] = useState(false);
@@ -160,7 +162,7 @@ export function HiddenEventsListScreen({ navigation }: ScreenProps<'HiddenEvents
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   filters: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: 8, paddingBottom: 4 },
   search: {
@@ -196,4 +198,4 @@ const styles = StyleSheet.create({
   itemMeta: { fontSize: 13, color: colors.textMuted },
   itemNext: { fontSize: 13, color: colors.text },
   tags: { fontSize: 12, color: colors.primary, marginTop: 2 },
-});
+}));

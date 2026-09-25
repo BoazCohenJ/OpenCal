@@ -4,42 +4,35 @@ import {
   Fraunces_800ExtraBold,
   useFonts,
 } from '@expo-google-fonts/fraunces';
-import { DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ToastProvider } from './src/components/Toast';
 import { CalendarProvider, useCalendarContext } from './src/context/CalendarContext';
 import type { RootStackParamList } from './src/navigation/types';
+import { CalendarDeleteScreen } from './src/screens/CalendarDeleteScreen';
 import { CalendarEditScreen } from './src/screens/CalendarEditScreen';
 import { CalendarScreen } from './src/screens/CalendarScreen';
 import { CalendarsScreen } from './src/screens/CalendarsScreen';
 import { EventEditScreen } from './src/screens/EventEditScreen';
 import { HiddenEventsListScreen } from './src/screens/HiddenEventsListScreen';
+import { FocusEditScreen } from './src/screens/FocusEditScreen';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
 import { QuickAddScreen } from './src/screens/QuickAddScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { StampScreen } from './src/screens/StampScreen';
 import { TemplateEditScreen } from './src/screens/TemplateEditScreen';
 import { TemplatesScreen } from './src/screens/TemplatesScreen';
-import { colors, fonts } from './src/theme';
+import { createStyles, fonts, ThemeProvider, useTheme } from './src/theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const navigationTheme: Theme = {
-  ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    primary: colors.primary,
-    background: colors.bg,
-    card: colors.bg,
-    text: colors.text,
-    border: colors.border,
-  },
-};
-
 function RootNavigator() {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { ready, error } = useCalendarContext();
   const [fontsLoaded, fontError] = useFonts({ Fraunces_500Medium_Italic, Fraunces_600SemiBold, Fraunces_800ExtraBold });
   if (!ready || (!fontsLoaded && !fontError)) {
@@ -66,6 +59,8 @@ function RootNavigator() {
         headerStyle: { backgroundColor: colors.bg },
         contentStyle: { backgroundColor: colors.bg },
         headerBackButtonDisplayMode: 'minimal',
+        animation: 'slide_from_right',
+        animationDuration: 280,
       }}
     >
       <Stack.Screen name="Calendar" component={CalendarScreen} options={{ headerShown: false }} />
@@ -73,12 +68,14 @@ function RootNavigator() {
       <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
       <Stack.Screen name="Calendars" component={CalendarsScreen} options={{ title: 'Calendars' }} />
       <Stack.Screen name="CalendarEdit" component={CalendarEditScreen} options={{ title: 'Calendar' }} />
+      <Stack.Screen name="CalendarDelete" component={CalendarDeleteScreen} options={{ title: 'Delete calendar' }} />
       <Stack.Screen name="Templates" component={TemplatesScreen} options={{ title: 'Stamps' }} />
       <Stack.Screen name="TemplateEdit" component={TemplateEditScreen} options={{ title: 'Stamp' }} />
       <Stack.Screen name="HiddenEvents" component={HiddenEventsListScreen} options={{ title: 'Event List' }} />
-      <Stack.Group screenOptions={{ presentation: 'modal' }}>
+      <Stack.Group screenOptions={{ presentation: 'modal', animation: 'slide_from_bottom' }}>
         <Stack.Screen name="EventEdit" component={EventEditScreen} options={{ title: 'Event' }} />
         <Stack.Screen name="QuickAdd" component={QuickAddScreen} options={{ title: 'Quick Add' }} />
+        <Stack.Screen name="FocusEdit" component={FocusEditScreen} options={{ title: 'Quiet time' }} />
         <Stack.Screen name="Stamp" component={StampScreen} options={{ title: 'Add from Stamp' }} />
       </Stack.Group>
     </Stack.Navigator>
@@ -89,17 +86,51 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <CalendarProvider>
-        <NavigationContainer theme={navigationTheme}>
-          <RootNavigator />
-        </NavigationContainer>
-        <StatusBar style="dark" />
+        <ThemedApp />
       </CalendarProvider>
     </SafeAreaProvider>
   );
 }
 
-const styles = StyleSheet.create({
+function ThemedApp() {
+  const { themeMode } = useCalendarContext();
+  return (
+    <ThemeProvider mode={themeMode}>
+      <AppShell />
+    </ThemeProvider>
+  );
+}
+
+function AppShell() {
+  const { colors, scheme } = useTheme();
+  const navigationTheme = useMemo<Theme>(() => {
+    const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        primary: colors.primary,
+        background: colors.bg,
+        card: colors.bg,
+        text: colors.text,
+        border: colors.border,
+      },
+    };
+  }, [colors, scheme]);
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <ToastProvider>
+        <NavigationContainer theme={navigationTheme}>
+          <RootNavigator />
+        </NavigationContainer>
+      </ToastProvider>
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+    </View>
+  );
+}
+
+const useStyles = createStyles((colors) => ({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.bg, gap: 8 },
   errorTitle: { fontSize: 22, fontFamily: fonts.display, color: colors.text },
   errorText: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
-});
+}));

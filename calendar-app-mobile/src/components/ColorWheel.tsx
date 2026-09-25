@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { type GestureResponderEvent, PanResponder, StyleSheet, View } from 'react-native';
+import { type GestureResponderEvent, PanResponder, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
-import { colors } from '../theme';
+import { createStyles } from '../theme';
 import { hexToHsv, hsvToHex, type Hsv } from '../utils/color';
 
 const WHEEL = 220;
@@ -49,6 +49,7 @@ function useDrag(onPoint: (x: number, y: number) => void) {
 
 /** Hue/saturation disc plus a brightness slider. Emits `#RRGGBB` on every change. */
 export function ColorWheel({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
+  const styles = useStyles();
   // Keep HSV locally: converting through hex loses hue at s=0 / v=0.
   const [hsv, setHsv] = useState<Hsv>(() => hexToHsv(value));
   const [prevValue, setPrevValue] = useState(value);
@@ -140,8 +141,8 @@ export function ColorWheel({ value, onChange }: { value: string; onChange: (hex:
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   container: { alignItems: 'center', gap: 16, paddingVertical: 4 },
   wheel: { width: WHEEL, height: WHEEL, borderRadius: R, backgroundColor: colors.surfaceAlt },
   slider: { alignSelf: 'stretch', height: THUMB + 4 },
-});
+}));

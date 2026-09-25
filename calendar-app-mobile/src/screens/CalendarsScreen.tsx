@@ -1,12 +1,13 @@
 import React, { useLayoutEffect } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { ColorDot, Divider, HeaderButton, Row, Section } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
-import { colors, spacing } from '../theme';
+import { createStyles, spacing } from '../theme';
 import { dayKey, formatPauseWindow } from '../utils/dates';
 
 export function CalendarsScreen({ navigation }: ScreenProps<'Calendars'>) {
+  const styles = useStyles();
   const { calendars, events, visibleCalendarIds } = useCalendarContext();
   const today = dayKey(new Date());
 
@@ -43,8 +44,8 @@ export function CalendarsScreen({ navigation }: ScreenProps<'Calendars'>) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg },
   empty: { padding: 16, color: colors.textMuted },
-});
+}));

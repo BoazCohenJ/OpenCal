@@ -1,17 +1,22 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, Text } from 'react-native';
 import { ColorPicker } from '../components/ColorPicker';
 import { PauseWindowsEditor } from '../components/PauseWindowsEditor';
-import { Button, Chip, Field, HeaderButton, Section, TextField } from '../components/ui';
+import { RecurrenceEditor } from '../components/RecurrenceEditor';
+import { ReminderEditor } from '../components/ReminderEditor';
+import { TagEditor } from '../components/Selectors';
+import { Button, Divider, Field, HeaderButton, Section, SwitchRow, TextField } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
-import type { Calendar } from '../models/Calendar';
+import type { Calendar, CalendarDefaults } from '../models/Calendar';
 import type { ScreenProps } from '../navigation/types';
-import { colors, PALETTE, spacing } from '../theme';
-import { confirmAsync, notify } from '../utils/confirm';
+import { createStyles, PALETTE, spacing } from '../theme';
+import { notify } from '../utils/confirm';
 import { newId } from '../utils/id';
+import { animateNextLayout } from '../utils/motion';
 
 export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarEdit'>) {
-  const { calendars, events, saveCalendar, deleteCalendar } = useCalendarContext();
+  const styles = useStyles();
+  const { calendars, events, saveCalendar, allTags, notificationPrefs } = useCalendarContext();
   const existing = calendars.find((c) => c.id === route.params?.calendarId);
   const [form, setForm] = useState<Calendar>(
     () =>
@@ -24,9 +29,12 @@ export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarE
       },
   );
   const others = calendars.filter((c) => c.id !== form.id);
-  const [reassignTo, setReassignTo] = useState<string | null>(others[0]?.id ?? null);
   const eventCount = events.filter((e) => e.calendarId === form.id).length;
   const recurringCount = events.filter((e) => e.calendarId === form.id && e.recurrenceRule).length;
+  const defaults = form.defaults ?? {};
+  const setDefaults = (patch: CalendarDefaults) => setForm((f) => ({ ...f, defaults: { ...f.defaults, ...patch } }));
+  // Only ever used as a reference date for the repeat editor's weekday default.
+  const [repeatStart] = useState(() => new Date());
 
   const save = () => {
     const name = form.name.trim();
@@ -34,11 +42,16 @@ export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarE
       notify('Name your calendar', 'For example “Work” or “Personal”.');
       return;
     }
-    saveCalendar({ ...form, name });
+    const location = defaults.location?.trim() || undefined;
+    const cleaned: CalendarDefaults = { ...defaults, location, tags: defaults.tags?.length ? defaults.tags : undefined };
+    const hasDefaults = Object.values(cleaned).some((v) => v !== undefined);
+    saveCalendar({ ...form, name, defaults: hasDefaults ? cleaned : undefined });
     navigation.goBack();
   };
   const saveRef = useRef(save);
-  saveRef.current = save;
+  useLayoutEffect(() => {
+    saveRef.current = save;
+  });
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -46,20 +59,6 @@ export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarE
       headerRight: () => <HeaderButton title="Save" bold onPress={() => saveRef.current()} />,
     });
   }, [navigation, existing]);
-
-  const remove = async () => {
-    if (!existing) return;
-    const target = others.find((c) => c.id === reassignTo);
-    const message =
-      eventCount === 0
-        ? 'This calendar has no events.'
-        : target
-          ? `Its ${eventCount} event(s) will move to “${target.name}”.`
-          : `Its ${eventCount} event(s) will be deleted.`;
-    if (!(await confirmAsync(`Delete “${existing.name}”?`, message, 'Delete', true))) return;
-    deleteCalendar(existing.id, eventCount > 0 ? reassignTo : null);
-    navigation.goBack();
-  };
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -74,6 +73,34 @@ export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarE
       </Section>
 
       <Section
+        title="Defaults for new events"
+        footer="New events in this calendar start with these. Anything you change on an event stays with that event."
+      >
+        <SwitchRow
+          label="Custom reminders"
+          subtitle={defaults.reminders ? undefined : 'Using the defaults from Notifications'}
+          value={defaults.reminders !== undefined}
+          onValueChange={(on) => {
+            animateNextLayout();
+            setDefaults({ reminders: on ? [...notificationPrefs.defaultReminders] : undefined });
+          }}
+        />
+        {defaults.reminders !== undefined ? (
+          <ReminderEditor value={defaults.reminders} onChange={(reminders) => setDefaults({ reminders })} />
+        ) : null}
+        <Divider />
+        <Text style={styles.subhead}>Repeat</Text>
+        <RecurrenceEditor value={defaults.recurrenceRule} start={repeatStart} onChange={(recurrenceRule) => setDefaults({ recurrenceRule })} />
+        <Divider />
+        <Field label="Location">
+          <TextField value={defaults.location ?? ''} onChangeText={(location) => setDefaults({ location })} placeholder="No default location" />
+        </Field>
+        <Field label="Tags">
+          <TagEditor value={defaults.tags ?? []} onChange={(tags) => setDefaults({ tags })} suggestions={allTags} />
+        </Field>
+      </Section>
+
+      <Section
         title="Pause calendar"
         footer={`Pausing skips every repeating event in this calendar during these dates${
           recurringCount ? ` (${recurringCount} repeating event${recurringCount === 1 ? '' : 's'})` : ''
@@ -83,33 +110,20 @@ export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarE
       </Section>
 
       {existing && others.length > 0 ? (
-        <Section title="Delete calendar">
-          <View style={styles.deleteBox}>
-            {eventCount > 0 ? (
-              <>
-                <Text style={styles.deleteText}>What should happen to its {eventCount} event(s)?</Text>
-                <View style={styles.wrap}>
-                  {others.map((c) => (
-                    <Chip key={c.id} label={`Move to ${c.name}`} color={c.color} selected={reassignTo === c.id} onPress={() => setReassignTo(c.id)} />
-                  ))}
-                  <Chip label="Delete them" selected={reassignTo === null} onPress={() => setReassignTo(null)} />
-                </View>
-              </>
-            ) : null}
-            <Button variant="danger" title="Delete calendar" onPress={remove} />
-          </View>
-        </Section>
+        <Button
+          variant="danger"
+          title={eventCount ? `Delete calendar (${eventCount} event${eventCount === 1 ? '' : 's'})…` : 'Delete calendar…'}
+          onPress={() => navigation.navigate('CalendarDelete', { calendarId: existing.id })}
+        />
       ) : null}
       {existing && others.length === 0 ? <Text style={styles.note}>This is your only calendar, so it can’t be deleted.</Text> : null}
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: 48 },
-  deleteBox: { padding: 16, gap: 12 },
-  deleteText: { fontSize: 14, color: colors.textMuted },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  subhead: { fontSize: 13, fontWeight: '600', color: colors.textMuted, paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   note: { fontSize: 13, color: colors.textMuted, textAlign: 'center' },
-});
+}));

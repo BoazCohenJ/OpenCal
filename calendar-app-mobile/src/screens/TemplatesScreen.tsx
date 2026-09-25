@@ -4,11 +4,13 @@ import { Button, EmptyState, HeaderButton } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
 import { EventGlyph, Icon } from '../components/Icon';
-import { colors, radius, spacing } from '../theme';
+import { createStyles, radius, spacing, useTheme } from '../theme';
 import { deepText, softBg } from '../utils/color';
 import { formatDuration } from '../utils/format';
 
 export function TemplatesScreen({ navigation }: ScreenProps<'Templates'>) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { templates, calendarsById, moveTemplate } = useCalendarContext();
 
   useLayoutEffect(() => {
@@ -76,7 +78,7 @@ export function TemplatesScreen({ navigation }: ScreenProps<'Templates'>) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, gap: 10 },
   card: {
@@ -97,4 +99,4 @@ const styles = StyleSheet.create({
   order: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
   disabled: { opacity: 0.3 },
   footer: { fontSize: 13, color: colors.textMuted, textAlign: 'center', marginTop: 8 },
-});
+}));

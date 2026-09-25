@@ -10,10 +10,12 @@ import type { EventTemplate } from '../models/Template';
 import * as db from '../services/database';
 import { rescheduleReminders, type ScheduleResult } from '../services/notifications';
 import { expandEvents, getEffectiveColor, type Occurrence } from '../services/occurrences';
+import type { ThemeMode } from '../theme';
 import { newId } from '../utils/id';
 
 const HIDDEN_CALENDARS_KEY = 'hiddenCalendarIds';
 const NOTIFICATION_PREFS_KEY = 'notificationPrefs';
+const THEME_MODE_KEY = 'themeMode';
 const DEFAULT_CALENDARS = [
   { name: 'Personal', color: '#4F6BED' },
   { name: 'Work', color: '#F2994A' },
@@ -30,7 +32,8 @@ interface CalendarContextValue {
   visibleCalendarIds: string[];
   toggleCalendarVisibility: (id: string) => void;
   saveCalendar: (calendar: Calendar) => void;
-  deleteCalendar: (id: string, reassignTo: string | null) => void;
+  /** Deletes a calendar; `plan` maps each of its event ids to a target calendar id, or null to delete. */
+  deleteCalendarWithPlan: (id: string, plan: Record<string, string | null>, templatesTo: string | null) => void;
   saveEvent: (event: Event) => void;
   saveEvents: (events: Event[]) => void;
   deleteEvent: (id: string) => void;
@@ -38,6 +41,8 @@ interface CalendarContextValue {
   deleteTemplate: (id: string) => void;
   moveTemplate: (id: string, direction: -1 | 1) => void;
   getEffectiveColor: (event: Event) => string;
+  themeMode: ThemeMode;
+  setThemeMode: (mode: ThemeMode) => void;
   notificationPrefs: NotificationPrefs;
   updateNotificationPrefs: (patch: Partial<NotificationPrefs>) => void;
   /** Result of the most recent reminder scheduling pass (null until the first one finishes). */
@@ -65,6 +70,7 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
   const [hiddenCalendarIds, setHiddenCalendarIds] = useState<string[]>([]);
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPrefs>(() => normalizeNotificationPrefs(null));
   const [reminderStatus, setReminderStatus] = useState<ScheduleResult | null>(null);
+  const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
 
   useEffect(() => {
     try {
@@ -78,6 +84,7 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
       setEvents(db.loadEvents());
       setTemplates(db.loadTemplates());
       setHiddenCalendarIds(db.getSetting<string[]>(HIDDEN_CALENDARS_KEY, []));
+      setThemeModeState(db.getSetting<ThemeMode>(THEME_MODE_KEY, 'system'));
       setNotificationPrefs(normalizeNotificationPrefs(db.getSetting<Partial<NotificationPrefs> | null>(NOTIFICATION_PREFS_KEY, null)));
     } catch (e) {
       console.error('Failed to open the calendar database', e);
@@ -134,6 +141,11 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
     return () => sub.remove();
   }, [ready, error, refreshReminders]);
 
+  const setThemeMode = useCallback((mode: ThemeMode) => {
+    db.setSetting(THEME_MODE_KEY, mode);
+    setThemeModeState(mode);
+  }, []);
+
   const updateNotificationPrefs = useCallback((patch: Partial<NotificationPrefs>) => {
     setNotificationPrefs((prev) => {
       const next = normalizeNotificationPrefs({ ...prev, ...patch });
@@ -155,17 +167,20 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
     setCalendars(db.loadCalendars());
   }, []);
 
-  const deleteCalendar = useCallback((id: string, reassignTo: string | null) => {
-    db.deleteCalendar(id, reassignTo);
-    setCalendars(db.loadCalendars());
-    setEvents(db.loadEvents());
-    setTemplates(db.loadTemplates());
-    setHiddenCalendarIds((prev) => {
-      const next = prev.filter((x) => x !== id);
-      db.setSetting(HIDDEN_CALENDARS_KEY, next);
-      return next;
-    });
-  }, []);
+  const deleteCalendarWithPlan = useCallback(
+    (id: string, plan: Record<string, string | null>, templatesTo: string | null) => {
+      db.deleteCalendarWithPlan(id, plan, templatesTo);
+      setCalendars(db.loadCalendars());
+      setEvents(db.loadEvents());
+      setTemplates(db.loadTemplates());
+      setHiddenCalendarIds((prev) => {
+        const next = prev.filter((x) => x !== id);
+        db.setSetting(HIDDEN_CALENDARS_KEY, next);
+        return next;
+      });
+    },
+    [],
+  );
 
   const saveEvent = useCallback((event: Event) => {
     db.saveEvent(event);
@@ -237,7 +252,7 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
       visibleCalendarIds,
       toggleCalendarVisibility,
       saveCalendar,
-      deleteCalendar,
+      deleteCalendarWithPlan,
       saveEvent,
       saveEvents,
       deleteEvent,
@@ -245,6 +260,8 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
       deleteTemplate,
       moveTemplate,
       getEffectiveColor: effectiveColor,
+      themeMode,
+      setThemeMode,
       notificationPrefs,
       updateNotificationPrefs,
       reminderStatus,
@@ -253,8 +270,8 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       ready, error, calendars, calendarsById, events, templates, allTags, visibleCalendarIds,
-      toggleCalendarVisibility, saveCalendar, deleteCalendar, saveEvent, saveEvents, deleteEvent,
-      saveTemplate, deleteTemplate, moveTemplate, effectiveColor, notificationPrefs, updateNotificationPrefs,
+      toggleCalendarVisibility, saveCalendar, deleteCalendarWithPlan, saveEvent, saveEvents, deleteEvent,
+      saveTemplate, deleteTemplate, moveTemplate, effectiveColor, themeMode, setThemeMode, notificationPrefs, updateNotificationPrefs,
       reminderStatus, refreshReminders, getOccurrences,
     ],
   );

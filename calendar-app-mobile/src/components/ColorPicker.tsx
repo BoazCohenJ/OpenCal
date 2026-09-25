@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { colors, PALETTE, radius } from '../theme';
+import { Pressable, Text, TextInput, View } from 'react-native';
+import { createStyles, PALETTE, radius, useTheme } from '../theme';
 import { normalizeHex, readableOn } from '../utils/color';
 import { ColorWheel } from './ColorWheel';
+import { Sheet } from './Sheet';
 import { Icon } from './Icon';
 import { Button } from './ui';
 
@@ -19,6 +20,8 @@ export function ColorPicker({
   onChange: (hex: string | undefined) => void;
   inheritColor?: string;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const [text, setText] = useState(value ?? '');
   useEffect(() => {
     setText((prev) => (normalizeHex(prev, false) === (value ?? null) ? prev : value ?? ''));
@@ -26,7 +29,7 @@ export function ColorPicker({
 
   const current = value ?? inheritColor ?? PALETTE[0]!;
   const inPalette = PALETTE.some((c) => c.toUpperCase() === current.toUpperCase());
-  const [wheelOpen, setWheelOpen] = useState(() => !inPalette);
+  const [wheelOpen, setWheelOpen] = useState(false);
   const valid = text.trim() === '' || normalizeHex(text) !== null;
 
   const onChangeText = (t: string) => {
@@ -74,16 +77,24 @@ export function ColorPicker({
           );
         })}
         <Pressable
-          onPress={() => setWheelOpen((o) => !o)}
-          accessibilityLabel={wheelOpen ? 'Hide color wheel' : 'Pick from color wheel'}
-          accessibilityState={{ expanded: wheelOpen }}
-          style={[styles.swatch, styles.customSwatch, !inPalette && { backgroundColor: current }, wheelOpen && styles.customOpen]}
+          onPress={() => setWheelOpen(true)}
+          accessibilityLabel="Pick from color wheel"
+          style={[styles.swatch, styles.customSwatch, !inPalette && [styles.customActive, { backgroundColor: current }]]}
         >
           <Icon name="pipette" size={16} color={inPalette ? colors.text : readableOn(current)} />
         </Pressable>
       </View>
 
-      {wheelOpen ? <ColorWheel value={current} onChange={(hex) => onChange(hex)} /> : null}
+      {/* In a sheet so opening the wheel never shifts the form around it. */}
+      <Sheet visible={wheelOpen} onClose={() => setWheelOpen(false)} title="Custom color">
+        <View style={styles.wheelSheet}>
+          <View style={styles.wheelPreview}>
+            <View style={[styles.wheelSwatch, { backgroundColor: current }]} />
+            <Text style={styles.wheelHex}>{current.toUpperCase()}</Text>
+          </View>
+          <ColorWheel value={current} onChange={(hex) => onChange(hex)} />
+        </View>
+      </Sheet>
 
       <View style={styles.hexRow}>
         <Text style={styles.hexLabel}>HEX</Text>
@@ -104,7 +115,7 @@ export function ColorPicker({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   container: { padding: 16, gap: 14 },
   previewRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   preview: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
@@ -116,7 +127,11 @@ const styles = StyleSheet.create({
   swatch: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   swatchActive: { borderWidth: 3, borderColor: colors.surface, outlineColor: colors.text, transform: [{ scale: 1.08 }] },
   customSwatch: { backgroundColor: colors.bg, borderWidth: 1.5, borderColor: colors.border, borderStyle: 'dashed' },
-  customOpen: { borderColor: colors.text, borderStyle: 'solid' },
+  customActive: { borderColor: colors.text, borderStyle: 'solid' },
+  wheelSheet: { gap: 14, paddingBottom: 8 },
+  wheelPreview: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  wheelSwatch: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: colors.surface },
+  wheelHex: { fontSize: 17, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] },
   hexRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   hexLabel: { fontSize: 13, fontWeight: '700', color: colors.textMuted },
   hexInput: {
@@ -133,4 +148,4 @@ const styles = StyleSheet.create({
   },
   hexInvalid: { borderColor: colors.danger },
   error: { fontSize: 12, color: colors.danger, marginTop: -6 },
-});
+}));

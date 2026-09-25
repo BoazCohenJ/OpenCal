@@ -5,7 +5,7 @@ import type { PauseWindow } from '../models/PauseWindow';
 import type { EventTemplate } from '../models/Template';
 
 const db = SQLite.openDatabaseSync('calendar.db');
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 type Row = Record<string, any>;
 
@@ -90,6 +90,9 @@ export function initDatabase(): void {
         CREATE INDEX IF NOT EXISTS idx_calendar_pause_windows ON calendar_pause_windows(calendarId);
       `);
     }
+    if (version < 3) {
+      db.execSync(`ALTER TABLE calendars ADD COLUMN defaults TEXT;`);
+    }
     db.execSync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
   });
 }
@@ -117,15 +120,17 @@ export function loadCalendars(): Calendar[] {
     color: r.color,
     sortOrder: r.sortOrder ?? 0,
     pauseWindows: pauses.get(r.id) ?? [],
+    defaults: parseJson<Calendar['defaults']>(r.defaults, undefined),
   }));
 }
 
 export function saveCalendar(c: Calendar): void {
   db.withTransactionSync(() => {
     db.runSync(
-      `INSERT INTO calendars (id, name, color, sortOrder) VALUES (?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET name = excluded.name, color = excluded.color, sortOrder = excluded.sortOrder`,
-      [c.id, c.name, c.color, c.sortOrder],
+      `INSERT INTO calendars (id, name, color, sortOrder, defaults) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET name = excluded.name, color = excluded.color, sortOrder = excluded.sortOrder,
+         defaults = excluded.defaults`,
+      [c.id, c.name, c.color, c.sortOrder, c.defaults ? JSON.stringify(c.defaults) : null],
     );
     db.runSync('DELETE FROM calendar_pause_windows WHERE calendarId = ?', [c.id]);
     for (const w of c.pauseWindows) {
@@ -138,11 +143,23 @@ export function saveCalendar(c: Calendar): void {
   });
 }
 
-/** Deletes a calendar. Its events are moved to `reassignTo`, or deleted when it is null. */
-export function deleteCalendar(id: string, reassignTo: string | null): void {
+/**
+ * Deletes a calendar after applying a per-event plan: each event id maps to the calendar it moves
+ * to, or to null to be deleted. Stamps in the calendar move to `templatesTo` (or lose their calendar).
+ */
+export function deleteCalendarWithPlan(
+  id: string,
+  plan: Record<string, string | null>,
+  templatesTo: string | null,
+): void {
   db.withTransactionSync(() => {
-    if (reassignTo) db.runSync('UPDATE events SET calendarId = ? WHERE calendarId = ?', [reassignTo, id]);
-    else db.runSync('DELETE FROM events WHERE calendarId = ?', [id]);
+    for (const [eventId, target] of Object.entries(plan)) {
+      if (target) db.runSync('UPDATE events SET calendarId = ? WHERE id = ? AND calendarId = ?', [target, eventId, id]);
+      else db.runSync('DELETE FROM events WHERE id = ? AND calendarId = ?', [eventId, id]);
+    }
+    // Anything not covered by the plan (e.g. created meanwhile) is deleted with the calendar.
+    db.runSync('DELETE FROM events WHERE calendarId = ?', [id]);
+    db.runSync('UPDATE templates SET calendarId = ? WHERE calendarId = ?', [templatesTo, id]);
     db.runSync('DELETE FROM calendars WHERE id = ?', [id]);
   });
 }

@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   Pressable,
+  type PressableProps,
   StyleProp,
   StyleSheet,
   Switch,
@@ -10,18 +12,57 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
-import { colors, fonts, radius, spacing } from '../theme';
+import { createStyles, fonts, type Palette, radius, spacing, useTheme } from '../theme';
 import { deepText, softBg } from '../utils/color';
 import { Icon, type IconName } from './Icon';
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
-const BUTTON_COLORS: Record<ButtonVariant, { bg: string; fg: string }> = {
-  primary: { bg: colors.primary, fg: colors.onInk },
+const buttonColors = (colors: Palette): Record<ButtonVariant, { bg: string; fg: string }> => ({
+  primary: { bg: colors.primary, fg: colors.onPrimary },
   secondary: { bg: colors.primarySoft, fg: colors.primary },
   danger: { bg: colors.dangerSoft, fg: colors.danger },
   ghost: { bg: 'transparent', fg: colors.primary },
-};
+});
+
+/**
+ * Pressable that dips slightly while pressed and springs back on release.
+ * `style` is the visual box (it scales); `containerStyle` is layout on the outer touch target.
+ */
+export function PressableScale({
+  children,
+  style,
+  containerStyle,
+  scaleTo = 0.96,
+  onPressIn,
+  onPressOut,
+  ...rest
+}: Omit<PressableProps, 'style' | 'children'> & {
+  style?: StyleProp<ViewStyle>;
+  containerStyle?: StyleProp<ViewStyle>;
+  scaleTo?: number;
+  children?: React.ReactNode;
+}) {
+  const scale = useState(() => new Animated.Value(1))[0];
+  const to = (value: number) =>
+    Animated.spring(scale, { toValue: value, useNativeDriver: true, speed: 40, bounciness: value === 1 ? 8 : 0 }).start();
+  return (
+    <Pressable
+      {...rest}
+      style={containerStyle}
+      onPressIn={(e) => {
+        to(scaleTo);
+        onPressIn?.(e);
+      }}
+      onPressOut={(e) => {
+        to(1);
+        onPressOut?.(e);
+      }}
+    >
+      <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>
+    </Pressable>
+  );
+}
 
 export function Button({
   title,
@@ -38,23 +79,22 @@ export function Button({
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
-  const palette = BUTTON_COLORS[variant];
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const palette = buttonColors(colors)[variant];
+  // Layout props (flex, alignSelf) go on the touch target so buttons can share a row.
+  const { flex, alignSelf, ...visual } = StyleSheet.flatten(style) ?? {};
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       onPress={onPress}
       disabled={disabled}
-      style={({ pressed }) => [
-        styles.button,
-        small && styles.buttonSmall,
-        { backgroundColor: palette.bg },
-        pressed && styles.pressed,
-        disabled && styles.disabled,
-        style,
-      ]}
+      scaleTo={0.97}
+      containerStyle={{ flex, alignSelf }}
+      style={[styles.button, small && styles.buttonSmall, { backgroundColor: palette.bg }, disabled && styles.disabled, visual]}
     >
       <Text style={[styles.buttonText, small && styles.buttonTextSmall, { color: palette.fg }]}>{title}</Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -69,6 +109,7 @@ export function IconButton({
   accessibilityLabel: string;
   size?: number;
 }) {
+  const styles = useStyles();
   return (
     <Pressable
       accessibilityRole="button"
@@ -87,6 +128,7 @@ export function IconButton({
 }
 
 export function HeaderButton({ title, onPress, bold = false }: { title: string; onPress: () => void; bold?: boolean }) {
+  const styles = useStyles();
   return (
     <Pressable onPress={onPress} hitSlop={10} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
       <Text style={[styles.headerButtonText, bold && styles.bold]}>{title}</Text>
@@ -105,6 +147,7 @@ export function Chip({
   onPress?: () => void;
   color?: string;
 }) {
+  const styles = useStyles();
   return (
     <Pressable
       onPress={onPress}
@@ -145,6 +188,7 @@ export function Section({
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
+  const styles = useStyles();
   return (
     <View style={[styles.section, style]}>
       {title ? <Text style={styles.sectionTitle}>{title.toUpperCase()}</Text> : null}
@@ -171,6 +215,8 @@ export function Row({
   right?: React.ReactNode;
   destructive?: boolean;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const content = (
     <>
       {left ? <View style={styles.rowLeft}>{left}</View> : null}
@@ -191,9 +237,13 @@ export function Row({
   );
 }
 
-export const Divider = () => <View style={styles.divider} />;
+export function Divider() {
+  const styles = useStyles();
+  return <View style={styles.divider} />;
+}
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  const styles = useStyles();
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -203,6 +253,8 @@ export function Field({ label, children }: { label: string; children: React.Reac
 }
 
 export function TextField(props: TextInputProps) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   return (
     <TextInput
       placeholderTextColor={colors.textFaint}
@@ -223,6 +275,8 @@ export function SwitchRow({
   value: boolean;
   onValueChange: (v: boolean) => void;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   return (
     <View style={styles.row}>
       <View style={styles.rowBody}>
@@ -248,18 +302,41 @@ export function Segmented<T extends string>({
   value: T;
   onChange: (v: T) => void;
 }) {
+  const styles = useStyles();
+  const [width, setWidth] = useState(0);
+  const index = Math.max(0, options.findIndex((o) => o.value === value));
+  const segmentWidth = width > 0 ? (width - 6) / options.length : 0;
+  const x = useState(() => new Animated.Value(index))[0];
+  useEffect(() => {
+    Animated.spring(x, { toValue: index, useNativeDriver: true, damping: 20, stiffness: 260, mass: 0.7 }).start();
+  }, [index, x]);
+  // Build the animated node once per width: recreating it every render can detach a running
+  // native-driver animation on iOS/Android and leave the highlight stuck on the old option.
+  const translateX = useMemo(() => Animated.multiply(x, segmentWidth), [x, segmentWidth]);
   return (
-    <View style={styles.segmented}>
+    <View style={styles.segmented} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      {segmentWidth > 0 ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.segmentIndicator,
+            { width: segmentWidth, transform: [{ translateX }] },
+          ]}
+        />
+      ) : null}
       {options.map((o) => {
         const active = o.value === value;
         return (
           <Pressable
             key={o.value}
             onPress={() => onChange(o.value)}
+            accessibilityRole="tab"
             accessibilityState={{ selected: active }}
-            style={[styles.segment, active && styles.segmentActive]}
+            style={[styles.segment, active && segmentWidth === 0 && styles.segmentActive]}
           >
-            <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{o.label}</Text>
+            <Text style={[styles.segmentText, active && styles.segmentTextActive]} numberOfLines={1}>
+              {o.label}
+            </Text>
           </Pressable>
         );
       })}
@@ -267,6 +344,43 @@ export function Segmented<T extends string>({
   );
 }
 
+/** Press-and-hold repeat that speeds up the longer it is held. */
+function useHoldRepeat(action: () => void) {
+  const latest = useRef(action);
+  useLayoutEffect(() => {
+    latest.current = action;
+  });
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const repeated = useRef(false);
+  const stop = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  }, []);
+  const start = useCallback(() => {
+    stop();
+    repeated.current = false;
+    let delay = 380;
+    const tick = () => {
+      repeated.current = true;
+      latest.current();
+      delay = Math.max(40, delay * 0.8);
+      timer.current = setTimeout(tick, delay);
+    };
+    timer.current = setTimeout(tick, delay);
+  }, [stop]);
+  useEffect(() => stop, [stop]);
+  // The release after a hold also fires onPress; skip it so a hold doesn't overshoot by one step.
+  const onPress = useCallback(() => {
+    if (!repeated.current) latest.current();
+    repeated.current = false;
+  }, []);
+  return { onPressIn: start, onPressOut: stop, onPress };
+}
+
+/**
+ * −/+ number control. Tap to step, hold to repeat (accelerating), or tap the value to type it.
+ * `format` is only used for display; typing always edits the raw number.
+ */
 export function Stepper({
   value,
   onChange,
@@ -274,6 +388,7 @@ export function Stepper({
   max = 999,
   step = 1,
   format,
+  suffix,
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -281,22 +396,69 @@ export function Stepper({
   max?: number;
   step?: number;
   format?: (v: number) => string;
+  /** Unit shown after the raw number while typing, e.g. "min". */
+  suffix?: string;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const clamp = (v: number) => Math.min(max, Math.max(min, v));
+  const valueRef = useRef(value);
+  useLayoutEffect(() => {
+    valueRef.current = value;
+  });
+  const bump = (dir: 1 | -1) => {
+    const next = clamp(valueRef.current + dir * step);
+    valueRef.current = next;
+    onChange(next);
+  };
+  const down = useHoldRepeat(() => bump(-1));
+  const up = useHoldRepeat(() => bump(1));
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = () => {
+    const n = parseInt(draft ?? '', 10);
+    if (Number.isFinite(n)) onChange(clamp(n));
+    setDraft(null);
+  };
   return (
     <View style={styles.stepper}>
       <Pressable
-        style={[styles.stepperButton, value <= min && styles.disabled]}
+        style={({ pressed }) => [styles.stepperButton, value <= min && styles.disabled, pressed && styles.pressed]}
         disabled={value <= min}
-        onPress={() => onChange(Math.max(min, value - step))}
+        {...down}
         accessibilityLabel="Decrease"
       >
         <Icon name="minus" size={16} color={colors.primary} strokeWidth={2.5} />
       </Pressable>
-      <Text style={styles.stepperValue}>{format ? format(value) : value}</Text>
+      {draft !== null ? (
+        <View style={styles.stepperEdit}>
+          <TextInput
+            value={draft}
+            onChangeText={(t) => {
+              const digits = t.replace(/[^0-9]/g, '');
+              setDraft(digits);
+              // Apply valid values live; out-of-range input is clamped when the field closes.
+              const n = parseInt(digits, 10);
+              if (Number.isFinite(n) && n >= min && n <= max) onChange(n);
+            }}
+            onBlur={commit}
+            onSubmitEditing={commit}
+            keyboardType="number-pad"
+            autoFocus
+            selectTextOnFocus
+            maxLength={5}
+            style={styles.stepperInput}
+          />
+          {suffix ? <Text style={styles.stepperSuffix}>{suffix}</Text> : null}
+        </View>
+      ) : (
+        <Pressable onPress={() => setDraft(String(value))} accessibilityLabel="Type a value" hitSlop={6}>
+          <Text style={styles.stepperValue}>{format ? format(value) : value}</Text>
+        </Pressable>
+      )}
       <Pressable
-        style={[styles.stepperButton, value >= max && styles.disabled]}
+        style={({ pressed }) => [styles.stepperButton, value >= max && styles.disabled, pressed && styles.pressed]}
         disabled={value >= max}
-        onPress={() => onChange(Math.min(max, value + step))}
+        {...up}
         accessibilityLabel="Increase"
       >
         <Icon name="plus" size={16} color={colors.primary} strokeWidth={2.5} />
@@ -306,6 +468,8 @@ export function Stepper({
 }
 
 export function EmptyState({ icon, title, subtitle, children }: { icon: IconName; title: string; subtitle?: string; children?: React.ReactNode }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   return (
     <View style={styles.empty}>
       <View style={styles.emptyIcon}>
@@ -322,7 +486,7 @@ export const ColorDot = ({ color, size = 12 }: { color: string; size?: number })
   <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color }} />
 );
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   pressed: { opacity: 0.7 },
   disabled: { opacity: 0.4 },
   bold: { fontWeight: '700' },
@@ -408,6 +572,7 @@ const styles = StyleSheet.create({
   segmented: { flexDirection: 'row', backgroundColor: colors.surfaceAlt, borderRadius: radius.pill, padding: 3 },
   segment: { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: radius.pill },
   segmentActive: { backgroundColor: colors.ink },
+  segmentIndicator: { position: 'absolute', top: 3, bottom: 3, left: 3, borderRadius: radius.pill, backgroundColor: colors.ink },
   segmentText: { fontSize: 14, color: colors.textMuted, fontWeight: '600' },
   segmentTextActive: { color: colors.onInk, fontWeight: '700' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
@@ -419,6 +584,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  stepperEdit: { flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'center' },
+  stepperInput: {
+    width: 56,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    backgroundColor: colors.bg,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  stepperSuffix: { fontSize: 13, color: colors.textMuted, fontWeight: '600' },
   stepperValue: { minWidth: 56, textAlign: 'center', fontSize: 16, fontWeight: '600', color: colors.text },
   empty: { alignItems: 'center', padding: spacing.xl, gap: spacing.sm },
   emptyIcon: {
@@ -432,4 +612,4 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 22, fontFamily: fonts.display, color: colors.text, textAlign: 'center' },
   emptySubtitle: { fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 20 },
-});
+}));

@@ -2,19 +2,22 @@ import React, { useLayoutEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { ColorPicker } from '../components/ColorPicker';
 import { IconButtonTile, IconPicker } from '../components/IconPicker';
-import { CalendarSelector, ReminderPicker, TagEditor } from '../components/Selectors';
-import { Button, Chip, Divider, Field, HeaderButton, Section, Stepper, SwitchRow, TextField } from '../components/ui';
+import { DurationField } from '../components/DurationField';
+import { ReminderEditor } from '../components/ReminderEditor';
+import { CalendarSelector, TagEditor } from '../components/Selectors';
+import { Button, Divider, Field, HeaderButton, Section, Stepper, SwitchRow, TextField } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { EventTemplate } from '../models/Template';
 import type { ScreenProps } from '../navigation/types';
-import { colors, fonts, radius, spacing } from '../theme';
+import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { confirmAsync, notify } from '../utils/confirm';
-import { formatDuration } from '../utils/format';
 import { newId } from '../utils/id';
+import { animateNextLayout } from '../utils/motion';
 
-const DURATIONS = [15, 30, 45, 60, 90, 120, 180];
 
 export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateEdit'>) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { templates, calendars, calendarsById, saveTemplate, deleteTemplate, allTags, notificationPrefs } = useCalendarContext();
   const existing = templates.find((t) => t.id === route.params?.templateId);
   const [form, setForm] = useState<EventTemplate>(
@@ -54,7 +57,9 @@ export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateE
     navigation.goBack();
   };
   const saveRef = useRef(save);
-  saveRef.current = save;
+  useLayoutEffect(() => {
+    saveRef.current = save;
+  });
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -73,7 +78,10 @@ export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateE
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.titleCard}>
-        <IconButtonTile value={form.emoji} color={stampColor} onPress={() => setShowEmoji((v) => !v)} />
+        <IconButtonTile value={form.emoji} color={stampColor} onPress={() => {
+            animateNextLayout();
+            setShowEmoji((v) => !v);
+          }} />
         <TextInput
           style={styles.titleInput}
           placeholder="Event title, e.g. Coffee with John"
@@ -119,18 +127,18 @@ export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateE
           </Field>
         ) : (
           <Field label="Length">
-            <View style={styles.wrap}>
-              {DURATIONS.map((m) => (
-                <Chip key={m} label={formatDuration(m)} selected={form.durationMinutes === m} onPress={() => update({ durationMinutes: m })} />
-              ))}
-            </View>
-            <Stepper value={form.durationMinutes} min={5} max={24 * 60} step={5} onChange={(durationMinutes) => update({ durationMinutes })} format={formatDuration} />
+            <DurationField value={form.durationMinutes} onChange={(durationMinutes) => update({ durationMinutes })} />
           </Field>
         )}
       </Section>
 
       <Section title="Reminders">
-        <ReminderPicker value={form.reminders} onChange={(reminders) => update({ reminders })} />
+        <ReminderEditor
+          value={form.reminders}
+          onChange={(reminders) => update({ reminders })}
+          allDay={form.isAllDay}
+          allDayTime={notificationPrefs.allDayTime}
+        />
       </Section>
 
       <Section title="Details">
@@ -154,7 +162,7 @@ export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateE
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: 48 },
   titleCard: {
@@ -169,5 +177,4 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   titleInput: { flex: 1, fontSize: 20, fontFamily: fonts.display, color: colors.text, paddingVertical: 6 },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-});
+}));

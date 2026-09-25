@@ -23,8 +23,19 @@ export function mix(hex: string, other: string, amount: number): string {
   return `#${c.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}`.toUpperCase();
 }
 
-export const softBg = (hex: string): string => mix(hex, '#FFFCF7', 0.8);
-export const deepText = (hex: string): string => mix(hex, '#1A1208', 0.5);
+let eventScheme: 'light' | 'dark' = 'light';
+
+/** Set by ThemeProvider so event tints match the active paper color. */
+export function setEventColorScheme(scheme: 'light' | 'dark'): void {
+  eventScheme = scheme;
+}
+
+/** Soft tint of an event color for block/pill backgrounds. */
+export const softBg = (hex: string): string =>
+  eventScheme === 'dark' ? mix(hex, '#1F1B16', 0.7) : mix(hex, '#FFFCF7', 0.8);
+/** Readable text color on `softBg(hex)`. */
+export const deepText = (hex: string): string =>
+  eventScheme === 'dark' ? mix(hex, '#FFF6EA', 0.55) : mix(hex, '#1A1208', 0.5);
 
 export function readableOn(hex: string): string {
   const [r, g, b] = toRgb(hex);

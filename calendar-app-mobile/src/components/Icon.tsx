@@ -66,7 +66,7 @@ import {
 } from 'lucide-react-native';
 import React from 'react';
 import { Text } from 'react-native';
-import { colors } from '../theme';
+import { useTheme } from '../theme';
 
 /** Interface icons. */
 const UI_ICONS = {
@@ -84,6 +84,7 @@ const UI_ICONS = {
   clock: Clock,
   'map-pin': MapPin,
   minus: Minus,
+  moon: Moon,
   pause: Pause,
   pipette: Pipette,
   plus: Plus,
@@ -149,7 +150,7 @@ export type EventIconKey = keyof typeof EVENT_ICONS;
 export function Icon({
   name,
   size = 20,
-  color = colors.text,
+  color,
   strokeWidth = 2,
 }: {
   name: IconName;
@@ -157,8 +158,9 @@ export function Icon({
   color?: string;
   strokeWidth?: number;
 }) {
+  const { colors } = useTheme();
   const Component = UI_ICONS[name];
-  return <Component size={size} color={color} strokeWidth={strokeWidth} />;
+  return <Component size={size} color={color ?? colors.text} strokeWidth={strokeWidth} />;
 }
 
 const ICON_PREFIX = 'icon:';
@@ -178,7 +180,7 @@ export function eventIconKey(value?: string): EventIconKey | null {
 export function EventGlyph({
   value,
   size = 16,
-  color = colors.text,
+  color,
   fallback,
 }: {
   value?: string;
@@ -186,10 +188,11 @@ export function EventGlyph({
   color?: string;
   fallback?: EventIconKey;
 }) {
+  const { colors } = useTheme();
   const key = eventIconKey(value) ?? (value ? null : fallback ?? null);
   if (key) {
     const Component = EVENT_ICONS[key];
-    return <Component size={size} color={color} strokeWidth={2} />;
+    return <Component size={size} color={color ?? colors.text} strokeWidth={2} />;
   }
   if (!value) return null;
   return <Text style={{ fontSize: size * 0.95, lineHeight: size * 1.2 }}>{value}</Text>;

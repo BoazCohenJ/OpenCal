@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { EventPill } from '../components/EventPill';
 import { occurrencesForDay, type Occurrence } from '../services/occurrences';
-import { colors, fonts } from '../theme';
+import { createStyles, fonts } from '../theme';
 import { dayKey, WEEK_STARTS_ON } from '../utils/dates';
 import { isAllDayLike } from './layout';
 
@@ -21,6 +21,7 @@ export function MonthView({
   onPressDay: (d: Date) => void;
   onPressEvent: (o: Occurrence) => void;
 }) {
+  const styles = useStyles();
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(month), { weekStartsOn: WEEK_STARTS_ON });
     return Array.from({ length: 42 }, (_, i) => addDays(start, i));
@@ -90,7 +91,7 @@ export function MonthView({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   container: { flex: 1, backgroundColor: colors.surface },
   weekdays: { flexDirection: 'row', paddingTop: 12, paddingBottom: 8 },
   weekday: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '700', color: colors.textFaint, letterSpacing: 1 },
@@ -103,7 +104,7 @@ const styles = StyleSheet.create({
   dayBadgeToday: { backgroundColor: colors.primary },
   dayText: { fontSize: 14, fontFamily: fonts.display, color: colors.text },
   dayTextOutside: { color: colors.textFaint, opacity: 0.6 },
-  dayTextToday: { color: colors.onInk },
+  dayTextToday: { color: colors.onPrimary },
   events: { gap: 2 },
   more: { fontSize: 10, color: colors.textMuted, fontWeight: '700', paddingLeft: 3 },
-});
+}));

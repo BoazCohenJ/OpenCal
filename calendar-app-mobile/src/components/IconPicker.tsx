@@ -1,6 +1,6 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, radius } from '../theme';
+import { Pressable, Text, View } from 'react-native';
+import { createStyles, radius, useTheme } from '../theme';
 import { deepText, softBg } from '../utils/color';
 import { EVENT_ICONS, EventGlyph, eventIconKey, Icon, toIconValue, type EventIconKey } from './Icon';
 
@@ -10,12 +10,15 @@ const KEYS = Object.keys(EVENT_ICONS) as EventIconKey[];
 export function IconPicker({
   value,
   onChange,
-  color = colors.primary,
+  color: colorProp,
 }: {
   value?: string;
   onChange: (value: string | undefined) => void;
   color?: string;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const color = colorProp ?? colors.primary;
   const selected = eventIconKey(value);
   const legacy = value && !selected ? value : null;
   return (
@@ -56,6 +59,7 @@ export function IconPicker({
 
 /** Square button showing the current icon; used at the start of event/stamp title cards. */
 export function IconButtonTile({ value, color, onPress }: { value?: string; color: string; onPress: () => void }) {
+  const styles = useStyles();
   return (
     <Pressable
       onPress={onPress}
@@ -67,7 +71,7 @@ export function IconButtonTile({ value, color, onPress }: { value?: string; colo
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 14 },
   cell: {
     width: 46,
@@ -83,4 +87,4 @@ const styles = StyleSheet.create({
   legacy: { fontSize: 22 },
   pressed: { opacity: 0.7 },
   tile: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-});
+}));

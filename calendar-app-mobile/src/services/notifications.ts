@@ -3,9 +3,10 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
-import { isInQuietHours, type NotificationPrefs } from '../models/NotificationPrefs';
+import type { NotificationPrefs } from '../models/NotificationPrefs';
 import { formatRange } from '../utils/dates';
 import { eventLabel } from '../utils/format';
+import { activeFocusPeriod, expandFocusWindows, focusStateAt } from './focus';
 import { expandEvents } from './occurrences';
 
 /** iOS allows 64 pending local notifications per app; keep headroom for the test notification. */
@@ -93,7 +94,9 @@ export function planReminders(
   const candidates = events.filter((e) => e.reminders.length > 0 && !muted.has(e.calendarId));
   const seen = new Set<string>();
   const pending: PendingReminder[] = [];
-  for (const occ of expandEvents(candidates, calendarsById, now, addDays(now, prefs.horizonDays))) {
+  const horizonEnd = addDays(now, prefs.horizonDays);
+  const focus = expandFocusWindows(prefs.focusWindows, addDays(now, -2), horizonEnd);
+  for (const occ of expandEvents(candidates, calendarsById, now, horizonEnd)) {
     // All-day reminders count back from a configurable time of day instead of midnight.
     const anchor = occ.event.isAllDay ? addMinutes(startOfDay(occ.start), prefs.allDayTime) : occ.start;
     for (const minutes of new Set(occ.event.reminders)) {
@@ -101,12 +104,14 @@ export function planReminders(
       const key = `${occ.event.id}@${date.getTime()}`;
       if (date <= now || seen.has(key)) continue;
       seen.add(key);
+      const state = focusStateAt(date, focus);
+      if (state === 'dnd') continue;
       pending.push({
         key,
         date,
         title: eventLabel(occ.event),
         body: [formatRange(occ.start, occ.end, occ.event.isAllDay), occ.event.location].filter(Boolean).join(' · '),
-        silent: !prefs.sound || isInQuietHours(date, prefs.quietHours),
+        silent: !prefs.sound || state === 'quiet',
       });
     }
   }
@@ -189,7 +194,7 @@ async function doReschedule(
 /** Fires a sample reminder a few seconds from now so users can check sound and banners. */
 export async function sendTestNotification(prefs: NotificationPrefs): Promise<boolean> {
   if (!(await requestNotificationPermission())) return false;
-  const silent = !prefs.sound || isInQuietHours(new Date(), prefs.quietHours);
+  const silent = !prefs.sound || activeFocusPeriod(prefs.focusWindows) !== null;
   await Notifications.scheduleNotificationAsync({
     content: {
       title: 'OpenCal reminder',

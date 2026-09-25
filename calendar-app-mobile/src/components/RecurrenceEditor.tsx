@@ -1,7 +1,7 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { addMonths } from 'date-fns';
-import { colors } from '../theme';
+import { createStyles } from '../theme';
 import { dayKey, parseDayKey } from '../utils/dates';
 import {
   buildRRule,
@@ -39,6 +39,7 @@ export function RecurrenceEditor({
   start: Date;
   onChange: (rule: string | undefined) => void;
 }) {
+  const styles = useStyles();
   const config = parseRRule(value, start);
   const update = (patch: Partial<RepeatConfig>) => onChange(buildRRule({ ...config, ...patch }));
 
@@ -128,7 +129,7 @@ export function RecurrenceEditor({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createStyles((colors) => ({
   container: { padding: 16, gap: 14 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   line: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -140,4 +141,4 @@ const styles = StyleSheet.create({
   weekdayText: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
   weekdayTextActive: { color: colors.onInk },
   summary: { fontSize: 13, color: colors.primary, fontWeight: '600' },
-});
+}));
