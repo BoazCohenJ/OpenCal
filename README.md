@@ -4,6 +4,10 @@
 
 <h1 align="center">OpenCal</h1>
 
+
+https://github.com/user-attachments/assets/96c68291-76bc-4ca8-a030-11c235435344
+
+
 <p align="center">
   A calm, local-first calendar for Android (and iOS/web) built with Expo.<br/>
   No accounts, no sync, no ads: your calendar lives on your phone.
