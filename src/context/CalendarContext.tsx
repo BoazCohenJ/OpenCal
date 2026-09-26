@@ -13,7 +13,7 @@ import { APP_VERSION } from '../services/appInfo';
 import { createBackup, type Backup } from '../services/backup';
 import { BIRTHDAYS_CALENDAR_ID, expandBirthdays } from '../services/birthdays';
 import * as db from '../services/database';
-import { withStoredTimes } from '../services/eventTimes';
+import { migrateLegacyAllDay, withStoredTimes } from '../services/eventTimes';
 import { rescheduleReminders, type ScheduleResult } from '../services/notifications';
 import { expandEvents, getEffectiveColor, type Occurrence } from '../services/occurrences';
 import type { ThemeMode } from '../theme';
@@ -123,9 +123,10 @@ function loadInitialData(): { data: InitialData; error: null } | { data: null; e
       );
     }
     // All-day events used to be stored as UTC instants, which shifted them by a day abroad. Store
-    // them as wall-clock times (read in the zone they were created in, i.e. the current one).
+    // them as wall-clock times, recovering each date from the zone it was created in (not the
+    // phone's current one, in case the update is first opened while travelling).
     const oldAllDay = db.loadEvents().filter((e) => e.isAllDay && !isFloatingISO(e.startDate));
-    if (oldAllDay.length) db.saveEvents(oldAllDay.map((e) => withStoredTimes(e, false)));
+    if (oldAllDay.length) db.saveEvents(oldAllDay.map(migrateLegacyAllDay));
     return {
       error: null,
       data: {
