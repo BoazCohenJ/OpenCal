@@ -4,7 +4,9 @@ import type { Event } from '../models/Event';
 import type { PauseWindow } from '../models/PauseWindow';
 import { DEFAULT_EVENT_COLOR } from '../utils/color';
 import { dayKey, parseTimestamp } from '../utils/dates';
-import { createRule, fromFloatingUTC, toFloatingUTC } from '../utils/recurrence';
+import { createRuleAt } from '../utils/recurrence';
+import { wallDayKey } from '../utils/timeZones';
+import { eventClock } from './eventTimes';
 
 export interface Occurrence {
   /** Unique per occurrence: `${eventId}@${startMs}` */
@@ -15,10 +17,10 @@ export interface Occurrence {
   color: string;
 }
 
-export const isDateInPauseWindows = (date: Date, windows: PauseWindow[]): boolean => {
-  const k = dayKey(date);
-  return windows.some((w) => k >= w.startDate && k <= w.endDate);
-};
+export const isDayInPauseWindows = (key: string, windows: PauseWindow[]): boolean =>
+  windows.some((w) => key >= w.startDate && key <= w.endDate);
+
+export const isDateInPauseWindows = (date: Date, windows: PauseWindow[]): boolean => isDayInPauseWindows(dayKey(date), windows);
 
 export const getEffectiveColor = (event: Event, calendar?: Calendar): string =>
   event.color || calendar?.color || DEFAULT_EVENT_COLOR;
@@ -30,7 +32,8 @@ function overlaps(start: Date, end: Date, rangeStart: Date, rangeEnd: Date): boo
 
 /**
  * Expands an event into concrete occurrences overlapping [rangeStart, rangeEnd).
- * An occurrence of a recurring event is skipped when its start date falls in either
+ * Repeats are worked out on the event's own clock (its time zone for fixed events, see eventClock).
+ * An occurrence of a recurring event is skipped when its date (on that clock) falls in either
  * the event's own pause windows or its calendar's pause windows, or is one of its skipped dates.
  */
 export function expandEvent(event: Event, calendar: Calendar | undefined, rangeStart: Date, rangeEnd: Date): Occurrence[] {
@@ -47,18 +50,21 @@ export function expandEvent(event: Event, calendar: Calendar | undefined, rangeS
     color,
   });
 
-  const rule = event.recurrenceRule ? createRule(event.recurrenceRule, start) : null;
+  const clock = eventClock(event);
+  const rule = event.recurrenceRule ? createRuleAt(event.recurrenceRule, clock.toWall(start)) : null;
   if (!rule) return overlaps(start, end, rangeStart, rangeEnd) ? [make(start)] : [];
 
   const pauses = [...event.pauseWindows, ...(calendar?.pauseWindows ?? [])];
   const skipped = new Set(event.skippedDates ?? []);
-  const from = toFloatingUTC(new Date(rangeStart.getTime() - duration));
-  const to = toFloatingUTC(rangeEnd);
+  const from = clock.toWall(new Date(rangeStart.getTime() - duration));
+  const to = clock.toWall(rangeEnd);
   return rule
     .between(from, to, true)
-    .map(fromFloatingUTC)
-    .filter((s) => !isDateInPauseWindows(s, pauses) && !skipped.has(dayKey(s)))
-    .map(make)
+    .filter((wall) => {
+      const k = wallDayKey(wall);
+      return !isDayInPauseWindows(k, pauses) && !skipped.has(k);
+    })
+    .map((wall) => make(clock.fromWall(wall)))
     .filter((o) => overlaps(o.start, o.end, rangeStart, rangeEnd));
 }
 

@@ -1,18 +1,56 @@
 import type { Event } from '../models/Event';
-import { parseTimestamp, toFloatingISO } from '../utils/dates';
+import { dayKey, deviceTimeZone, parseTimestamp, toFloatingISO } from '../utils/dates';
+import { fromFloatingUTC, toFloatingUTC } from '../utils/recurrence';
+import { fromZoneWallClock, isValidTimeZone, toZoneWallClock, wallDayKey } from '../utils/timeZones';
 
 /** All-day events always float; others when the user turned floating time on. */
-export const isFloating = (event: Event): boolean => event.isAllDay || event.floating === true;
+export const isFloating = (event: Pick<Event, 'isAllDay' | 'floating'>): boolean => event.isAllDay || event.floating === true;
 
 /**
  * Puts an event's times in their stored format: zone-less wall-clock times for floating and all-day
- * events, UTC instants otherwise. Events that don't say yet get `floatingByDefault`.
+ * events, UTC instants plus a time zone otherwise. Events that don't say yet get `floatingByDefault`;
+ * fixed events without a zone get the phone's.
  */
 export function withStoredTimes(event: Event, floatingByDefault: boolean): Event {
   const e = { ...event, floating: event.floating ?? floatingByDefault };
-  const convert = isFloating(e) ? toFloatingISO : (d: Date) => d.toISOString();
-  return { ...e, startDate: convert(parseTimestamp(e.startDate)), endDate: convert(parseTimestamp(e.endDate)) };
+  if (isFloating(e)) {
+    return { ...e, timeZone: undefined, startDate: toFloatingISO(parseTimestamp(e.startDate)), endDate: toFloatingISO(parseTimestamp(e.endDate)) };
+  }
+  return {
+    ...e,
+    timeZone: e.timeZone ?? deviceTimeZone() ?? undefined,
+    startDate: parseTimestamp(e.startDate).toISOString(),
+    endDate: parseTimestamp(e.endDate).toISOString(),
+  };
 }
+
+/**
+ * The clock an event's repeats run on: its own zone for a fixed event scheduled in a zone other
+ * than the phone's, otherwise the phone's clock (floating, all-day, or already the phone's zone).
+ * `toWall`/`fromWall` convert between instants and wall clock dates (UTC fields = clock reading).
+ */
+export interface EventClock {
+  zone: string | null;
+  toWall: (instant: Date) => Date;
+  fromWall: (wall: Date) => Date;
+}
+
+const PHONE_CLOCK: EventClock = { zone: null, toWall: toFloatingUTC, fromWall: fromFloatingUTC };
+
+export function eventClock(event: Pick<Event, 'isAllDay' | 'floating' | 'timeZone'>): EventClock {
+  const zone = event.timeZone;
+  if (isFloating(event) || !zone || zone === deviceTimeZone() || !isValidTimeZone(zone)) return PHONE_CLOCK;
+  return { zone, toWall: (d) => toZoneWallClock(d, zone), fromWall: (w) => fromZoneWallClock(w, zone) };
+}
+
+/**
+ * The event's own calendar date for an occurrence starting at `instant`: the date in its time zone
+ * for fixed events, the phone's local date otherwise. Skipped dates and pauses are matched on this.
+ */
+export const occurrenceDayKey = (event: Pick<Event, 'isAllDay' | 'floating' | 'timeZone'>, instant: Date): string => {
+  const clock = eventClock(event);
+  return clock.zone ? wallDayKey(clock.toWall(instant)) : dayKey(instant);
+};
 
 const MINUTE = 60000;
 const DAY_MS = 1440 * MINUTE;

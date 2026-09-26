@@ -1,16 +1,19 @@
 import { addDays, format, startOfDay } from 'date-fns';
 import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
-import { dayKey, deviceTimeZone, parseDayKey, parseTimestamp } from '../utils/dates';
-import { createRule, fromFloatingUTC, toFloatingUTC } from '../utils/recurrence';
-import { isFloating } from './eventTimes';
-import { isDateInPauseWindows } from './occurrences';
+import { deviceTimeZone, parseTimestamp } from '../utils/dates';
+import { createRule, createRuleAt, fromFloatingUTC, toFloatingUTC } from '../utils/recurrence';
+import { fromZoneWallClock, isValidTimeZone, toZoneWallClock, wallDayKey, wallFromDayKey, zoneOffset } from '../utils/timeZones';
+import { isFloating, occurrenceDayKey } from './eventTimes';
+import { isDayInPauseWindows } from './occurrences';
 
 /*
  * iCalendar (RFC 5545) import and export, so events can move to and from Google Calendar, Apple
  * Calendar, Outlook and others. Skipped dates and pause windows are written as EXDATEs of the
- * occurrences they remove, and EXDATEs come back as skipped dates. Floating events use iCalendar's own floating times (no
- * TZID, no Z); fixed ones carry the phone's time zone. The full-fidelity format is the JSON backup (backup.ts).
+ * occurrences they remove, and EXDATEs come back as skipped dates. Floating events use iCalendar's own
+ * floating times (no TZID, no Z); fixed ones are written in their own time zone (TZID), and times in
+ * a TZID (or in UTC) come back as fixed events in that zone. The full-fidelity format is the JSON
+ * backup (backup.ts).
  */
 
 const CRLF = '\r\n';
@@ -46,8 +49,10 @@ const escapeText = (s: string): string =>
   s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
 
 const utcStamp = (d: Date): string => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-const localStamp = (d: Date): string => format(d, "yyyyMMdd'T'HHmmss");
 const dateStamp = (d: Date): string => format(d, 'yyyyMMdd');
+/** `yyyyMMddTHHmmss` / `yyyyMMdd` of a wall clock date (UTC fields = clock reading). */
+const wallStamp = (w: Date): string => w.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, '');
+const wallDateStamp = (w: Date): string => wallStamp(w).slice(0, 8);
 
 /** `-PT10M`, `PT9H`, `-P1DT15H` … */
 function icsDuration(minutes: number): string {
@@ -67,60 +72,69 @@ function icsDuration(minutes: number): string {
   return out;
 }
 
-/** Occurrences of a repeating event that are skipped or fall in its (or its calendar's) pauses. */
-function excludedOccurrences(event: Event, calendar: Calendar | undefined): Date[] {
+/**
+ * Wall clock dates (on the event's clock, see `toWall`) of the repeats that are skipped or fall in
+ * the event's (or its calendar's) pauses.
+ */
+function excludedOccurrences(event: Event, calendar: Calendar | undefined, toWall: (d: Date) => Date): Date[] {
   if (!event.recurrenceRule) return [];
   const windows = [...event.pauseWindows, ...(calendar?.pauseWindows ?? [])];
   const skipped = new Set(event.skippedDates ?? []);
   // Every day that could hold an exclusion, to bound the expansion.
   const days = [...windows.flatMap((w) => [w.startDate, w.endDate]), ...skipped].sort();
   if (!days.length) return [];
-  const rule = createRule(event.recurrenceRule, parseTimestamp(event.startDate));
+  const rule = createRuleAt(event.recurrenceRule, toWall(parseTimestamp(event.startDate)));
   if (!rule) return [];
-  return rule
-    .between(toFloatingUTC(parseDayKey(days[0]!)), toFloatingUTC(addDays(parseDayKey(days[days.length - 1]!), 1)), true)
-    .map(fromFloatingUTC)
-    .filter((d) => skipped.has(dayKey(d)) || isDateInPauseWindows(d, windows));
+  const last = wallFromDayKey(days[days.length - 1]!);
+  return rule.between(wallFromDayKey(days[0]!), new Date(last.getTime() + 86400000), true).filter((w) => {
+    const k = wallDayKey(w);
+    return skipped.has(k) || isDayInPauseWindows(k, windows);
+  });
 }
 
 function eventLines(event: Event, calendar: Calendar | undefined, allDayTime: number, tz: string | null, now: Date): string[] {
   const start = parseTimestamp(event.startDate);
   const end = parseTimestamp(event.endDate);
   const lines = ['BEGIN:VEVENT', `UID:${event.id}${UID_SUFFIX}`, `DTSTAMP:${utcStamp(now)}`, `SUMMARY:${escapeText(event.title)}`];
-  // Fixed events carry the device time zone so repeats stay at the same local time across DST.
+  // Floating and all-day events are written as clock readings with no zone; fixed events in their
+  // own zone (falling back to the phone's, then to UTC instants).
   const floating = isFloating(event);
+  const zone = floating ? null : isValidTimeZone(event.timeZone) ? event.timeZone : tz;
+  const toWall = zone ? (d: Date) => toZoneWallClock(d, zone) : toFloatingUTC;
   const when = (prop: string, d: Date) =>
     event.isAllDay
-      ? `${prop};VALUE=DATE:${dateStamp(d)}`
+      ? `${prop};VALUE=DATE:${wallDateStamp(toWall(d))}`
       : floating
-        ? `${prop}:${localStamp(d)}`
-        : tz
-          ? `${prop};TZID=${tz}:${localStamp(d)}`
+        ? `${prop}:${wallStamp(toWall(d))}`
+        : zone
+          ? `${prop};TZID=${zone}:${wallStamp(toWall(d))}`
           : `${prop}:${utcStamp(d)}`;
   lines.push(when('DTSTART', start));
   // All-day DTEND is exclusive: the day after the last day.
   lines.push(event.isAllDay ? when('DTEND', addDays(startOfDay(end), 1)) : when('DTEND', end));
   if (event.recurrenceRule) {
-    // The app stores UNTIL as `<local date>T235959Z`. UNTIL must match DTSTART: a date for all-day
-    // events, a floating time for floating ones, else the real UTC instant at the end of that day.
-    const rule = event.recurrenceRule.replace(/UNTIL=(\d{4})(\d{2})(\d{2})(T\d{6}Z?)?/i, (_, y: string, m: string, d: string) =>
-      event.isAllDay
-        ? `UNTIL=${y}${m}${d}`
-        : floating
-          ? `UNTIL=${y}${m}${d}T235959`
-          : `UNTIL=${utcStamp(new Date(Number(y), Number(m) - 1, Number(d), 23, 59, 59))}`,
-    );
+    // The app stores UNTIL as `<date>T235959Z` (end of that date on the event's clock). UNTIL must
+    // match DTSTART: a date for all-day events, a floating time for floating ones, else the real UTC
+    // instant at the end of that day in the event's zone.
+    const rule = event.recurrenceRule.replace(/UNTIL=(\d{4})(\d{2})(\d{2})(T\d{6}Z?)?/i, (_, y: string, m: string, d: string) => {
+      if (event.isAllDay) return `UNTIL=${y}${m}${d}`;
+      if (floating) return `UNTIL=${y}${m}${d}T235959`;
+      const endOfDay = zone
+        ? fromZoneWallClock(new Date(Date.UTC(Number(y), Number(m) - 1, Number(d), 23, 59, 59)), zone)
+        : new Date(Number(y), Number(m) - 1, Number(d), 23, 59, 59);
+      return `UNTIL=${utcStamp(endOfDay)}`;
+    });
     lines.push(`RRULE:${rule}`);
-    const skipped = excludedOccurrences(event, calendar);
+    const skipped = excludedOccurrences(event, calendar, toWall);
     if (skipped.length) {
       lines.push(
         event.isAllDay
-          ? `EXDATE;VALUE=DATE:${skipped.map(dateStamp).join(',')}`
+          ? `EXDATE;VALUE=DATE:${skipped.map(wallDateStamp).join(',')}`
           : floating
-            ? `EXDATE:${skipped.map(localStamp).join(',')}`
-            : tz
-            ? `EXDATE;TZID=${tz}:${skipped.map(localStamp).join(',')}`
-            : `EXDATE:${skipped.map(utcStamp).join(',')}`,
+            ? `EXDATE:${skipped.map(wallStamp).join(',')}`
+            : zone
+              ? `EXDATE;TZID=${zone}:${skipped.map(wallStamp).join(',')}`
+              : `EXDATE:${skipped.map((w) => utcStamp(fromFloatingUTC(w))).join(',')}`,
       );
     }
   }
@@ -238,34 +252,13 @@ function parseComponents(text: string): Component[] {
   return root.children;
 }
 
-const formatters = new Map<string, Intl.DateTimeFormat>();
-
-/** Offset of `timeZone` from UTC at `utcMs`, in ms. Throws for unknown zones. */
-function zoneOffset(utcMs: number, timeZone: string): number {
-  let f = formatters.get(timeZone);
-  if (!f) {
-    f = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      hourCycle: 'h23',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
-    formatters.set(timeZone, f);
-  }
-  const parts = f.formatToParts(new Date(utcMs));
-  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
-  return Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second')) - utcMs;
-}
-
 interface ParsedDate {
   date: Date;
   allDay: boolean;
   /** A time with no zone at all (no TZID, no Z): iCalendar's floating time. */
   floating: boolean;
+  /** The zone a fixed time was written in: its TZID, or UTC for `Z` times. */
+  timeZone?: string;
 }
 
 function parseDate(value: string, params: Record<string, string>): ParsedDate | null {
@@ -277,14 +270,14 @@ function parseDate(value: string, params: Record<string, string>): ParsedDate | 
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/i.exec(v);
   if (!m) return null;
   const [y, mo, d, h, mi, s] = m.slice(1, 7).map(Number) as [number, number, number, number, number, number];
-  if (m[7]) return { date: new Date(Date.UTC(y, mo - 1, d, h, mi, s)), allDay: false, floating: false };
+  if (m[7]) return { date: new Date(Date.UTC(y, mo - 1, d, h, mi, s)), allDay: false, floating: false, timeZone: 'UTC' };
   const tz = params.TZID?.replace(/^\//, '');
   if (tz) {
     try {
       const guess = Date.UTC(y, mo - 1, d, h, mi, s);
       // Two passes settle the offset around DST changes.
       const first = guess - zoneOffset(guess, tz);
-      return { date: new Date(guess - zoneOffset(first, tz)), allDay: false, floating: false };
+      return { date: new Date(guess - zoneOffset(first, tz)), allDay: false, floating: false, timeZone: tz };
     } catch {
       // Unknown zone name (e.g. a Windows zone): treat as local time.
     }
@@ -302,7 +295,7 @@ function parseDuration(value: string): number | null {
 }
 
 /** Stores UNTIL as the end of its local day, the way the repeat editor writes it. */
-function normalizeRule(rule: string): string {
+function normalizeRule(rule: string, timeZone?: string): string {
   return rule
     .replace(/^RRULE:/i, '')
     .split(';')
@@ -310,7 +303,10 @@ function normalizeRule(rule: string): string {
       const [k, v] = part.split('=');
       if (k?.toUpperCase() !== 'UNTIL' || !v) return part;
       const parsed = parseDate(v, {});
-      return parsed ? `UNTIL=${dateStamp(parsed.date)}T235959Z` : part;
+      if (!parsed) return part;
+      // A UTC UNTIL of a zoned event means the date as seen in that zone.
+      const date = timeZone && !parsed.floating && !parsed.allDay ? wallDateStamp(toZoneWallClock(parsed.date, timeZone)) : dateStamp(parsed.date);
+      return `UNTIL=${date}T235959Z`;
     })
     .join(';');
 }
@@ -377,15 +373,18 @@ export function parseICS(text: string, allDayTime: number): ICSImport | null {
         reminders.add(Math.max(0, start.allDay ? allDayTime - offset : -offset));
       }
 
+      // Which clock this event's dates are on (for EXDATE and RECURRENCE-ID days).
+      const eventShape = { isAllDay: start.allDay, floating: !start.allDay && start.floating, timeZone: start.timeZone };
       const skippedDays = new Set<string>();
       for (const ex of all('EXDATE')) {
         for (const v of splitList(ex.value)) {
           const d = parseDate(v, ex.params);
-          if (d) skippedDays.add(dayKey(d.date));
+          if (d) skippedDays.add(occurrenceDayKey(eventShape, d.date));
         }
       }
       const rrule = one('RRULE')?.value.trim();
-      const rule = rrule && !recurrenceId && createRule(normalizeRule(rrule), start.date) ? normalizeRule(rrule) : undefined;
+      const normalized = rrule ? normalizeRule(rrule, start.timeZone) : undefined;
+      const rule = normalized && !recurrenceId && createRule(normalized, start.date) ? normalized : undefined;
       const color = (one('X-OPENCAL-COLOR') ?? one('COLOR'))?.value.trim();
       const baseId = uid.endsWith(UID_SUFFIX) ? uid.slice(0, -UID_SUFFIX.length) : `ics-${uid}`;
 
@@ -397,7 +396,8 @@ export function parseICS(text: string, allDayTime: number): ICSImport | null {
         startDate: start.date.toISOString(),
         endDate: end.toISOString(),
         isAllDay: start.allDay,
-        floating: !start.allDay && start.floating,
+        floating: eventShape.floating,
+        timeZone: start.allDay || start.floating ? undefined : start.timeZone,
         calendarId: '',
         color: color && HEX.test(color) ? color.toUpperCase() : undefined,
         recurrenceRule: rule,
@@ -417,7 +417,7 @@ export function parseICS(text: string, allDayTime: number): ICSImport | null {
   for (const o of overrides) {
     const master = masters.get(o.uid);
     if (master?.recurrenceRule) {
-      master.skippedDates = [...new Set([...(master.skippedDates ?? []), dayKey(o.recurrenceId.date)])].sort();
+      master.skippedDates = [...new Set([...(master.skippedDates ?? []), occurrenceDayKey(master, o.recurrenceId.date)])].sort();
     }
     if (o.event) result.events.push(o.event);
   }

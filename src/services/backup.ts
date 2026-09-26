@@ -91,6 +91,7 @@ function readEvent(o: Obj): Event | null {
     endDate: o.endDate,
     isAllDay: o.isAllDay === true,
     floating: o.floating === true,
+    timeZone: str(o.timeZone),
     location: str(o.location),
     calendarId,
     color: str(o.color),

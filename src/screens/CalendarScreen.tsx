@@ -26,11 +26,12 @@ import type { Event } from '../models/Event';
 import type { EventTemplate } from '../models/Template';
 import type { ScreenProps } from '../navigation/types';
 import { BIRTHDAY_COLOR, BIRTHDAYS_CALENDAR_ID, birthdayIdOf } from '../services/birthdays';
+import { occurrenceDayKey } from '../services/eventTimes';
 import type { Occurrence } from '../services/occurrences';
 import { confirmDeleteStamp, eventFromTemplate } from '../services/templates';
 import { createStyles, fonts, radius, shadow, spacing, useTheme } from '../theme';
 import { deepText, softBg } from '../utils/color';
-import { dayKey, nextRoundedHour, parseTimestamp, relativeLabel, WEEK_STARTS_ON } from '../utils/dates';
+import { dayKey, nextRoundedHour, parseDayKey, parseTimestamp, relativeLabel, WEEK_STARTS_ON } from '../utils/dates';
 import { formatDuration } from '../utils/format';
 import { newId } from '../utils/id';
 import { endRuleBefore } from '../utils/recurrence';
@@ -68,7 +69,7 @@ const pageKey = (mode: ViewMode, c: Date): string =>
 
 interface RepeatItem {
   event: Event;
-  /** Day of the occurrence the event was selected by. */
+  /** The event's own date (see occurrenceDayKey) of the occurrence it was selected by, at local midnight. */
   day: Date;
 }
 
@@ -299,7 +300,7 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
         const endDate = shiftDate(occurrence.end, delta).toISOString();
         if (source.recurrenceRule) {
           const series = changed.get(source.id) ?? source;
-          const skippedDates = [...new Set([...(series.skippedDates ?? []), dayKey(occurrence.start)])].sort();
+          const skippedDates = [...new Set([...(series.skippedDates ?? []), occurrenceDayKey(source, occurrence.start)])].sort();
           changed.set(source.id, { ...series, skippedDates });
           created.push({ ...source, id: newId(), recurrenceRule: undefined, pauseWindows: [], skippedDates: [], startDate, endDate });
         } else {
@@ -338,7 +339,7 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
         const choice = choices[i];
         if (!choice || choice === 'keep' || !event.recurrenceRule) return;
         originals.push(event);
-        const firstDay = startOfDay(parseTimestamp(event.startDate));
+        const firstDay = parseDayKey(occurrenceDayKey(event, parseTimestamp(event.startDate)));
         if (choice === 'all' || (choice === 'following' && day <= firstDay)) {
           deleteIds.push(event.id);
         } else if (choice === 'this') {
@@ -372,7 +373,7 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
       for (const p of picked) {
         const event = events.find((e) => e.id === p.eventId);
         if (!event) continue;
-        if (event.recurrenceRule) repeating.push({ event, day: startOfDay(p.occurrenceStart) });
+        if (event.recurrenceRule) repeating.push({ event, day: parseDayKey(occurrenceDayKey(event, p.occurrenceStart)) });
         else plain.push(event);
       }
       if (repeating.length) setRepeatQueue({ plain, repeating, choices: [] });

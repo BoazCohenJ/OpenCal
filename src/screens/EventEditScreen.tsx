@@ -243,7 +243,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
               subtitle={
                 form.floating
                   ? `Stays at ${format(start, 'h:mm a')} in any time zone`
-                  : `Fixed to ${deviceTimeZone()?.replace(/_/g, ' ') ?? 'this time zone'}; moves when you travel`
+                  : `Fixed to ${(form.timeZone ?? deviceTimeZone())?.replace(/_/g, ' ') ?? 'this time zone'}; moves when you travel`
               }
               value={form.floating === true}
               onValueChange={(floating) => update({ floating })}

@@ -20,6 +20,13 @@ export interface Event {
    * that haven't been saved yet; saving applies the app-wide default.
    */
   floating?: boolean;
+  /**
+   * IANA zone a fixed (non-floating, timed) event is scheduled in, e.g. `Asia/Jerusalem`. Repeats
+   * are worked out in this zone, so a weekly 9:00 meeting stays at 9:00 there across daylight-saving
+   * changes wherever the phone is. Unset for floating and all-day events; saving a fixed event
+   * without one fills in the phone's zone.
+   */
+  timeZone?: string;
   location?: string;
   calendarId: string;
   /** Hex override. Falls back to the calendar color when unset. */

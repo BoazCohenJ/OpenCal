@@ -73,10 +73,13 @@ export function buildRRule(config: RepeatConfig): string | undefined {
   return parts.join(';');
 }
 
-export function createRule(rule: string, start: Date): RRule | null {
+export const createRule = (rule: string, start: Date): RRule | null => createRuleAt(rule, toFloatingUTC(start));
+
+/** Like createRule, with the first occurrence given as a wall clock date (UTC fields = clock reading). */
+export function createRuleAt(rule: string, wallStart: Date): RRule | null {
   try {
     const options = RRule.parseString(rule.replace(/^RRULE:/i, ''));
-    return new RRule({ ...options, dtstart: toFloatingUTC(start) });
+    return new RRule({ ...options, dtstart: wallStart });
   } catch (error) {
     console.warn('Invalid recurrence rule', rule, error);
     return null;

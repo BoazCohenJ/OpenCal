@@ -13,11 +13,11 @@ import { APP_VERSION } from '../services/appInfo';
 import { createBackup, type Backup } from '../services/backup';
 import { BIRTHDAYS_CALENDAR_ID, expandBirthdays } from '../services/birthdays';
 import * as db from '../services/database';
-import { migrateLegacyAllDay, withStoredTimes } from '../services/eventTimes';
+import { isFloating, migrateLegacyAllDay, withStoredTimes } from '../services/eventTimes';
 import { rescheduleReminders, type ScheduleResult } from '../services/notifications';
 import { expandEvents, getEffectiveColor, type Occurrence } from '../services/occurrences';
 import type { ThemeMode } from '../theme';
-import { isFloatingISO } from '../utils/dates';
+import { deviceTimeZone, isFloatingISO } from '../utils/dates';
 import { newId } from '../utils/id';
 
 const HIDDEN_CALENDARS_KEY = 'hiddenCalendarIds';
@@ -127,6 +127,9 @@ function loadInitialData(): { data: InitialData; error: null } | { data: null; e
     // phone's current one, in case the update is first opened while travelling).
     const oldAllDay = db.loadEvents().filter((e) => e.isAllDay && !isFloatingISO(e.startDate));
     if (oldAllDay.length) db.saveEvents(oldAllDay.map(migrateLegacyAllDay));
+    // Fixed events from before time zones were stored belong to the phone's zone at the time.
+    const zoneless = db.loadEvents().filter((e) => !isFloating(e) && !e.timeZone);
+    if (zoneless.length && deviceTimeZone()) db.saveEvents(zoneless.map((e) => withStoredTimes(e, false)));
     return {
       error: null,
       data: {

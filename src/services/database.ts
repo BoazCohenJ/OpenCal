@@ -5,7 +5,7 @@ import type { PauseWindow } from '../models/PauseWindow';
 import type { EventTemplate } from '../models/Template';
 
 const db = SQLite.openDatabaseSync('calendar.db');
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 type Row = Record<string, any>;
 
@@ -99,6 +99,9 @@ export function initDatabase(): void {
     if (version < 5) {
       db.execSync(`ALTER TABLE events ADD COLUMN skippedDates TEXT;`);
     }
+    if (version < 6) {
+      db.execSync(`ALTER TABLE events ADD COLUMN timeZone TEXT;`);
+    }
     db.execSync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
   });
 }
@@ -187,6 +190,7 @@ export function loadEvents(): Event[] {
     endDate: r.endDate,
     isAllDay: r.isAllDay === 1 || r.isAllDay === true,
     floating: r.floating === 1 || r.floating === true,
+    timeZone: orUndef(r.timeZone),
     location: orUndef(r.location),
     calendarId: r.calendarId,
     color: orUndef(r.color),
@@ -201,11 +205,12 @@ export function loadEvents(): Event[] {
 
 function writeEvent(e: Event): void {
   db.runSync(
-    `INSERT INTO events (id, title, description, startDate, endDate, isAllDay, floating, location, calendarId, color, recurrenceRule, skippedDates, reminders, emoji, tags)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO events (id, title, description, startDate, endDate, isAllDay, floating, timeZone, location, calendarId, color, recurrenceRule, skippedDates, reminders, emoji, tags)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        title = excluded.title, description = excluded.description, startDate = excluded.startDate,
-       endDate = excluded.endDate, isAllDay = excluded.isAllDay, floating = excluded.floating, location = excluded.location,
+       endDate = excluded.endDate, isAllDay = excluded.isAllDay, floating = excluded.floating, timeZone = excluded.timeZone,
+       location = excluded.location,
        calendarId = excluded.calendarId, color = excluded.color, recurrenceRule = excluded.recurrenceRule,
        skippedDates = excluded.skippedDates,
        reminders = excluded.reminders, emoji = excluded.emoji, tags = excluded.tags`,
@@ -217,6 +222,7 @@ function writeEvent(e: Event): void {
       e.endDate,
       e.isAllDay ? 1 : 0,
       e.floating ? 1 : 0,
+      orNull(e.timeZone),
       orNull(e.location),
       e.calendarId,
       orNull(e.color),
