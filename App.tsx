@@ -16,11 +16,14 @@ import { ToastProvider } from './src/components/Toast';
 import { UpdateWatcher } from './src/components/UpdateWatcher';
 import { CalendarProvider, useCalendarContext } from './src/context/CalendarContext';
 import type { RootStackParamList } from './src/navigation/types';
+import { BirthdayEditScreen } from './src/screens/BirthdayEditScreen';
+import { BirthdaysScreen } from './src/screens/BirthdaysScreen';
 import { CalendarDeleteScreen } from './src/screens/CalendarDeleteScreen';
 import { CalendarEditScreen } from './src/screens/CalendarEditScreen';
 import { CalendarScreen } from './src/screens/CalendarScreen';
 import { CalendarsScreen } from './src/screens/CalendarsScreen';
 import { EventEditScreen } from './src/screens/EventEditScreen';
+import { ImportExportScreen } from './src/screens/ImportExportScreen';
 import { HiddenEventsListScreen } from './src/screens/HiddenEventsListScreen';
 import { FocusEditScreen } from './src/screens/FocusEditScreen';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
@@ -84,11 +87,14 @@ function RootNavigator() {
       <Stack.Screen name="Templates" component={TemplatesScreen} options={{ title: 'Stamps' }} />
       <Stack.Screen name="TemplateEdit" component={TemplateEditScreen} options={{ title: 'Stamp' }} />
       <Stack.Screen name="HiddenEvents" component={HiddenEventsListScreen} options={{ title: 'Event List' }} />
+      <Stack.Screen name="Birthdays" component={BirthdaysScreen} options={{ title: 'Birthdays' }} />
+      <Stack.Screen name="ImportExport" component={ImportExportScreen} options={{ title: 'Import & Export' }} />
       <Stack.Group screenOptions={{ presentation: 'modal', animation: 'slide_from_bottom' }}>
         <Stack.Screen name="EventEdit" component={EventEditScreen} options={{ title: 'Event' }} />
         <Stack.Screen name="QuickAdd" component={QuickAddScreen} options={{ title: 'Quick Add' }} />
         <Stack.Screen name="FocusEdit" component={FocusEditScreen} options={{ title: 'Quiet time' }} />
         <Stack.Screen name="Stamp" component={StampScreen} options={{ title: 'Add from Stamp' }} />
+        <Stack.Screen name="BirthdayEdit" component={BirthdayEditScreen} options={{ title: 'Birthday' }} />
       </Stack.Group>
     </Stack.Navigator>
   );

@@ -5,7 +5,7 @@ import type { PauseWindow } from '../models/PauseWindow';
 import type { EventTemplate } from '../models/Template';
 
 const db = SQLite.openDatabaseSync('calendar.db');
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 5;
 
 type Row = Record<string, any>;
 
@@ -93,6 +93,12 @@ export function initDatabase(): void {
     if (version < 3) {
       db.execSync(`ALTER TABLE calendars ADD COLUMN defaults TEXT;`);
     }
+    if (version < 4) {
+      db.execSync(`ALTER TABLE events ADD COLUMN floating INTEGER NOT NULL DEFAULT 0;`);
+    }
+    if (version < 5) {
+      db.execSync(`ALTER TABLE events ADD COLUMN skippedDates TEXT;`);
+    }
     db.execSync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
   });
 }
@@ -124,23 +130,25 @@ export function loadCalendars(): Calendar[] {
   }));
 }
 
+function writeCalendar(c: Calendar): void {
+  db.runSync(
+    `INSERT INTO calendars (id, name, color, sortOrder, defaults) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET name = excluded.name, color = excluded.color, sortOrder = excluded.sortOrder,
+       defaults = excluded.defaults`,
+    [c.id, c.name, c.color, c.sortOrder, c.defaults ? JSON.stringify(c.defaults) : null],
+  );
+  db.runSync('DELETE FROM calendar_pause_windows WHERE calendarId = ?', [c.id]);
+  for (const w of c.pauseWindows) {
+    db.runSync('INSERT INTO calendar_pause_windows (calendarId, startDate, endDate) VALUES (?, ?, ?)', [
+      c.id,
+      w.startDate,
+      w.endDate,
+    ]);
+  }
+}
+
 export function saveCalendar(c: Calendar): void {
-  db.withTransactionSync(() => {
-    db.runSync(
-      `INSERT INTO calendars (id, name, color, sortOrder, defaults) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET name = excluded.name, color = excluded.color, sortOrder = excluded.sortOrder,
-         defaults = excluded.defaults`,
-      [c.id, c.name, c.color, c.sortOrder, c.defaults ? JSON.stringify(c.defaults) : null],
-    );
-    db.runSync('DELETE FROM calendar_pause_windows WHERE calendarId = ?', [c.id]);
-    for (const w of c.pauseWindows) {
-      db.runSync('INSERT INTO calendar_pause_windows (calendarId, startDate, endDate) VALUES (?, ?, ?)', [
-        c.id,
-        w.startDate,
-        w.endDate,
-      ]);
-    }
-  });
+  db.withTransactionSync(() => writeCalendar(c));
 }
 
 /**
@@ -178,11 +186,13 @@ export function loadEvents(): Event[] {
     startDate: r.startDate,
     endDate: r.endDate,
     isAllDay: r.isAllDay === 1 || r.isAllDay === true,
+    floating: r.floating === 1 || r.floating === true,
     location: orUndef(r.location),
     calendarId: r.calendarId,
     color: orUndef(r.color),
     recurrenceRule: orUndef(r.recurrenceRule),
     pauseWindows: pauses.get(r.id) ?? [],
+    skippedDates: parseJson<string[]>(r.skippedDates, []),
     reminders: parseJson<number[]>(r.reminders, []),
     emoji: orUndef(r.emoji),
     tags: parseJson<string[]>(r.tags, []),
@@ -191,12 +201,13 @@ export function loadEvents(): Event[] {
 
 function writeEvent(e: Event): void {
   db.runSync(
-    `INSERT INTO events (id, title, description, startDate, endDate, isAllDay, location, calendarId, color, recurrenceRule, reminders, emoji, tags)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO events (id, title, description, startDate, endDate, isAllDay, floating, location, calendarId, color, recurrenceRule, skippedDates, reminders, emoji, tags)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        title = excluded.title, description = excluded.description, startDate = excluded.startDate,
-       endDate = excluded.endDate, isAllDay = excluded.isAllDay, location = excluded.location,
+       endDate = excluded.endDate, isAllDay = excluded.isAllDay, floating = excluded.floating, location = excluded.location,
        calendarId = excluded.calendarId, color = excluded.color, recurrenceRule = excluded.recurrenceRule,
+       skippedDates = excluded.skippedDates,
        reminders = excluded.reminders, emoji = excluded.emoji, tags = excluded.tags`,
     [
       e.id,
@@ -205,10 +216,12 @@ function writeEvent(e: Event): void {
       e.startDate,
       e.endDate,
       e.isAllDay ? 1 : 0,
+      e.floating ? 1 : 0,
       orNull(e.location),
       e.calendarId,
       orNull(e.color),
       orNull(e.recurrenceRule),
+      JSON.stringify(e.skippedDates ?? []),
       JSON.stringify(e.reminders),
       orNull(e.emoji),
       JSON.stringify(e.tags),
@@ -230,6 +243,10 @@ export function saveEvents(list: Event[]): void {
 
 export function deleteEvent(id: string): void {
   db.runSync('DELETE FROM events WHERE id = ?', [id]);
+}
+
+export function deleteEvents(ids: string[]): void {
+  db.withTransactionSync(() => ids.forEach(deleteEvent));
 }
 
 // ---------- Templates ----------
@@ -281,6 +298,25 @@ export function saveTemplate(t: EventTemplate): void {
 
 export function deleteTemplate(id: string): void {
   db.runSync('DELETE FROM templates WHERE id = ?', [id]);
+}
+
+/**
+ * Writes imported data in one transaction. Items are upserted by id; with `replace`, all existing
+ * calendars, events and stamps are deleted first. References must already be valid.
+ */
+export function importData(
+  data: { calendars: Calendar[]; events: Event[]; templates: EventTemplate[] },
+  replace: boolean,
+): void {
+  db.withTransactionSync(() => {
+    if (replace) {
+      // Pause windows go with their events and calendars (ON DELETE CASCADE).
+      db.execSync('DELETE FROM templates; DELETE FROM events; DELETE FROM calendars;');
+    }
+    data.calendars.forEach(writeCalendar);
+    data.events.forEach(writeEvent);
+    data.templates.forEach(saveTemplate);
+  });
 }
 
 export function saveTemplateOrder(ids: string[]): void {

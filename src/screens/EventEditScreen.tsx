@@ -1,4 +1,4 @@
-import { addHours, endOfDay, setHours, startOfDay } from 'date-fns';
+import { addHours, endOfDay, format, setHours, startOfDay } from 'date-fns';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ColorPicker } from '../components/ColorPicker';
@@ -17,7 +17,7 @@ import type { EventDraft, ScreenProps } from '../navigation/types';
 import { templateFromEvent } from '../services/templates';
 import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { confirmAsync, notify } from '../utils/confirm';
-import { formatPauseWindow, nextRoundedHour } from '../utils/dates';
+import { deviceTimeZone, formatPauseWindow, nextRoundedHour, parseDayKey, parseTimestamp } from '../utils/dates';
 import { newId } from '../utils/id';
 import { animateNextLayout } from '../utils/motion';
 
@@ -47,7 +47,7 @@ function buildInitial(
   prefs: NotificationPrefs,
 ): Event {
   if (existing) return existing;
-  const start = draft?.startDate ? new Date(draft.startDate) : nextRoundedHour();
+  const start = draft?.startDate ? parseTimestamp(draft.startDate) : nextRoundedHour();
   const merged: Event = {
     id: newId(),
     title: '',
@@ -75,10 +75,12 @@ function buildInitial(
 export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const { calendars, calendarsById, events, saveEvent, deleteEvent, saveTemplate, allTags, notificationPrefs } = useCalendarContext();
+  const { calendars, calendarsById, events, saveEvent, deleteEvent, saveTemplate, allTags, notificationPrefs, floatingByDefault } =
+    useCalendarContext();
   const existing = route.params?.eventId ? events.find((e) => e.id === route.params?.eventId) : undefined;
   const [form, setForm] = useState<Event>(() => {
-    const initial = buildInitial(existing, route.params?.draft, calendars[0]?.id ?? '', calendarsById, notificationPrefs);
+    const built = buildInitial(existing, route.params?.draft, calendars[0]?.id ?? '', calendarsById, notificationPrefs);
+    const initial = { ...built, floating: built.floating ?? floatingByDefault };
     return calendarsById[initial.calendarId] ? initial : { ...initial, calendarId: calendars[0]?.id ?? '' };
   });
   const [showEmoji, setShowEmoji] = useState(false);
@@ -102,8 +104,8 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
     }
     update(patch);
   };
-  const start = new Date(form.startDate);
-  const end = new Date(form.endDate);
+  const start = parseTimestamp(form.startDate);
+  const end = parseTimestamp(form.endDate);
   const calendar = calendarsById[form.calendarId];
   const eventColor = form.color ?? calendar?.color ?? colors.primary;
 
@@ -147,6 +149,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
       location: form.location?.trim() || undefined,
       description: form.description?.trim() || undefined,
       pauseWindows: form.recurrenceRule ? form.pauseWindows : [],
+      skippedDates: form.recurrenceRule ? form.skippedDates : [],
     };
   };
 
@@ -233,6 +236,21 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
       <Section title="When">
         <SwitchRow label="All day" value={form.isAllDay} onValueChange={setAllDay} />
         <Divider />
+        {!form.isAllDay ? (
+          <>
+            <SwitchRow
+              label="Floating time"
+              subtitle={
+                form.floating
+                  ? `Stays at ${format(start, 'h:mm a')} in any time zone`
+                  : `Fixed to ${deviceTimeZone()?.replace(/_/g, ' ') ?? 'this time zone'}; moves when you travel`
+              }
+              value={form.floating === true}
+              onValueChange={(floating) => update({ floating })}
+            />
+            <Divider />
+          </>
+        ) : null}
         <Field label="Starts">
           <DateTimeField value={start} onChange={setStart} mode={form.isAllDay ? 'date' : 'datetime'} />
         </Field>
@@ -253,6 +271,28 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
               Also paused by “{calendar.name}”: {calendar.pauseWindows.map(formatPauseWindow).join(', ')}
             </Text>
           ) : null}
+        </Section>
+      ) : null}
+
+      {form.recurrenceRule && form.skippedDates?.length ? (
+        <Section
+          title="Deleted occurrences"
+          footer="Days removed from this series one at a time. Restore puts the occurrence back when you save."
+        >
+          {form.skippedDates.map((day, i) => (
+            <View key={day}>
+              {i > 0 ? <Divider /> : null}
+              <View style={styles.skippedRow}>
+                <Text style={styles.skippedDate}>{format(parseDayKey(day), 'EEEE, MMM d, yyyy')}</Text>
+                <Button
+                  small
+                  variant="ghost"
+                  title="Restore"
+                  onPress={() => update({ skippedDates: form.skippedDates?.filter((d) => d !== day) })}
+                />
+              </View>
+            </View>
+          ))}
         </Section>
       ) : null}
 
@@ -305,5 +345,7 @@ const useStyles = createStyles((colors) => ({
   },
   titleInput: { flex: 1, fontSize: 22, fontFamily: fonts.display, color: colors.text, paddingVertical: 6 },
   inherited: { fontSize: 13, color: colors.textMuted, paddingHorizontal: 16, paddingBottom: 14 },
+  skippedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: spacing.lg, paddingRight: spacing.sm, paddingVertical: 6 },
+  skippedDate: { fontSize: 15, color: colors.text },
   actions: { gap: 10, marginTop: 4 },
 }));

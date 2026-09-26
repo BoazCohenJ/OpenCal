@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
+import type { Birthday } from '../models/Birthday';
 import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
 import {
@@ -8,20 +9,37 @@ import {
 } from '../models/NotificationPrefs';
 import type { SavedColor } from '../models/SavedColor';
 import type { EventTemplate } from '../models/Template';
+import { APP_VERSION } from '../services/appInfo';
+import { createBackup, type Backup } from '../services/backup';
+import { BIRTHDAYS_CALENDAR_ID, expandBirthdays } from '../services/birthdays';
 import * as db from '../services/database';
+import { withStoredTimes } from '../services/eventTimes';
 import { rescheduleReminders, type ScheduleResult } from '../services/notifications';
 import { expandEvents, getEffectiveColor, type Occurrence } from '../services/occurrences';
 import type { ThemeMode } from '../theme';
+import { isFloatingISO } from '../utils/dates';
 import { newId } from '../utils/id';
 
 const HIDDEN_CALENDARS_KEY = 'hiddenCalendarIds';
 const NOTIFICATION_PREFS_KEY = 'notificationPrefs';
 const THEME_MODE_KEY = 'themeMode';
 const SAVED_COLORS_KEY = 'savedColors';
+const BIRTHDAYS_KEY = 'birthdays';
+const FLOATING_DEFAULT_KEY = 'floatingByDefault';
 const DEFAULT_CALENDARS = [
   { name: 'Personal', color: '#4F6BED' },
   { name: 'Work', color: '#F2994A' },
 ];
+
+export interface ImportSummary {
+  calendars: number;
+  events: number;
+  templates: number;
+  birthdays: number;
+}
+
+/** Where imported .ics events go: an existing calendar, or a new one. */
+export type ImportTarget = { calendarId: string } | { newCalendar: { name: string; color: string } };
 
 interface CalendarContextValue {
   ready: boolean;
@@ -31,6 +49,7 @@ interface CalendarContextValue {
   events: Event[];
   templates: EventTemplate[];
   allTags: string[];
+  /** Calendar ids (plus `BIRTHDAYS_CALENDAR_ID` for birthdays) currently shown. */
   visibleCalendarIds: string[];
   toggleCalendarVisibility: (id: string) => void;
   saveCalendar: (calendar: Calendar) => void;
@@ -39,6 +58,7 @@ interface CalendarContextValue {
   saveEvent: (event: Event) => void;
   saveEvents: (events: Event[]) => void;
   deleteEvent: (id: string) => void;
+  deleteEvents: (ids: string[]) => void;
   saveTemplate: (template: EventTemplate) => void;
   deleteTemplate: (id: string) => void;
   moveTemplate: (id: string, direction: -1 | 1) => void;
@@ -50,13 +70,26 @@ interface CalendarContextValue {
   /** Adds a named color, or renames it if that hex is already saved. */
   saveColor: (name: string, hex: string) => void;
   deleteSavedColor: (id: string) => void;
+  /** Whether new events get floating time (see Event.floating). */
+  floatingByDefault: boolean;
+  setFloatingByDefault: (value: boolean) => void;
+  /** Sorted by name. Each one shows up on the calendar every year as an all-day event. */
+  birthdays: Birthday[];
+  saveBirthday: (birthday: Birthday) => void;
+  deleteBirthday: (id: string) => void;
   notificationPrefs: NotificationPrefs;
   updateNotificationPrefs: (patch: Partial<NotificationPrefs>) => void;
   /** Result of the most recent reminder scheduling pass (null until the first one finishes). */
   reminderStatus: ScheduleResult | null;
   /** Re-runs scheduling now; with askPermission it may show the OS permission prompt. */
   refreshReminders: (options?: { askPermission?: boolean }) => Promise<ScheduleResult>;
-  /** Occurrences in [start, end). Excludes hidden calendars unless includeHidden is set. */
+  /** Everything as a JSON backup file (see services/backup.ts). */
+  createBackupFile: () => string;
+  /** Merge adds and updates by id; replace wipes calendars, events, stamps and birthdays first and restores settings. */
+  importBackup: (backup: Backup, mode: 'merge' | 'replace') => ImportSummary;
+  /** Adds events (e.g. from an .ics file), updating ones with the same id. */
+  importEvents: (events: Event[], target: ImportTarget) => { added: number; updated: number };
+  /** Occurrences in [start, end), birthdays included. Excludes hidden calendars unless includeHidden is set. */
   getOccurrences: (start: Date, end: Date, options?: { includeHidden?: boolean }) => Occurrence[];
 }
 
@@ -76,6 +109,8 @@ interface InitialData {
   themeMode: ThemeMode;
   notificationPrefs: NotificationPrefs;
   savedColors: SavedColor[];
+  birthdays: Birthday[];
+  floatingByDefault: boolean;
 }
 
 /** Opens (and if needed seeds) the database synchronously; runs once, before the first render. */
@@ -87,6 +122,10 @@ function loadInitialData(): { data: InitialData; error: null } | { data: null; e
         db.saveCalendar({ id: newId(), name: c.name, color: c.color, sortOrder: i, pauseWindows: [] }),
       );
     }
+    // All-day events used to be stored as UTC instants, which shifted them by a day abroad. Store
+    // them as wall-clock times (read in the zone they were created in, i.e. the current one).
+    const oldAllDay = db.loadEvents().filter((e) => e.isAllDay && !isFloatingISO(e.startDate));
+    if (oldAllDay.length) db.saveEvents(oldAllDay.map((e) => withStoredTimes(e, false)));
     return {
       error: null,
       data: {
@@ -96,6 +135,8 @@ function loadInitialData(): { data: InitialData; error: null } | { data: null; e
         hiddenCalendarIds: db.getSetting<string[]>(HIDDEN_CALENDARS_KEY, []),
         themeMode: db.getSetting<ThemeMode>(THEME_MODE_KEY, 'system'),
         savedColors: db.getSetting<SavedColor[]>(SAVED_COLORS_KEY, []),
+        birthdays: db.getSetting<Birthday[]>(BIRTHDAYS_KEY, []),
+        floatingByDefault: db.getSetting<boolean>(FLOATING_DEFAULT_KEY, false),
         notificationPrefs: normalizeNotificationPrefs(
           db.getSetting<Partial<NotificationPrefs> | null>(NOTIFICATION_PREFS_KEY, null),
         ),
@@ -122,6 +163,8 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
   const [reminderStatus, setReminderStatus] = useState<ScheduleResult | null>(null);
   const [themeMode, setThemeModeState] = useState<ThemeMode>(initial.data?.themeMode ?? 'system');
   const [savedColors, setSavedColors] = useState<SavedColor[]>(initial.data?.savedColors ?? []);
+  const [birthdays, setBirthdays] = useState<Birthday[]>(initial.data?.birthdays ?? []);
+  const [floatingByDefault, setFloatingByDefaultState] = useState(initial.data?.floatingByDefault ?? false);
 
   const calendarsById = useMemo(() => {
     const map: Record<string, Calendar> = {};
@@ -131,7 +174,7 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
 
   const hiddenSet = useMemo(() => new Set(hiddenCalendarIds), [hiddenCalendarIds]);
   const visibleCalendarIds = useMemo(
-    () => calendars.filter((c) => !hiddenSet.has(c.id)).map((c) => c.id),
+    () => [...calendars.map((c) => c.id), BIRTHDAYS_CALENDAR_ID].filter((id) => !hiddenSet.has(id)),
     [calendars, hiddenSet],
   );
 
@@ -195,6 +238,27 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const setFloatingByDefault = useCallback((value: boolean) => {
+    db.setSetting(FLOATING_DEFAULT_KEY, value);
+    setFloatingByDefaultState(value);
+  }, []);
+
+  const saveBirthday = useCallback((birthday: Birthday) => {
+    setBirthdays((prev) => {
+      const next = [...prev.filter((b) => b.id !== birthday.id), birthday].sort((a, b) => a.name.localeCompare(b.name));
+      db.setSetting(BIRTHDAYS_KEY, next);
+      return next;
+    });
+  }, []);
+
+  const deleteBirthday = useCallback((id: string) => {
+    setBirthdays((prev) => {
+      const next = prev.filter((b) => b.id !== id);
+      db.setSetting(BIRTHDAYS_KEY, next);
+      return next;
+    });
+  }, []);
+
   const updateNotificationPrefs = useCallback((patch: Partial<NotificationPrefs>) => {
     setNotificationPrefs((prev) => {
       const next = normalizeNotificationPrefs({ ...prev, ...patch });
@@ -231,19 +295,31 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const saveEvent = useCallback((event: Event) => {
-    db.saveEvent(event);
-    setEvents(db.loadEvents());
-  }, []);
+  const saveEvent = useCallback(
+    (event: Event) => {
+      db.saveEvent(withStoredTimes(event, floatingByDefault));
+      setEvents(db.loadEvents());
+    },
+    [floatingByDefault],
+  );
 
-  const saveEvents = useCallback((list: Event[]) => {
-    if (!list.length) return;
-    db.saveEvents(list);
-    setEvents(db.loadEvents());
-  }, []);
+  const saveEvents = useCallback(
+    (list: Event[]) => {
+      if (!list.length) return;
+      db.saveEvents(list.map((e) => withStoredTimes(e, floatingByDefault)));
+      setEvents(db.loadEvents());
+    },
+    [floatingByDefault],
+  );
 
   const deleteEvent = useCallback((id: string) => {
     db.deleteEvent(id);
+    setEvents(db.loadEvents());
+  }, []);
+
+  const deleteEvents = useCallback((ids: string[]) => {
+    if (!ids.length) return;
+    db.deleteEvents(ids);
     setEvents(db.loadEvents());
   }, []);
 
@@ -281,12 +357,106 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
     [calendarsById],
   );
 
+  const createBackupFile = useCallback(
+    () =>
+      createBackup({
+        appVersion: APP_VERSION,
+        calendars,
+        events,
+        templates,
+        birthdays,
+        settings: { themeMode, notificationPrefs, savedColors, hiddenCalendarIds },
+      }),
+    [calendars, events, templates, birthdays, themeMode, notificationPrefs, savedColors, hiddenCalendarIds],
+  );
+
+  const importBackup = useCallback(
+    (backup: Backup, mode: 'merge' | 'replace'): ImportSummary => {
+      const replace = mode === 'replace';
+      let incomingCalendars = backup.calendars;
+      if (replace && !incomingCalendars.length) {
+        incomingCalendars = [{ id: newId(), name: DEFAULT_CALENDARS[0]!.name, color: DEFAULT_CALENDARS[0]!.color, sortOrder: 0, pauseWindows: [] }];
+      }
+      // Keep every reference valid: events need a calendar, stamps may have none.
+      const known = new Set([...(replace ? [] : calendars.map((c) => c.id)), ...incomingCalendars.map((c) => c.id)]);
+      const fallback = incomingCalendars[0]?.id ?? calendars[0]?.id ?? '';
+      const eventsIn = backup.events.map((e) =>
+        withStoredTimes(known.has(e.calendarId) ? e : { ...e, calendarId: fallback }, false),
+      );
+      const templatesIn = backup.templates.map((t) => (known.has(t.calendarId) ? t : { ...t, calendarId: '' }));
+      db.importData({ calendars: incomingCalendars, events: eventsIn, templates: templatesIn }, replace);
+      setCalendars(db.loadCalendars());
+      setEvents(db.loadEvents());
+      setTemplates(db.loadTemplates());
+
+      const nextBirthdays = [
+        ...(replace ? [] : birthdays.filter((b) => !backup.birthdays.some((x) => x.id === b.id))),
+        ...backup.birthdays,
+      ].sort((a, b) => a.name.localeCompare(b.name));
+      db.setSetting(BIRTHDAYS_KEY, nextBirthdays);
+      setBirthdays(nextBirthdays);
+
+      const s = backup.settings;
+      const incomingColors = s.savedColors ?? [];
+      const nextColors = replace
+        ? incomingColors
+        : [...savedColors, ...incomingColors.filter((c) => !savedColors.some((x) => x.hex === c.hex))];
+      db.setSetting(SAVED_COLORS_KEY, nextColors);
+      setSavedColors(nextColors);
+      if (replace) {
+        const hidden = s.hiddenCalendarIds ?? [];
+        db.setSetting(HIDDEN_CALENDARS_KEY, hidden);
+        setHiddenCalendarIds(hidden);
+        if (s.notificationPrefs) {
+          const prefs = normalizeNotificationPrefs(s.notificationPrefs);
+          db.setSetting(NOTIFICATION_PREFS_KEY, prefs);
+          setNotificationPrefs(prefs);
+        }
+        if (s.themeMode) setThemeMode(s.themeMode);
+      }
+      return {
+        calendars: incomingCalendars.length,
+        events: eventsIn.length,
+        templates: templatesIn.length,
+        birthdays: backup.birthdays.length,
+      };
+    },
+    [calendars, birthdays, savedColors, setThemeMode],
+  );
+
+  const importEvents = useCallback(
+    (list: Event[], target: ImportTarget) => {
+      let calendarId: string;
+      const newCalendars: Calendar[] = [];
+      if ('newCalendar' in target) {
+        calendarId = newId();
+        newCalendars.push({ id: calendarId, ...target.newCalendar, sortOrder: calendars.length, pauseWindows: [] });
+      } else {
+        calendarId = target.calendarId;
+      }
+      const existing = new Set(events.map((e) => e.id));
+      const incoming = list.map((e) => withStoredTimes({ ...e, calendarId }, false));
+      db.importData({ calendars: newCalendars, events: incoming, templates: [] }, false);
+      if (newCalendars.length) setCalendars(db.loadCalendars());
+      setEvents(db.loadEvents());
+      const updated = incoming.filter((e) => existing.has(e.id)).length;
+      return { added: incoming.length - updated, updated };
+    },
+    [calendars, events],
+  );
+
   const getOccurrences = useCallback(
     (start: Date, end: Date, options?: { includeHidden?: boolean }) => {
-      const source = options?.includeHidden ? events : events.filter((e) => !hiddenSet.has(e.calendarId));
-      return expandEvents(source, calendarsById, start, end);
+      const includeHidden = options?.includeHidden ?? false;
+      const source = includeHidden ? events : events.filter((e) => !hiddenSet.has(e.calendarId));
+      const occurrences = expandEvents(source, calendarsById, start, end);
+      if (!birthdays.length || (!includeHidden && hiddenSet.has(BIRTHDAYS_CALENDAR_ID))) return occurrences;
+      // All-day items first on a day, the same order expandEvents gives (start asc, longer first).
+      return [...expandBirthdays(birthdays, start, end), ...occurrences].sort(
+        (a, b) => a.start.getTime() - b.start.getTime() || b.end.getTime() - a.end.getTime(),
+      );
     },
-    [events, calendarsById, hiddenSet],
+    [events, calendarsById, hiddenSet, birthdays],
   );
 
   const value = useMemo<CalendarContextValue>(
@@ -305,6 +475,7 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
       saveEvent,
       saveEvents,
       deleteEvent,
+      deleteEvents,
       saveTemplate,
       deleteTemplate,
       moveTemplate,
@@ -314,17 +485,26 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
       savedColors,
       saveColor,
       deleteSavedColor,
+      floatingByDefault,
+      setFloatingByDefault,
+      birthdays,
+      saveBirthday,
+      deleteBirthday,
       notificationPrefs,
       updateNotificationPrefs,
       reminderStatus,
       refreshReminders,
+      createBackupFile,
+      importBackup,
+      importEvents,
       getOccurrences,
     }),
     [
       ready, error, calendars, calendarsById, events, templates, allTags, visibleCalendarIds,
-      toggleCalendarVisibility, saveCalendar, deleteCalendarWithPlan, saveEvent, saveEvents, deleteEvent,
-      saveTemplate, deleteTemplate, moveTemplate, effectiveColor, themeMode, setThemeMode, savedColors, saveColor, deleteSavedColor, notificationPrefs, updateNotificationPrefs,
-      reminderStatus, refreshReminders, getOccurrences,
+      toggleCalendarVisibility, saveCalendar, deleteCalendarWithPlan, saveEvent, saveEvents, deleteEvent, deleteEvents,
+      saveTemplate, deleteTemplate, moveTemplate, effectiveColor, themeMode, setThemeMode, savedColors, saveColor, deleteSavedColor,
+      floatingByDefault, setFloatingByDefault, birthdays, saveBirthday, deleteBirthday, notificationPrefs, updateNotificationPrefs,
+      reminderStatus, refreshReminders, createBackupFile, importBackup, importEvents, getOccurrences,
     ],
   );
 

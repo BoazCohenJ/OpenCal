@@ -9,6 +9,7 @@ import { Button, Divider, Field, HeaderButton, Section, SwitchRow, TextField } f
 import { useCalendarContext } from '../context/CalendarContext';
 import type { Calendar, CalendarDefaults } from '../models/Calendar';
 import type { ScreenProps } from '../navigation/types';
+import { shareICS } from '../services/exports';
 import { createStyles, PALETTE, spacing } from '../theme';
 import { notify } from '../utils/confirm';
 import { newId } from '../utils/id';
@@ -16,7 +17,7 @@ import { animateNextLayout } from '../utils/motion';
 
 export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarEdit'>) {
   const styles = useStyles();
-  const { calendars, events, saveCalendar, allTags, notificationPrefs } = useCalendarContext();
+  const { calendars, calendarsById, events, saveCalendar, allTags, notificationPrefs } = useCalendarContext();
   const existing = calendars.find((c) => c.id === route.params?.calendarId);
   const [form, setForm] = useState<Calendar>(
     () =>
@@ -109,6 +110,16 @@ export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarE
         <PauseWindowsEditor value={form.pauseWindows} onChange={(pauseWindows) => setForm((f) => ({ ...f, pauseWindows }))} />
       </Section>
 
+      {existing && eventCount ? (
+        <Button
+          variant="secondary"
+          title={`Export ${eventCount} event${eventCount === 1 ? '' : 's'} (.ics)`}
+          onPress={() =>
+            void shareICS(existing.name, events.filter((e) => e.calendarId === existing.id), calendarsById, notificationPrefs.allDayTime, existing.color)
+          }
+          style={styles.exportButton}
+        />
+      ) : null}
       {existing && others.length > 0 ? (
         <Button
           variant="danger"
@@ -123,6 +134,7 @@ export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarE
 
 const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
+  exportButton: { marginBottom: spacing.md },
   content: { padding: spacing.lg, paddingBottom: 48 },
   subhead: { fontSize: 13, fontWeight: '600', color: colors.textMuted, paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   note: { fontSize: 13, color: colors.textMuted, textAlign: 'center' },

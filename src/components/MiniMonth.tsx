@@ -12,9 +12,11 @@ interface Props {
   selected?: Date;
   rangeStart?: Date;
   rangeEnd?: Date;
+  /** Makes the month title a button (e.g. to open a month/year picker). */
+  onPressTitle?: () => void;
 }
 
-export function MiniMonth({ month, onChangeMonth, onSelectDay, selected, rangeStart, rangeEnd }: Props) {
+export function MiniMonth({ month, onChangeMonth, onSelectDay, selected, rangeStart, rangeEnd, onPressTitle }: Props) {
   const styles = useStyles();
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(month), { weekStartsOn: WEEK_STARTS_ON });
@@ -29,7 +31,14 @@ export function MiniMonth({ month, onChangeMonth, onSelectDay, selected, rangeSt
         <Pressable onPress={() => onChangeMonth(addMonths(month, -1))} hitSlop={12} style={styles.nav} accessibilityLabel="Previous month">
           <Icon name="chevron-left" size={18} />
         </Pressable>
-        <Text style={styles.title}>{format(month, 'MMMM yyyy')}</Text>
+        {onPressTitle ? (
+          <Pressable onPress={onPressTitle} hitSlop={8} style={styles.titleButton} accessibilityLabel={`${format(month, 'MMMM yyyy')}. Choose a month`}>
+            <Text style={styles.title}>{format(month, 'MMMM yyyy')}</Text>
+            <Icon name="chevron-down" size={16} />
+          </Pressable>
+        ) : (
+          <Text style={styles.title}>{format(month, 'MMMM yyyy')}</Text>
+        )}
         <Pressable onPress={() => onChangeMonth(addMonths(month, 1))} hitSlop={12} style={styles.nav} accessibilityLabel="Next month">
           <Icon name="chevron-right" size={18} />
         </Pressable>
@@ -77,6 +86,7 @@ export function MiniMonth({ month, onChangeMonth, onSelectDay, selected, rangeSt
 const useStyles = createStyles((colors) => ({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   nav: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: colors.surfaceAlt },
+  titleButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   title: { fontSize: 18, fontFamily: fonts.display, color: colors.text },
   row: { flexDirection: 'row' },
   dow: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: colors.textFaint, paddingVertical: 6 },

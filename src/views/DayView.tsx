@@ -1,118 +1,24 @@
 import { isSameDay } from 'date-fns';
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import {
-  Animated,
-  GestureResponderEvent,
-  PanResponder,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { GestureResponderEvent, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { EventPill } from '../components/EventPill';
 import { EventGlyph, eventIconKey, Icon } from '../components/Icon';
-import { Button } from '../components/ui';
 import type { Occurrence } from '../services/occurrences';
-import { createStyles, fonts, radius, shadow, useTheme } from '../theme';
+import { createStyles } from '../theme';
 import { deepText, softBg } from '../utils/color';
 import { atMinutes, dayKey, formatTime, minutesSinceMidnight } from '../utils/dates';
-import { eventLabel, formatDelta } from '../utils/format';
+import { eventLabel } from '../utils/format';
 import { isAllDayLike, layoutTimed, PX_PER_MIN, slotMinutesFromPress, type PositionedOccurrence } from './layout';
-import { GRID_HEIGHT, HourGutter, HourLines, NowLine } from './TimeGrid';
+import { SelectableBlock, SelectionCheckbox, SelectionToolbar, TOOLBAR_CLEARANCE, useEventSelection, type PendingMove, type SelectedOccurrence } from './selection';
+import { GRID_HEIGHT, HourGutter, HourLines, NowLine, type TimeGridHandle } from './TimeGrid';
 
-const SNAP_MINUTES = 15;
-const TAP_SLOP = 6;
-const snap = (dy: number) => Math.round(dy / PX_PER_MIN / SNAP_MINUTES) * SNAP_MINUTES;
-
-interface DragHandlers {
-  onStart: () => void;
-  onMove: (dy: number) => void;
-  onEnd: (dy: number | null) => void;
-}
-
-/*
- * Gesture model (checkbox-style selection mode, the robust fallback from the spec):
- *  - Normal mode: tap opens an event, long-press enters selection mode with that event checked.
- *  - Selection mode: tap an unselected event to add it; touching a *selected* event claims the
- *    gesture (scrolling is disabled while dragging) and vertical drag shifts every selected event
- *    together in 15-minute steps, preserving relative offsets. A tap on a selected event unchecks it.
- *  - Scrolling still works by dragging anywhere that is not a selected event.
- *  - The toolbar also offers ±15 min nudges for precise, gesture-free moves.
- */
-function EventBlock({
-  pos,
-  left,
-  width,
-  selected,
-  selectionMode,
-  dragY,
-  drag,
-  onOpen,
-  onToggle,
-  onLongPress,
-}: {
-  pos: PositionedOccurrence;
-  left: number;
-  width: number;
-  selected: boolean;
-  selectionMode: boolean;
-  dragY: Animated.Value;
-  drag: DragHandlers;
-  onOpen: () => void;
-  onToggle: () => void;
-  onLongPress: () => void;
-}) {
+function EventContent({ pos, selectionMode, selected }: { pos: PositionedOccurrence; selectionMode: boolean; selected: boolean }) {
   const styles = useStyles();
-  const { colors } = useTheme();
-  const latest = useRef({ drag, onToggle });
-  useLayoutEffect(() => {
-    latest.current = { drag, onToggle };
-  });
-
-  // eslint-disable-next-line react-hooks/refs -- the handlers read refs when a gesture fires, never during render
-  const [responder] = useState(() =>
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderTerminationRequest: () => false,
-      onShouldBlockNativeResponder: () => true,
-      onPanResponderGrant: () => latest.current.drag.onStart(),
-      onPanResponderMove: (_, g) => latest.current.drag.onMove(g.dy),
-      onPanResponderRelease: (_, g) => {
-        if (Math.abs(g.dy) < TAP_SLOP && Math.abs(g.dx) < TAP_SLOP) {
-          latest.current.drag.onEnd(null);
-          latest.current.onToggle();
-        } else {
-          latest.current.drag.onEnd(g.dy);
-        }
-      },
-      onPanResponderTerminate: () => latest.current.drag.onEnd(null),
-    }),
-  );
-
   const { occ } = pos;
   const tall = pos.height >= 44;
-  const blockStyle = [
-    styles.block,
-    {
-      top: pos.top,
-      height: pos.height - 2,
-      left,
-      width,
-      backgroundColor: softBg(occ.color),
-      borderLeftColor: occ.color,
-    },
-    selected && [styles.blockSelected, { borderColor: occ.color }],
-  ];
-
-  const content = (
+  return (
     <View style={styles.blockInner}>
-      {selectionMode ? (
-        <View style={[styles.checkbox, { borderColor: occ.color }, selected && { backgroundColor: occ.color }]}>
-          {selected ? <Icon name="check" size={12} color={colors.onPrimary} strokeWidth={3} /> : null}
-        </View>
-      ) : null}
+      {selectionMode ? <SelectionCheckbox color={occ.color} checked={selected} /> : null}
       <View style={styles.blockBody}>
         <View style={styles.titleRow}>
           {eventIconKey(occ.event.emoji) ? <EventGlyph value={occ.event.emoji} size={13} color={deepText(occ.color)} /> : null}
@@ -130,24 +36,6 @@ function EventBlock({
       {occ.event.recurrenceRule ? <Icon name="repeat" size={12} color={deepText(occ.color)} /> : null}
     </View>
   );
-
-  if (selectionMode && selected) {
-    return (
-      <Animated.View {...responder.panHandlers} style={[blockStyle, shadow, { zIndex: 10, transform: [{ translateY: dragY }] }]}>
-        {content}
-      </Animated.View>
-    );
-  }
-  return (
-    <Pressable
-      onPress={selectionMode ? onToggle : onOpen}
-      onLongPress={selectionMode ? undefined : onLongPress}
-      delayLongPress={350}
-      style={({ pressed }) => [blockStyle, pressed && { opacity: 0.8 }]}
-    >
-      {content}
-    </Pressable>
-  );
 }
 
 export function DayView({
@@ -155,38 +43,52 @@ export function DayView({
   occurrences,
   onPressEvent,
   onPressSlot,
-  onMoveEvents,
+  onCommitMoves,
+  onDeleteEvents,
   onSelectionModeChange,
+  active = true,
+  onScrollY,
+  ref,
 }: {
   date: Date;
   occurrences: Occurrence[];
   onPressEvent: (o: Occurrence) => void;
   onPressSlot: (start: Date) => void;
-  onMoveEvents: (eventIds: string[], deltaMinutes: number) => void;
+  /** Saves moves staged in selection mode (on Done, or when leaving the page). */
+  onCommitMoves: (moves: PendingMove[]) => void;
+  onDeleteEvents: (picked: SelectedOccurrence[]) => void;
   onSelectionModeChange?: (active: boolean) => void;
+  /** False for the neighbouring pages drawn beside the current one while swiping. */
+  active?: boolean;
+  onScrollY?: (y: number) => void;
+  ref?: React.Ref<TimeGridHandle>;
 }) {
   const styles = useStyles();
   const key = dayKey(date);
-  const allDay = useMemo(() => occurrences.filter(isAllDayLike), [occurrences]);
-  const timed = useMemo(() => layoutTimed(occurrences.filter((o) => !isAllDayLike(o)), date), [occurrences, date]);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [scrollEnabled, setScrollEnabled] = useState(true);
-  const [dragMinutes, setDragMinutes] = useState(0);
   const [columnWidth, setColumnWidth] = useState(0);
-  const [dragY] = useState(() => new Animated.Value(0));
   const scrollRef = useRef<ScrollView>(null);
-  const lastSnap = useRef(0);
-  const selectionMode = selected.length > 0;
   const isToday = isSameDay(date, new Date());
+  // Vertical-only drags here (columnWidth 0): sideways swipes change the day.
+  const {
+    selected,
+    selectionMode,
+    hasPending,
+    summary,
+    select,
+    toggle,
+    move,
+    done,
+    cancel,
+    selectedOccurrences,
+    displayed,
+    drag,
+    offset,
+    scrollEnabled,
+  } = useEventSelection({ resetKey: `${key}:${active}`, columnWidth: 0, occurrences, onCommitMoves, onSelectionModeChange });
+  const allDay = useMemo(() => displayed.filter(isAllDayLike), [displayed]);
+  const timed = useMemo(() => layoutTimed(displayed.filter((o) => !isAllDayLike(o)), date), [displayed, date]);
 
-  // Leaving the day clears the selection (adjust-state-on-prop-change, no extra effect pass).
-  const [prevKey, setPrevKey] = useState(key);
-  if (key !== prevKey) {
-    setPrevKey(key);
-    setSelected([]);
-  }
-  useEffect(() => onSelectionModeChange?.(selectionMode), [selectionMode, onSelectionModeChange]);
-  useEffect(() => () => onSelectionModeChange?.(false), [onSelectionModeChange]);
+  useImperativeHandle(ref, () => ({ scrollToY: (y) => scrollRef.current?.scrollTo({ y, animated: false }) }), []);
 
   useEffect(() => {
     const minutes = isSameDay(date, new Date()) ? Math.max(0, minutesSinceMidnight(new Date()) - 90) : 7 * 60;
@@ -195,48 +97,16 @@ export function DayView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  const latest = useRef({ selected, onMoveEvents });
-  useLayoutEffect(() => {
-    latest.current = { selected, onMoveEvents };
-  });
-
-  const drag = useMemo<DragHandlers>(
-    () => ({
-      onStart: () => {
-        lastSnap.current = 0;
-        setScrollEnabled(false);
-      },
-      onMove: (dy) => {
-        const m = snap(dy);
-        dragY.setValue(m * PX_PER_MIN);
-        if (m !== lastSnap.current) {
-          lastSnap.current = m;
-          setDragMinutes(m);
-        }
-      },
-      onEnd: (dy) => {
-        const m = dy === null ? 0 : snap(dy);
-        if (m !== 0 && latest.current.selected.length) latest.current.onMoveEvents(latest.current.selected, m);
-        dragY.setValue(0);
-        lastSnap.current = 0;
-        setDragMinutes(0);
-        setScrollEnabled(true);
-      },
-    }),
-    [dragY],
-  );
-
-  const toggle = (id: string) => setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-
   const handleSlotPress = (e: GestureResponderEvent) => {
+    // Tapping empty space ends selection like Done (staged moves are saved).
     if (selectionMode) {
-      setSelected([]);
+      done();
       return;
     }
     onPressSlot(atMinutes(date, slotMinutesFromPress(e)));
   };
 
-  const selectedHasRecurring = timed.some((p) => selected.includes(p.occ.event.id) && p.occ.event.recurrenceRule);
+  const selectedHasRecurring = timed.some((p) => selected.includes(p.occ.key) && p.occ.event.recurrenceRule);
 
   return (
     <View style={styles.container}>
@@ -251,7 +121,13 @@ export function DayView({
         </View>
       ) : null}
 
-      <ScrollView ref={scrollRef} scrollEnabled={scrollEnabled} contentContainerStyle={{ paddingVertical: 8, paddingBottom: selectionMode ? 140 : 24 }}>
+      <ScrollView
+        ref={scrollRef}
+        scrollEnabled={scrollEnabled}
+        onScroll={onScrollY ? (e) => onScrollY(e.nativeEvent.contentOffset.y) : undefined}
+        scrollEventThrottle={32}
+        contentContainerStyle={{ paddingVertical: 8, paddingBottom: selectionMode ? TOOLBAR_CLEARANCE : 24 }}
+      >
         <View style={[styles.grid, { height: GRID_HEIGHT }]}>
           <HourGutter />
           <View style={styles.column} onLayout={(e) => setColumnWidth(e.nativeEvent.layout.width)}>
@@ -260,20 +136,33 @@ export function DayView({
             {columnWidth > 0 &&
               timed.map((pos) => {
                 const w = (columnWidth - 8) / pos.columns;
+                const isSelected = selected.includes(pos.occ.key);
                 return (
-                  <EventBlock
+                  <SelectableBlock
                     key={pos.occ.key}
-                    pos={pos}
-                    left={2 + pos.column * w}
-                    width={w - 3}
-                    selected={selected.includes(pos.occ.event.id)}
+                    style={[
+                      styles.block,
+                      {
+                        top: pos.top,
+                        height: pos.height - 2,
+                        left: 2 + pos.column * w,
+                        width: w - 3,
+                        backgroundColor: softBg(pos.occ.color),
+                        borderLeftColor: pos.occ.color,
+                      },
+                    ]}
+                    selectedStyle={[styles.blockSelected, { borderColor: pos.occ.color }]}
+                    selected={isSelected}
                     selectionMode={selectionMode}
-                    dragY={dragY}
                     drag={drag}
+                    offset={offset}
                     onOpen={() => onPressEvent(pos.occ)}
-                    onToggle={() => toggle(pos.occ.event.id)}
-                    onLongPress={() => setSelected([pos.occ.event.id])}
-                  />
+                    onToggle={() => toggle(pos.occ)}
+                    onLongPress={() => select(pos.occ)}
+                    accessibilityLabel={pos.occ.event.title}
+                  >
+                    <EventContent pos={pos} selectionMode={selectionMode} selected={isSelected} />
+                  </SelectableBlock>
                 );
               })}
             {isToday ? <NowLine /> : null}
@@ -282,24 +171,20 @@ export function DayView({
       </ScrollView>
 
       {selectionMode ? (
-        <View style={[styles.toolbar, shadow]}>
-          <View style={styles.toolbarTop}>
-            <Text style={styles.toolbarTitle}>
-              {selected.length} selected{dragMinutes ? `  ·  ${formatDelta(dragMinutes)}` : ''}
-            </Text>
-            <Button small variant="ghost" title="Done" onPress={() => setSelected([])} />
-          </View>
-          <Text style={styles.toolbarHint}>
-            Drag a checked event to move all of them together. Tap events to add or remove.
-            {selectedHasRecurring ? ' Repeating events shift the whole series.' : ''}
-          </Text>
-          <View style={styles.toolbarActions}>
-            <Button small variant="secondary" title="− 1 hr" onPress={() => onMoveEvents(selected, -60)} style={styles.flex} />
-            <Button small variant="secondary" title="− 15 min" onPress={() => onMoveEvents(selected, -15)} style={styles.flex} />
-            <Button small variant="secondary" title="+ 15 min" onPress={() => onMoveEvents(selected, 15)} style={styles.flex} />
-            <Button small variant="secondary" title="+ 1 hr" onPress={() => onMoveEvents(selected, 60)} style={styles.flex} />
-          </View>
-        </View>
+        <SelectionToolbar
+          count={selected.length}
+          summary={summary}
+          hasPending={hasPending}
+          hasRecurring={selectedHasRecurring}
+          showDayNudges={false}
+          onMove={move}
+          onDelete={() => {
+            onDeleteEvents(selectedOccurrences());
+            cancel();
+          }}
+          onCancel={cancel}
+          onDone={done}
+        />
       ) : null}
     </View>
   );
@@ -307,7 +192,6 @@ export function DayView({
 
 const useStyles = createStyles((colors) => ({
   container: { flex: 1, backgroundColor: colors.surface },
-  flex: { flex: 1 },
   allDay: { padding: 12, gap: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
   allDayLabel: { fontSize: 10, fontWeight: '700', color: colors.textFaint, letterSpacing: 1.4 },
   allDayList: { gap: 4 },
@@ -327,19 +211,4 @@ const useStyles = createStyles((colors) => ({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   blockTitle: { flexShrink: 1, fontSize: 13, fontWeight: '700' },
   blockMeta: { fontSize: 11, opacity: 0.85, marginTop: 1 },
-  checkbox: { width: 18, height: 18, borderRadius: 5, borderWidth: 2, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  toolbar: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
-    bottom: 12,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: 14,
-    gap: 8,
-  },
-  toolbarTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  toolbarTitle: { fontSize: 18, fontFamily: fonts.display, color: colors.text },
-  toolbarHint: { fontSize: 12, color: colors.textMuted, lineHeight: 17 },
-  toolbarActions: { flexDirection: 'row', gap: 6 },
 }));

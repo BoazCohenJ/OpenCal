@@ -18,6 +18,9 @@ export type RootStackParamList = {
   Templates: undefined;
   TemplateEdit: { templateId?: string } | undefined;
   HiddenEvents: undefined;
+  Birthdays: undefined;
+  ImportExport: undefined;
+  BirthdayEdit: { birthdayId?: string } | undefined;
 };
 
 export type ScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<RootStackParamList, T>;

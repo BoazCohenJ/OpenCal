@@ -6,7 +6,7 @@ import { EventGlyph, Icon } from '../components/Icon';
 import { Button, ColorDot, EmptyState, Field, HeaderButton, Section } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
-import { eventFromTemplate } from '../services/templates';
+import { confirmDeleteStamp, eventFromTemplate } from '../services/templates';
 import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { deepText, softBg } from '../utils/color';
 import { formatTime, nextRoundedHour } from '../utils/dates';
@@ -16,7 +16,7 @@ import { formatDuration, formatReminder } from '../utils/format';
 export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const { templates, calendars, calendarsById, saveEvent } = useCalendarContext();
+  const { templates, calendars, calendarsById, saveEvent, deleteTemplate } = useCalendarContext();
   const [templateId, setTemplateId] = useState(route.params?.templateId);
   const [start, setStart] = useState(() => (route.params?.start ? new Date(route.params.start) : nextRoundedHour()));
   const template = templates.find((t) => t.id === templateId);
@@ -39,6 +39,7 @@ export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
         ) : (
           <>
             <Text style={styles.heading}>Choose a stamp for {format(start, 'EEE, MMM d · h:mm a')}</Text>
+            <Text style={styles.subheading}>Hold a stamp to delete it.</Text>
             {templates.map((t) => {
               const cal = calendarsById[t.calendarId];
               const color = t.color ?? cal?.color ?? colors.primary;
@@ -46,6 +47,9 @@ export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
                 <Pressable
                   key={t.id}
                   onPress={() => setTemplateId(t.id)}
+                  onLongPress={() => void confirmDeleteStamp(t, deleteTemplate)}
+                  delayLongPress={400}
+                  accessibilityHint="Long-press to delete this stamp"
                   style={({ pressed }) => [styles.card, { borderLeftColor: color }, pressed && { opacity: 0.8 }]}
                 >
                   <View style={[styles.cardGlyph, { backgroundColor: softBg(color) }]}>
@@ -130,7 +134,8 @@ export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
 const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: 48 },
-  heading: { fontSize: 15, color: colors.textMuted, marginBottom: spacing.md, fontWeight: '500' },
+  heading: { fontSize: 15, color: colors.textMuted, fontWeight: '500' },
+  subheading: { fontSize: 13, color: colors.textFaint, marginTop: 2, marginBottom: spacing.md },
   card: {
     flexDirection: 'row',
     alignItems: 'center',

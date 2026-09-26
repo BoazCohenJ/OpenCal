@@ -1,4 +1,4 @@
-import { format } from 'date-fns';
+import { format, startOfDay, subDays } from 'date-fns';
 import { RRule } from 'rrule';
 import { parseDayKey } from './dates';
 
@@ -104,3 +104,15 @@ export function describeRepeat(config: RepeatConfig): string {
 
 export const describeRRule = (rule: string | undefined, start: Date): string =>
   describeRepeat(parseRRule(rule, start));
+
+/**
+ * The rule cut short so the last occurrence is before `day` ("delete this and following"). Any
+ * COUNT or UNTIL is replaced by an UNTIL at the end of the previous day, in the app's own format.
+ */
+export function endRuleBefore(rule: string, day: Date): string {
+  const parts = rule
+    .replace(/^RRULE:/i, '')
+    .split(';')
+    .filter((p) => p && !/^(UNTIL|COUNT)=/i.test(p));
+  return [...parts, `UNTIL=${format(subDays(startOfDay(day), 1), 'yyyyMMdd')}T235959Z`].join(';');
+}

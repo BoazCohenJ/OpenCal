@@ -2,7 +2,7 @@
   "expo": {
     "name": "OpenCal",
     "slug": "opencal",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -49,7 +49,8 @@
             "backgroundColor": "#15120F"
           }
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "extra": {
       "eas": {

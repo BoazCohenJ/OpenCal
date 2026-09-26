@@ -1,14 +1,15 @@
 import { addYears, endOfDay, startOfDay } from 'date-fns';
-import React, { useMemo, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { OptionalDateButton } from '../components/DateTimeField';
-import { Chip, EmptyState } from '../components/ui';
+import { Chip, EmptyState, HeaderButton } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { Event } from '../models/Event';
 import type { ScreenProps } from '../navigation/types';
+import { shareICS } from '../services/exports';
 import { expandEvent, isPausedOn, nextOccurrence, type Occurrence } from '../services/occurrences';
 import { createStyles, radius, spacing, useTheme } from '../theme';
-import { formatRange } from '../utils/dates';
+import { formatRange, parseTimestamp } from '../utils/dates';
 import { eventLabel } from '../utils/format';
 import { EventGlyph, eventIconKey, Icon } from '../components/Icon';
 import { describeRRule } from '../utils/recurrence';
@@ -22,7 +23,7 @@ interface RowData {
 export function HiddenEventsListScreen({ navigation }: ScreenProps<'HiddenEvents'>) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const { events, calendars, calendarsById, allTags, getEffectiveColor } = useCalendarContext();
+  const { events, calendars, calendarsById, allTags, getEffectiveColor, notificationPrefs } = useCalendarContext();
   const [search, setSearch] = useState('');
   const [repeatingOnly, setRepeatingOnly] = useState(false);
   const [calendarId, setCalendarId] = useState<string | null>(null);
@@ -51,9 +52,23 @@ export function HiddenEventsListScreen({ navigation }: ScreenProps<'HiddenEvents
         if (a.next && b.next) return a.next.start.getTime() - b.next.start.getTime();
         if (a.next) return -1;
         if (b.next) return 1;
-        return new Date(b.event.startDate).getTime() - new Date(a.event.startDate).getTime();
+        return parseTimestamp(b.event.startDate).getTime() - parseTimestamp(a.event.startDate).getTime();
       });
   }, [events, calendarsById, search, repeatingOnly, calendarId, tag, from, to]);
+
+  // Exports exactly the events the filters show.
+  const exportShown = () => {
+    const only = calendarId ? calendarsById[calendarId] : undefined;
+    void shareICS(only?.name ?? 'OpenCal events', rows.map((r) => r.event), calendarsById, notificationPrefs.allDayTime, only?.color);
+  };
+  const exportRef = useRef(exportShown);
+  useLayoutEffect(() => {
+    exportRef.current = exportShown;
+  });
+  const hasRows = rows.length > 0;
+  useLayoutEffect(() => {
+    navigation.setOptions({ headerRight: () => (hasRows ? <HeaderButton title="Export" onPress={() => exportRef.current()} /> : null) });
+  }, [navigation, hasRows]);
 
   const activeFilters = [repeatingOnly, calendarId, tag, from, to, search.trim()].filter(Boolean).length;
   const clearAll = () => {
@@ -121,8 +136,8 @@ export function HiddenEventsListScreen({ navigation }: ScreenProps<'HiddenEvents
         renderItem={({ item }) => {
           const e = item.event;
           const cal = calendarsById[e.calendarId];
-          const start = new Date(e.startDate);
-          const end = new Date(e.endDate);
+          const start = parseTimestamp(e.startDate);
+          const end = parseTimestamp(e.endDate);
           const paused = isPausedOn(e, cal, new Date());
           return (
             <Pressable

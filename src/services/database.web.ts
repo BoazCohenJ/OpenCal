@@ -49,7 +49,7 @@ export function deleteCalendarWithPlan(
 }
 
 export function loadEvents(): Event[] {
-  return read<Event[]>(storageKeys.events, []);
+  return read<Event[]>(storageKeys.events, []).map((e) => ({ ...e, floating: e.floating === true, skippedDates: e.skippedDates ?? [] }));
 }
 
 export function saveEvent(event: Event): void {
@@ -64,6 +64,11 @@ export function deleteEvent(id: string): void {
   write(storageKeys.events, loadEvents().filter((event) => event.id !== id));
 }
 
+export function deleteEvents(ids: string[]): void {
+  const remove = new Set(ids);
+  write(storageKeys.events, loadEvents().filter((event) => !remove.has(event.id)));
+}
+
 export function loadTemplates(): EventTemplate[] {
   return read<EventTemplate[]>(storageKeys.templates, []).sort((a, b) => a.sortOrder - b.sortOrder);
 }
@@ -74,6 +79,20 @@ export function saveTemplate(template: EventTemplate): void {
 
 export function deleteTemplate(id: string): void {
   write(storageKeys.templates, loadTemplates().filter((template) => template.id !== id));
+}
+
+const upsert = <T extends { id: string }>(existing: T[], incoming: T[]): T[] => {
+  const ids = new Set(incoming.map((item) => item.id));
+  return [...existing.filter((item) => !ids.has(item.id)), ...incoming];
+};
+
+export function importData(
+  data: { calendars: Calendar[]; events: Event[]; templates: EventTemplate[] },
+  replace: boolean,
+): void {
+  write(storageKeys.calendars, upsert(replace ? [] : loadCalendars(), data.calendars));
+  write(storageKeys.events, upsert(replace ? [] : loadEvents(), data.events));
+  write(storageKeys.templates, upsert(replace ? [] : loadTemplates(), data.templates));
 }
 
 export function saveTemplateOrder(ids: string[]): void {

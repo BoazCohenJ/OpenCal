@@ -7,7 +7,7 @@ import type { ScreenProps } from '../navigation/types';
 import { nextOccurrence } from '../services/occurrences';
 import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { confirmAsync } from '../utils/confirm';
-import { formatRange } from '../utils/dates';
+import { formatRange, parseTimestamp } from '../utils/dates';
 import { eventLabel } from '../utils/format';
 import { animateNextLayout } from '../utils/motion';
 import { describeRRule } from '../utils/recurrence';
@@ -131,7 +131,7 @@ export function CalendarDeleteScreen({ navigation, route }: ScreenProps<'Calenda
           const fate = fates[e.id] ?? null;
           const dest = fate ? calendarsById[fate] : undefined;
           const checked = selected.has(e.id);
-          const start = new Date(e.startDate);
+          const start = parseTimestamp(e.startDate);
           const next = e.recurrenceRule ? nextOccurrence(e, calendar, new Date()) : null;
           return (
             <Pressable
@@ -153,7 +153,7 @@ export function CalendarDeleteScreen({ navigation, route }: ScreenProps<'Calenda
                 <Text style={styles.meta} numberOfLines={1}>
                   {e.recurrenceRule
                     ? `${describeRRule(e.recurrenceRule, start)}${next ? ` · next ${formatRange(next.start, next.end, e.isAllDay)}` : ''}`
-                    : formatRange(start, new Date(e.endDate), e.isAllDay)}
+                    : formatRange(start, parseTimestamp(e.endDate), e.isAllDay)}
                 </Text>
               </View>
               <View style={[styles.fate, !dest && styles.fateDelete]}>

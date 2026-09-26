@@ -73,6 +73,7 @@ const UI_ICONS = {
   'arrow-down': ArrowDown,
   'arrow-up': ArrowUp,
   bell: Bell,
+  cake: Cake,
   'bell-off': BellOff,
   'bell-ring': BellRing,
   calendar: CalendarDays,

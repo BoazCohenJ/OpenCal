@@ -10,6 +10,35 @@ export const parseDayKey = (key: string): Date => {
   return new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1);
 };
 
+/**
+ * Wall-clock timestamp with no zone, e.g. `2026-10-05T09:30:00.000`. `new Date()` reads it as local
+ * time wherever the phone is, which is how floating and all-day events are stored.
+ */
+export const toFloatingISO = (d: Date): string => format(d, "yyyy-MM-dd'T'HH:mm:ss.SSS");
+
+/**
+ * Parses a stored event timestamp. Zone-less ones (toFloatingISO) are read as local time by hand
+ * rather than trusting each JS engine's `Date` parsing of them; anything else goes to `new Date`.
+ */
+export function parseTimestamp(s: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/.exec(s.trim());
+  if (!m) return new Date(s);
+  const [y, mo, d, h, mi] = m.slice(1, 6).map(Number) as [number, number, number, number, number];
+  return new Date(y, mo - 1, d, h, mi, Number(m[6] ?? 0), Number((m[7] ?? '0').padEnd(3, '0')));
+}
+
+/** True for a timestamp stored without a zone (see toFloatingISO). */
+export const isFloatingISO = (s: string): boolean => !/(Z|[+-]\d{2}:?\d{2})$/i.test(s.trim());
+
+/** The phone's IANA time zone, e.g. `Asia/Jerusalem`, or null if it can't be read. */
+export function deviceTimeZone(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}
+
 export const formatTime = (d: Date): string => format(d, d.getMinutes() === 0 ? 'h a' : 'h:mm a');
 export const formatDate = (d: Date): string => format(d, 'EEE, MMM d');
 

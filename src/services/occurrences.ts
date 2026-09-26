@@ -3,7 +3,7 @@ import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
 import type { PauseWindow } from '../models/PauseWindow';
 import { DEFAULT_EVENT_COLOR } from '../utils/color';
-import { dayKey } from '../utils/dates';
+import { dayKey, parseTimestamp } from '../utils/dates';
 import { createRule, fromFloatingUTC, toFloatingUTC } from '../utils/recurrence';
 
 export interface Occurrence {
@@ -31,11 +31,11 @@ function overlaps(start: Date, end: Date, rangeStart: Date, rangeEnd: Date): boo
 /**
  * Expands an event into concrete occurrences overlapping [rangeStart, rangeEnd).
  * An occurrence of a recurring event is skipped when its start date falls in either
- * the event's own pause windows or its calendar's pause windows.
+ * the event's own pause windows or its calendar's pause windows, or is one of its skipped dates.
  */
 export function expandEvent(event: Event, calendar: Calendar | undefined, rangeStart: Date, rangeEnd: Date): Occurrence[] {
-  const start = new Date(event.startDate);
-  const end = new Date(event.endDate);
+  const start = parseTimestamp(event.startDate);
+  const end = parseTimestamp(event.endDate);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return [];
   const duration = Math.max(0, end.getTime() - start.getTime());
   const color = getEffectiveColor(event, calendar);
@@ -51,12 +51,13 @@ export function expandEvent(event: Event, calendar: Calendar | undefined, rangeS
   if (!rule) return overlaps(start, end, rangeStart, rangeEnd) ? [make(start)] : [];
 
   const pauses = [...event.pauseWindows, ...(calendar?.pauseWindows ?? [])];
+  const skipped = new Set(event.skippedDates ?? []);
   const from = toFloatingUTC(new Date(rangeStart.getTime() - duration));
   const to = toFloatingUTC(rangeEnd);
   return rule
     .between(from, to, true)
     .map(fromFloatingUTC)
-    .filter((s) => !isDateInPauseWindows(s, pauses))
+    .filter((s) => !isDateInPauseWindows(s, pauses) && !skipped.has(dayKey(s)))
     .map(make)
     .filter((o) => overlaps(o.start, o.end, rangeStart, rangeEnd));
 }

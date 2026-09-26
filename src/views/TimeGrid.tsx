@@ -5,6 +5,11 @@ import { minutesSinceMidnight } from '../utils/dates';
 import { HOUR_HEIGHT, PX_PER_MIN } from './layout';
 
 export const GUTTER_WIDTH = 52;
+
+/** Lets the calendar screen line up a neighbouring page's scroll with the one on screen. */
+export interface TimeGridHandle {
+  scrollToY: (y: number) => void;
+}
 export const GRID_HEIGHT = HOUR_HEIGHT * 24;
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 

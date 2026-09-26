@@ -517,6 +517,8 @@ const useStyles = createStyles((colors) => ({
     paddingHorizontal: 12,
     borderRadius: radius.pill,
     borderWidth: 1,
+    // Set explicitly: Android keeps a dashed border after `chipOff` is removed unless told otherwise.
+    borderStyle: 'solid',
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
