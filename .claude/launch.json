@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "expo-web",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "npx expo start --web --clear --port %PORT%"],
+      "port": 8082,
+      "autoPort": true
+    }
+  ]
+}

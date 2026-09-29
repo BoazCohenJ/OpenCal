@@ -48,16 +48,20 @@ export function deleteCalendarWithPlan(
   write(storageKeys.calendars, loadCalendars().filter((item) => item.id !== id));
 }
 
-export function loadEvents(): Event[] {
-  return read<Event[]>(storageKeys.events, []).map((e) => ({ ...e, floating: e.floating === true, skippedDates: e.skippedDates ?? [] }));
+export function loadEvents(ids?: string[]): Event[] {
+  const wanted = ids ? new Set(ids) : null;
+  return read<Event[]>(storageKeys.events, [])
+    .filter((e) => !wanted || wanted.has(e.id))
+    .map((e) => ({ ...e, floating: e.floating === true, skippedDates: e.skippedDates ?? [] }));
 }
 
 export function saveEvent(event: Event): void {
-  write(storageKeys.events, [...loadEvents().filter((item) => item.id !== event.id), event]);
+  saveEvents([event]);
 }
 
 export function saveEvents(events: Event[]): void {
-  events.forEach(saveEvent);
+  const ids = new Set(events.map((e) => e.id));
+  write(storageKeys.events, [...loadEvents().filter((item) => !ids.has(item.id)), ...events]);
 }
 
 export function deleteEvent(id: string): void {

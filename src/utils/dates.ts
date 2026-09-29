@@ -30,13 +30,24 @@ export function parseTimestamp(s: string): Date {
 /** True for a timestamp stored without a zone (see toFloatingISO). */
 export const isFloatingISO = (s: string): boolean => !/(Z|[+-]\d{2}:?\d{2})$/i.test(s.trim());
 
-/** The phone's IANA time zone, e.g. `Asia/Jerusalem`, or null if it can't be read. */
+let zoneCache: { zone: string | null; at: number } | null = null;
+
+/**
+ * The phone's IANA time zone, e.g. `Asia/Jerusalem`, or null if it can't be read. Reading it builds
+ * an Intl formatter, which is slow and this runs for every event on every render, so it's re-read
+ * at most once a second (the zone only changes when the phone moves or the user changes it).
+ */
 export function deviceTimeZone(): string | null {
+  const now = Date.now();
+  if (zoneCache && now - zoneCache.at < 1000) return zoneCache.zone;
+  let zone: string | null;
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+    zone = Intl.DateTimeFormat().resolvedOptions().timeZone || null;
   } catch {
-    return null;
+    zone = null;
   }
+  zoneCache = { zone, at: now };
+  return zone;
 }
 
 export const formatTime = (d: Date): string => format(d, d.getMinutes() === 0 ? 'h a' : 'h:mm a');

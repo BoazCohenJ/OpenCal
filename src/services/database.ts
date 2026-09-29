@@ -177,30 +177,47 @@ export function deleteCalendarWithPlan(
 
 // ---------- Events ----------
 
-export function loadEvents(): Event[] {
-  const pauses = groupPauseWindows(
-    db.getAllSync<Row>('SELECT eventId, startDate, endDate FROM pause_windows ORDER BY startDate'),
-    'eventId',
-  );
-  return db.getAllSync<Row>('SELECT * FROM events ORDER BY startDate').map((r) => ({
-    id: r.id,
-    title: r.title,
-    description: orUndef(r.description),
-    startDate: r.startDate,
-    endDate: r.endDate,
-    isAllDay: r.isAllDay === 1 || r.isAllDay === true,
-    floating: r.floating === 1 || r.floating === true,
-    timeZone: orUndef(r.timeZone),
-    location: orUndef(r.location),
-    calendarId: r.calendarId,
-    color: orUndef(r.color),
-    recurrenceRule: orUndef(r.recurrenceRule),
-    pauseWindows: pauses.get(r.id) ?? [],
-    skippedDates: parseJson<string[]>(r.skippedDates, []),
-    reminders: parseJson<number[]>(r.reminders, []),
-    emoji: orUndef(r.emoji),
-    tags: parseJson<string[]>(r.tags, []),
-  }));
+const rowToEvent = (r: Row, pauses: Map<string, PauseWindow[]>): Event => ({
+  id: r.id,
+  title: r.title,
+  description: orUndef(r.description),
+  startDate: r.startDate,
+  endDate: r.endDate,
+  isAllDay: r.isAllDay === 1 || r.isAllDay === true,
+  floating: r.floating === 1 || r.floating === true,
+  timeZone: orUndef(r.timeZone),
+  location: orUndef(r.location),
+  calendarId: r.calendarId,
+  color: orUndef(r.color),
+  recurrenceRule: orUndef(r.recurrenceRule),
+  pauseWindows: pauses.get(r.id) ?? [],
+  skippedDates: parseJson<string[]>(r.skippedDates, []),
+  reminders: parseJson<number[]>(r.reminders, []),
+  emoji: orUndef(r.emoji),
+  tags: parseJson<string[]>(r.tags, []),
+});
+
+/** All events ordered by start, or only those with the given ids (in no particular order). */
+export function loadEvents(ids?: string[]): Event[] {
+  if (!ids) {
+    const pauses = groupPauseWindows(
+      db.getAllSync<Row>('SELECT eventId, startDate, endDate FROM pause_windows ORDER BY startDate'),
+      'eventId',
+    );
+    return db.getAllSync<Row>('SELECT * FROM events ORDER BY startDate').map((r) => rowToEvent(r, pauses));
+  }
+  const out: Event[] = [];
+  // Chunked to stay well under SQLite's limit on bound parameters.
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    const marks = chunk.map(() => '?').join(',');
+    const pauses = groupPauseWindows(
+      db.getAllSync<Row>(`SELECT eventId, startDate, endDate FROM pause_windows WHERE eventId IN (${marks}) ORDER BY startDate`, chunk),
+      'eventId',
+    );
+    for (const r of db.getAllSync<Row>(`SELECT * FROM events WHERE id IN (${marks})`, chunk)) out.push(rowToEvent(r, pauses));
+  }
+  return out;
 }
 
 function writeEvent(e: Event): void {
