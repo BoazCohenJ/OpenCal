@@ -3,7 +3,7 @@ import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { EventPill } from '../components/EventPill';
 import { EventGlyph, eventIconKey } from '../components/Icon';
-import { occurrencesForDay, type Occurrence } from '../services/occurrences';
+import { occurrencesByDay, type Occurrence } from '../services/occurrences';
 import { createStyles, fonts } from '../theme';
 import { deepText, softBg } from '../utils/color';
 import { atMinutes, dayKey, minutesSinceMidnight } from '../utils/dates';
@@ -63,12 +63,13 @@ export function WeekView({
   } = useEventSelection({ resetKey: `${dayKey(weekStart)}:${active}`, columnWidth: colWidth, occurrences, onCommitMoves, onSelectionModeChange });
 
   const perDay = useMemo(
-    () =>
-      Array.from({ length: 7 }, (_, i) => {
+    () => {
+      const lists = occurrencesByDay(displayed, weekStart, 7);
+      return lists.map((occs, i) => {
         const day = addDays(weekStart, i);
-        const occs = occurrencesForDay(displayed, day);
         return { day, allDay: occs.filter(isAllDayLike), timed: layoutTimed(occs.filter((o) => !isAllDayLike(o)), day) };
-      }),
+      });
+    },
     [weekStart, displayed],
   );
   const hasAllDay = perDay.some((p) => p.allDay.length > 0);

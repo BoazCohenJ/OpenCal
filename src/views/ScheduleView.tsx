@@ -2,7 +2,7 @@ import { addDays, format, isSameDay, isSameMonth, startOfDay } from 'date-fns';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, SectionList, Text, View } from 'react-native';
 import { EventGlyph, eventIconKey, Icon } from '../components/Icon';
-import { occurrencesForDay, type Occurrence } from '../services/occurrences';
+import { occurrencesByDay, type Occurrence } from '../services/occurrences';
 import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { dayKey, formatTime } from '../utils/dates';
 import { eventLabel } from '../utils/format';
@@ -50,13 +50,13 @@ export function ScheduleView({
 
   const sections = useMemo<DaySection[]>(() => {
     const from = new Date(fromMs);
-    const occs = getOccurrences(from, addDays(from, days));
+    const byDay = occurrencesByDay(getOccurrences(from, addDays(from, days)), from, days);
     const today = startOfDay(new Date());
     const result: DaySection[] = [];
     let prev: Date | null = null;
     for (let i = 0; i < days; i++) {
       const day = addDays(from, i);
-      const list = occurrencesForDay(occs, day).sort(
+      const list = byDay[i]!.sort(
         (a, b) => Number(isAllDayLike(b)) - Number(isAllDayLike(a)) || a.start.getTime() - b.start.getTime(),
       );
       if (list.length === 0 && !isSameDay(day, today)) continue;

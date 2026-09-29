@@ -12,7 +12,7 @@ import {
   startOfMonth,
   startOfWeek,
 } from 'date-fns';
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EventGlyph, Icon } from '../components/Icon';
@@ -63,6 +63,36 @@ function rangeFor(mode: ViewMode, cursor: Date): Range {
 const shiftCursor = (mode: ViewMode, c: Date, n: number): Date =>
   n === 0 ? c : mode === 'day' ? addDays(c, n) : mode === 'month' ? addMonths(c, n) : addWeeks(c, n);
 
+interface PageData {
+  cursor: Date;
+  range: Range;
+  occurrences: Occurrence[];
+}
+
+/** Built pages by key, dropped when the occurrences they came from change. */
+function createPageCache() {
+  let source: unknown = null;
+  let map = new Map<string, PageData>();
+  return {
+    has: (from: unknown, key: string): boolean => from === source && map.has(key),
+    get(from: unknown, key: string, build: () => PageData): PageData {
+      if (from !== source) {
+        source = from;
+        map = new Map();
+      }
+      let page = map.get(key);
+      if (!page) {
+        page = build();
+        map.set(key, page);
+      }
+      return page;
+    },
+    keepOnly(keys: string[]) {
+      map = new Map(keys.flatMap((k) => (map.has(k) ? [[k, map.get(k)!] as const] : [])));
+    },
+  };
+}
+
 /** Names a page, so the same day/week/month keeps its component (and scroll position) as it slides. */
 const pageKey = (mode: ViewMode, c: Date): string =>
   mode === 'month' ? format(c, 'yyyy-MM') : mode === 'week' ? dayKey(startOfWeek(c, { weekStartsOn: WEEK_STARTS_ON })) : dayKey(c);
@@ -110,18 +140,31 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
   // current one, so a swipe drags the neighbour in instead of revealing blank space.
   const [pageWidth, setPageWidth] = useState(0);
   const paging = mode !== 'schedule' && pageWidth > 0;
-  const pages = useMemo(
-    () =>
-      (paging ? [-1, 0, 1] : [0]).map((offset) => {
-        const c = shiftCursor(mode, cursor, offset);
+  // Pages already worked out, by mode and page key. After a swipe the two pages still on screen
+  // keep the same objects (and occurrence arrays), so they don't re-render; only the new one is built.
+  const [pageCache] = useState(createPageCache);
+  const pages = useMemo(() => {
+    const built = (paging ? [-1, 0, 1] : [0]).map((offset) => {
+      const c = shiftCursor(mode, cursor, offset);
+      const key = pageKey(mode, c);
+      const fresh = !pageCache.has(getOccurrences, `${mode}:${key}`);
+      const page = pageCache.get(getOccurrences, `${mode}:${key}`, () => {
         const r = rangeFor(mode, c);
-        return { offset, cursor: c, range: r, key: pageKey(mode, c), occurrences: mode === 'schedule' ? [] : getOccurrences(r.start, r.end) };
-      }),
-    [paging, mode, cursor, getOccurrences],
-  );
+        return { cursor: c, range: r, occurrences: mode === 'schedule' ? [] : getOccurrences(r.start, r.end) };
+      });
+      return { offset, key, fresh, ...page };
+    });
+    pageCache.keepOnly(built.map((p) => `${mode}:${p.key}`));
+    return built;
+  }, [pageCache, paging, mode, cursor, getOccurrences]);
   // A fresh offset for every page set, created in the same render as the new pages, so the strip
   // re-centres on the page that just slid in without a frame of the old position.
   const currentKey = `${mode}:${pageKey(mode, cursor)}`;
+  // New neighbour pages are off screen, so they're drawn in a deferred render after the current
+  // page is up, instead of tripling the work before anything shows.
+  const deferredKey = useDeferredValue(currentKey);
+  const drawPage = (page: (typeof pages)[number]) =>
+    page.offset === 0 || !page.fresh || deferredKey === currentKey ? renderPage(page) : null;
   const [strip, setStrip] = useState(() => ({ key: currentKey, pan: new Animated.Value(0) }));
   if (strip.key !== currentKey) setStrip({ key: currentKey, pan: new Animated.Value(0) });
   const pan = strip.pan;
@@ -253,16 +296,20 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
     return setHours(startOfDay(cursor), 9);
   };
 
-  const openEvent = (o: Occurrence) => {
-    const birthdayId = birthdayIdOf(o.event);
-    if (birthdayId) navigation.navigate('BirthdayEdit', { birthdayId });
-    else navigation.navigate('EventEdit', { eventId: o.event.id });
-  };
-  const openDay = (d: Date) => {
+  // Stable, so pages that didn't change can skip re-rendering (MonthView is memoized).
+  const openEvent = useCallback(
+    (o: Occurrence) => {
+      const birthdayId = birthdayIdOf(o.event);
+      if (birthdayId) navigation.navigate('BirthdayEdit', { birthdayId });
+      else navigation.navigate('EventEdit', { eventId: o.event.id });
+    },
+    [navigation],
+  );
+  const openDay = useCallback((d: Date) => {
     setDirection(0);
     setCursor(startOfDay(d));
     setMode('day');
-  };
+  }, []);
 
   /** Dropping a stamp on a tapped slot adds the event right away; the toast offers Undo. */
   const dropStamp = (template: EventTemplate, start: Date) => {
@@ -520,7 +567,7 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
               >
                 {pages.map((page) => (
                   <View key={page.key} style={[{ width: pageWidth }, page.offset !== 0 && styles.inert]}>
-                    {renderPage(page)}
+                    {drawPage(page)}
                   </View>
                 ))}
               </Animated.View>

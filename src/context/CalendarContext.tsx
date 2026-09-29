@@ -26,6 +26,8 @@ const THEME_MODE_KEY = 'themeMode';
 const SAVED_COLORS_KEY = 'savedColors';
 const BIRTHDAYS_KEY = 'birthdays';
 const FLOATING_DEFAULT_KEY = 'floatingByDefault';
+/** The order loadEvents gives: by stored start. */
+const byStart = (a: Event, b: Event): number => (a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : 0);
 const DEFAULT_CALENDARS = [
   { name: 'Personal', color: '#4F6BED' },
   { name: 'Work', color: '#F2994A' },
@@ -299,33 +301,49 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  /**
+   * Re-reads just these events after a write (deleted ones drop out). Every other event keeps its
+   * object, and with it the occurrences already worked out for it (see expandEvent).
+   */
+  const reloadEvents = useCallback((ids: string[]) => {
+    const fresh = db.loadEvents(ids);
+    const changed = new Set(ids);
+    setEvents((prev) => [...prev.filter((e) => !changed.has(e.id)), ...fresh].sort(byStart));
+  }, []);
+
   const saveEvent = useCallback(
     (event: Event) => {
       db.saveEvent(withStoredTimes(event, floatingByDefault));
-      setEvents(db.loadEvents());
+      reloadEvents([event.id]);
     },
-    [floatingByDefault],
+    [floatingByDefault, reloadEvents],
   );
 
   const saveEvents = useCallback(
     (list: Event[]) => {
       if (!list.length) return;
       db.saveEvents(list.map((e) => withStoredTimes(e, floatingByDefault)));
-      setEvents(db.loadEvents());
+      reloadEvents(list.map((e) => e.id));
     },
-    [floatingByDefault],
+    [floatingByDefault, reloadEvents],
   );
 
-  const deleteEvent = useCallback((id: string) => {
-    db.deleteEvent(id);
-    setEvents(db.loadEvents());
-  }, []);
+  const deleteEvent = useCallback(
+    (id: string) => {
+      db.deleteEvent(id);
+      reloadEvents([id]);
+    },
+    [reloadEvents],
+  );
 
-  const deleteEvents = useCallback((ids: string[]) => {
-    if (!ids.length) return;
-    db.deleteEvents(ids);
-    setEvents(db.loadEvents());
-  }, []);
+  const deleteEvents = useCallback(
+    (ids: string[]) => {
+      if (!ids.length) return;
+      db.deleteEvents(ids);
+      reloadEvents(ids);
+    },
+    [reloadEvents],
+  );
 
   const saveTemplate = useCallback(
     (template: EventTemplate) => {
@@ -442,11 +460,11 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
       const incoming = list.map((e) => withStoredTimes({ ...e, calendarId }, false));
       db.importData({ calendars: newCalendars, events: incoming, templates: [] }, false);
       if (newCalendars.length) setCalendars(db.loadCalendars());
-      setEvents(db.loadEvents());
+      reloadEvents(incoming.map((e) => e.id));
       const updated = incoming.filter((e) => existing.has(e.id)).length;
       return { added: incoming.length - updated, updated };
     },
-    [calendars, events],
+    [calendars, events, reloadEvents],
   );
 
   const getOccurrences = useCallback(

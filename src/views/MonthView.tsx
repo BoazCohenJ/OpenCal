@@ -2,7 +2,7 @@ import { addDays, format, isSameDay, isSameMonth, startOfMonth, startOfWeek } fr
 import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { EventPill } from '../components/EventPill';
-import { occurrencesForDay, type Occurrence } from '../services/occurrences';
+import { occurrencesByDay, type Occurrence } from '../services/occurrences';
 import { createStyles, fonts } from '../theme';
 import { dayKey, WEEK_STARTS_ON } from '../utils/dates';
 import { isAllDayLike } from './layout';
@@ -10,7 +10,8 @@ import { isAllDayLike } from './layout';
 const MAX_PER_CELL = 3;
 const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
 
-export function MonthView({
+/** Memoized: the pages beside the current one keep their props while swiping, so they skip rendering. */
+export const MonthView = React.memo(function MonthView({
   month,
   occurrences,
   onPressDay,
@@ -29,14 +30,13 @@ export function MonthView({
 
   const byDay = useMemo(() => {
     const map = new Map<string, Occurrence[]>();
-    for (const d of days) {
+    const lists = occurrencesByDay(occurrences, days[0]!, days.length);
+    days.forEach((d, i) =>
       map.set(
         dayKey(d),
-        occurrencesForDay(occurrences, d).sort(
-          (a, b) => Number(isAllDayLike(b)) - Number(isAllDayLike(a)) || a.start.getTime() - b.start.getTime(),
-        ),
-      );
-    }
+        lists[i]!.sort((a, b) => Number(isAllDayLike(b)) - Number(isAllDayLike(a)) || a.start.getTime() - b.start.getTime()),
+      ),
+    );
     return map;
   }, [days, occurrences]);
 
@@ -89,7 +89,7 @@ export function MonthView({
       ))}
     </View>
   );
-}
+});
 
 const useStyles = createStyles((colors) => ({
   container: { flex: 1, backgroundColor: colors.surface },
