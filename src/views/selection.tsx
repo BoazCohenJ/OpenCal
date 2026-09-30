@@ -4,7 +4,8 @@ import { Animated, PanResponder, Pressable, Text, View, type StyleProp, type Vie
 import { Icon } from '../components/Icon';
 import { Button } from '../components/ui';
 import type { Occurrence } from '../services/occurrences';
-import { createStyles, fonts, radius, shadow, useTheme } from '../theme';
+import { createStyles, fonts, radius, shadow } from '../theme';
+import { readableOn } from '../utils/color';
 import { formatDelta } from '../utils/format';
 import { PX_PER_MIN } from './layout';
 
@@ -215,16 +216,17 @@ export function useEventSelection({
 /** Small check box drawn on events while selecting. */
 export function SelectionCheckbox({ color, checked, size = 18 }: { color: string; checked: boolean; size?: number }) {
   const styles = useStyles();
-  const { colors } = useTheme();
+  // Sits on the event's own solid color, so it is drawn in the text color of that fill.
+  const ink = readableOn(color);
   return (
     <View
       style={[
         styles.checkbox,
-        { width: size, height: size, borderRadius: size * 0.28, borderColor: color },
-        checked && { backgroundColor: color },
+        { width: size, height: size, borderRadius: size * 0.28, borderColor: ink },
+        checked && { backgroundColor: ink },
       ]}
     >
-      {checked ? <Icon name="check" size={size * 0.66} color={colors.onPrimary} strokeWidth={3} /> : null}
+      {checked ? <Icon name="check" size={size * 0.66} color={color} strokeWidth={3} /> : null}
     </View>
   );
 }

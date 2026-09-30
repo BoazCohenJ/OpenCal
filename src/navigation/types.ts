@@ -19,6 +19,7 @@ export type RootStackParamList = {
   TemplateEdit: { templateId?: string } | undefined;
   HiddenEvents: undefined;
   Birthdays: undefined;
+  ColorRules: undefined;
   ImportExport: undefined;
   BirthdayEdit: { birthdayId?: string } | undefined;
 };

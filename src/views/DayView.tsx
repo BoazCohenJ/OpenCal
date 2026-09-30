@@ -5,7 +5,7 @@ import { EventPill } from '../components/EventPill';
 import { EventGlyph, eventIconKey, Icon } from '../components/Icon';
 import type { Occurrence } from '../services/occurrences';
 import { createStyles } from '../theme';
-import { deepText, softBg } from '../utils/color';
+import { readableOn } from '../utils/color';
 import { atMinutes, dayKey, formatTime, minutesSinceMidnight } from '../utils/dates';
 import { eventLabel } from '../utils/format';
 import { isAllDayLike, layoutTimed, PX_PER_MIN, slotMinutesFromPress, type PositionedOccurrence } from './layout';
@@ -16,24 +16,25 @@ function EventContent({ pos, selectionMode, selected }: { pos: PositionedOccurre
   const styles = useStyles();
   const { occ } = pos;
   const tall = pos.height >= 44;
+  const fg = readableOn(occ.color);
   return (
     <View style={styles.blockInner}>
       {selectionMode ? <SelectionCheckbox color={occ.color} checked={selected} /> : null}
       <View style={styles.blockBody}>
         <View style={styles.titleRow}>
-          {eventIconKey(occ.event.emoji) ? <EventGlyph value={occ.event.emoji} size={13} color={deepText(occ.color)} /> : null}
-          <Text numberOfLines={tall ? 2 : 1} style={[styles.blockTitle, { color: deepText(occ.color) }]}>
+          {eventIconKey(occ.event.emoji) ? <EventGlyph value={occ.event.emoji} size={13} color={fg} /> : null}
+          <Text numberOfLines={tall ? 2 : 1} style={[styles.blockTitle, { color: fg }]}>
             {eventLabel(occ.event)}
           </Text>
         </View>
         {tall ? (
-          <Text numberOfLines={1} style={[styles.blockMeta, { color: deepText(occ.color) }]}>
+          <Text numberOfLines={1} style={[styles.blockMeta, { color: fg }]}>
             {formatTime(occ.start)} – {formatTime(occ.end)}
             {occ.event.location ? ` · ${occ.event.location}` : ''}
           </Text>
         ) : null}
       </View>
-      {occ.event.recurrenceRule ? <Icon name="repeat" size={12} color={deepText(occ.color)} /> : null}
+      {occ.event.recurrenceRule ? <Icon name="repeat" size={12} color={fg} /> : null}
     </View>
   );
 }
@@ -135,7 +136,7 @@ export function DayView({
             <Pressable style={StyleSheet.absoluteFill} onPress={handleSlotPress} accessibilityLabel="Add event at this time" />
             {columnWidth > 0 &&
               timed.map((pos) => {
-                const w = (columnWidth - 8) / pos.columns;
+                const inner = columnWidth - 8;
                 const isSelected = selected.includes(pos.occ.key);
                 return (
                   <SelectableBlock
@@ -145,13 +146,13 @@ export function DayView({
                       {
                         top: pos.top,
                         height: pos.height - 2,
-                        left: 2 + pos.column * w,
-                        width: w - 3,
-                        backgroundColor: softBg(pos.occ.color),
+                        left: 2 + pos.x * inner,
+                        width: pos.w * inner - 3,
+                        backgroundColor: pos.occ.color,
                         borderLeftColor: pos.occ.color,
                       },
                     ]}
-                    selectedStyle={[styles.blockSelected, { borderColor: pos.occ.color }]}
+                    selectedStyle={[styles.blockSelected, { borderColor: readableOn(pos.occ.color) }]}
                     selected={isSelected}
                     selectionMode={selectionMode}
                     drag={drag}
@@ -200,15 +201,15 @@ const useStyles = createStyles((colors) => ({
   block: {
     position: 'absolute',
     borderRadius: 10,
-    borderLeftWidth: 4,
     paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingVertical: 3,
+    justifyContent: 'center',
     overflow: 'hidden',
   },
-  blockSelected: { borderWidth: 2, borderLeftWidth: 4 },
+  blockSelected: { borderWidth: 2 },
   blockInner: { flexDirection: 'row', gap: 6, flex: 1 },
   blockBody: { flex: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   blockTitle: { flexShrink: 1, fontSize: 13, fontWeight: '700' },
-  blockMeta: { fontSize: 11, opacity: 0.85, marginTop: 1 },
+  blockMeta: { fontSize: 11, fontWeight: '600', marginTop: 1 },
 }));

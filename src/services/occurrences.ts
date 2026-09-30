@@ -1,6 +1,7 @@
 import { addDays, startOfDay } from 'date-fns';
 import type { RRule } from 'rrule';
 import type { Calendar } from '../models/Calendar';
+import type { ColorRule } from '../models/ColorRule';
 import type { Event } from '../models/Event';
 import type { PauseWindow } from '../models/PauseWindow';
 import { DEFAULT_EVENT_COLOR } from '../utils/color';
@@ -23,8 +24,18 @@ export const isDayInPauseWindows = (key: string, windows: PauseWindow[]): boolea
 
 export const isDateInPauseWindows = (date: Date, windows: PauseWindow[]): boolean => isDayInPauseWindows(dayKey(date), windows);
 
-export const getEffectiveColor = (event: Event, calendar?: Calendar): string =>
-  event.color || calendar?.color || DEFAULT_EVENT_COLOR;
+export const NO_COLOR_RULES: ColorRule[] = [];
+
+/** The first rule whose keyword is in the title, if any. */
+export function matchColorRule(title: string, rules: ColorRule[]): ColorRule | undefined {
+  if (!rules.length) return undefined;
+  const t = title.toLowerCase();
+  return rules.find((r) => r.keyword && t.includes(r.keyword.toLowerCase()));
+}
+
+/** An event's own color, else the first matching keyword rule, else its calendar's color. */
+export const getEffectiveColor = (event: Event, calendar?: Calendar, rules: ColorRule[] = NO_COLOR_RULES): string =>
+  event.color || matchColorRule(event.title, rules)?.color || calendar?.color || DEFAULT_EVENT_COLOR;
 
 function overlaps(start: Date, end: Date, rangeStart: Date, rangeEnd: Date): boolean {
   return overlapsMs(start.getTime(), end.getTime(), rangeStart.getTime(), rangeEnd.getTime());
@@ -34,6 +45,7 @@ function overlaps(start: Date, end: Date, rangeStart: Date, rangeEnd: Date): boo
 interface Prepared {
   /** What it was prepared against; a change to either means preparing again. */
   calendar: Calendar | undefined;
+  rules: ColorRule[];
   zone: string | null;
   start: number;
   end: number;
@@ -50,20 +62,21 @@ interface Prepared {
 // Keyed by the event object itself: stored events are replaced, never mutated, when they change.
 const prepared = new WeakMap<Event, Prepared>();
 
-function prepare(event: Event, calendar: Calendar | undefined, zone: string | null): Prepared | null {
+function prepare(event: Event, calendar: Calendar | undefined, zone: string | null, rules: ColorRule[]): Prepared | null {
   const cached = prepared.get(event);
-  if (cached && cached.calendar === calendar && cached.zone === zone) return cached;
+  if (cached && cached.calendar === calendar && cached.zone === zone && cached.rules === rules) return cached;
   const start = parseTimestamp(event.startDate).getTime();
   const end = parseTimestamp(event.endDate).getTime();
   if (Number.isNaN(start) || Number.isNaN(end)) return null;
   const clock = eventClock(event);
   const p: Prepared = {
     calendar,
+    rules,
     zone,
     start,
     end,
     duration: Math.max(0, end - start),
-    color: getEffectiveColor(event, calendar),
+    color: getEffectiveColor(event, calendar, rules),
     clock,
     rule: event.recurrenceRule ? createRuleAt(event.recurrenceRule, clock.toWall(new Date(start))) : null,
     pauses: [...event.pauseWindows, ...(calendar?.pauseWindows ?? [])],
@@ -99,12 +112,25 @@ const overlapsMs = (start: number, end: number, rangeStart: number, rangeEnd: nu
  * the event's own pause windows or its calendar's pause windows, or is one of its skipped dates.
  * Parsed dates, the rule and the repeats of each year are cached per event object.
  */
-export function expandEvent(event: Event, calendar: Calendar | undefined, rangeStart: Date, rangeEnd: Date): Occurrence[] {
-  return expandPrepared(event, calendar, rangeStart.getTime(), rangeEnd.getTime(), deviceTimeZone());
+export function expandEvent(
+  event: Event,
+  calendar: Calendar | undefined,
+  rangeStart: Date,
+  rangeEnd: Date,
+  rules: ColorRule[] = NO_COLOR_RULES,
+): Occurrence[] {
+  return expandPrepared(event, calendar, rangeStart.getTime(), rangeEnd.getTime(), deviceTimeZone(), rules);
 }
 
-function expandPrepared(event: Event, calendar: Calendar | undefined, rs: number, re: number, zone: string | null): Occurrence[] {
-  const p = prepare(event, calendar, zone);
+function expandPrepared(
+  event: Event,
+  calendar: Calendar | undefined,
+  rs: number,
+  re: number,
+  zone: string | null,
+  rules: ColorRule[],
+): Occurrence[] {
+  const p = prepare(event, calendar, zone, rules);
   if (!p) return [];
   const make = (s: number): Occurrence => ({
     key: `${event.id}@${s}`,
@@ -133,13 +159,14 @@ export function expandEvents(
   calendarsById: Record<string, Calendar>,
   rangeStart: Date,
   rangeEnd: Date,
+  rules: ColorRule[] = NO_COLOR_RULES,
 ): Occurrence[] {
   const out: Occurrence[] = [];
   const rs = rangeStart.getTime();
   const re = rangeEnd.getTime();
   const zone = deviceTimeZone();
   for (const e of events) {
-    for (const o of expandPrepared(e, calendarsById[e.calendarId], rs, re, zone)) out.push(o);
+    for (const o of expandPrepared(e, calendarsById[e.calendarId], rs, re, zone, rules)) out.push(o);
   }
   return out.sort((a, b) => a.start.getTime() - b.start.getTime() || b.end.getTime() - a.end.getTime());
 }

@@ -3,6 +3,7 @@ import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
 import type { NotificationPrefs } from '../models/NotificationPrefs';
 import type { PauseWindow } from '../models/PauseWindow';
+import type { ColorRule } from '../models/ColorRule';
 import type { SavedColor } from '../models/SavedColor';
 import type { EventTemplate } from '../models/Template';
 import type { ThemeMode } from '../theme';
@@ -20,6 +21,7 @@ export interface BackupSettings {
   themeMode: ThemeMode;
   notificationPrefs: NotificationPrefs;
   savedColors: SavedColor[];
+  colorRules: ColorRule[];
   hiddenCalendarIds: string[];
 }
 
@@ -144,6 +146,14 @@ function readSettings(v: unknown): Partial<BackupSettings> {
       const name = str(c.name);
       const hex = str(c.hex);
       return id && name && hex ? { id, name, hex } : null;
+    });
+  }
+  if (Array.isArray(v.colorRules)) {
+    out.colorRules = list(v.colorRules, (r) => {
+      const id = str(r.id);
+      const keyword = str(r.keyword);
+      const color = str(r.color);
+      return id && keyword && color && /^#[0-9a-f]{6}$/i.test(color) ? { id, keyword, color: color.toUpperCase() } : null;
     });
   }
   if (Array.isArray(v.hiddenCalendarIds)) out.hiddenCalendarIds = strList(v.hiddenCalendarIds);

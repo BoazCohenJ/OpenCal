@@ -22,6 +22,7 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
     setThemeMode,
     floatingByDefault,
     setFloatingByDefault,
+    colorRules,
   } = useCalendarContext();
   const timeZone = deviceTimeZone()?.replace(/_/g, ' ');
 
@@ -43,6 +44,8 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
         <Row label="Stamps" subtitle="Reusable event templates" value={String(templates.length)} onPress={() => navigation.navigate('Templates')} />
         <Divider />
         <Row label="Birthdays" subtitle="Yearly birthdays with ages" value={String(birthdays.length)} onPress={() => navigation.navigate('Birthdays')} />
+        <Divider />
+        <Row label="Color rules" subtitle="Color events by a word in their title" value={String(colorRules.length)} onPress={() => navigation.navigate('ColorRules')} />
         <Divider />
         <Row label="Event list" subtitle="Find and edit any event with filters" value={String(events.length)} onPress={() => navigation.navigate('HiddenEvents')} />
       </Section>
