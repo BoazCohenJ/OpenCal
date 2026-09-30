@@ -33,7 +33,7 @@ https://github.com/user-attachments/assets/96c68291-76bc-4ca8-a030-11c235435344
 
 ## Features
 
-- **Four views:** Schedule (agenda), Day, Week and Month. Swipe left/right to move between days, weeks and months, with the next one sliding in under your finger; the header tells you where you are ("Tomorrow", "In 3 weeks", "Next month"). Tap the month or year to jump to any month, scrolling year by year.
+- **Four views:** Schedule (agenda), Day, Week and Month. Swipe left/right to move between days, weeks and months, with the next one sliding in under your finger and staying ready for event taps when the slide finishes; Day and Week keep your scroll position. The header tells you where you are ("Tomorrow", "In 3 weeks", "Next month"). Tap the month or year to jump to any month, scrolling year by year.
 - **Quick Add:** type "Lunch with John Fri 1pm at Cafe X" and review the parsed event before saving; go back and edit the text anytime.
 - **Stamps:** save events you repeat (coffee, gym, calls) and drop them on any empty time slot in one tap, with Undo. Hold a stamp in the stamp menu to delete it.
 - **Birthdays:** add a name and date of birth in Settings and it shows up every year as "Dana's 36th birthday", with its own show/hide chip.
