@@ -11,11 +11,14 @@ export function EventPill({
   onPress,
   variant = 'solid',
   compact = false,
+  suffix,
 }: {
   occ: Occurrence;
   onPress?: () => void;
   variant?: 'soft' | 'solid' | 'dot';
   compact?: boolean;
+  /** Small text after the title, e.g. 2/3 for day two of a three-day event. */
+  suffix?: string;
 }) {
   const styles = useStyles();
   const label = eventLabel(occ.event);
@@ -42,19 +45,21 @@ export function EventPill({
         { backgroundColor: occ.color, borderLeftColor: occ.color },
       ]}
     >
-      {hasIcon ? <EventGlyph value={occ.event.emoji} size={compact ? 10 : 14} color={fg} /> : null}
+      {hasIcon ? <EventGlyph value={occ.event.emoji} size={compact ? 9 : 14} color={fg} /> : null}
       <Text numberOfLines={1} style={[styles.pillText, compact && styles.compactText, { color: fg }]}>
         {label}
       </Text>
+      {suffix ? <Text style={[styles.suffix, compact && styles.compactText, { color: fg }]}>{suffix}</Text> : null}
     </Pressable>
   );
 }
 
 const useStyles = createStyles((colors) => ({
   pill: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 7, borderLeftWidth: 3, paddingHorizontal: 7, paddingVertical: 5 },
-  pillCompact: { gap: 3, paddingHorizontal: 4, paddingVertical: 1.5, borderRadius: 4, borderLeftWidth: 0 },
+  pillCompact: { gap: 3, paddingHorizontal: 4, paddingVertical: 0, height: 14, borderRadius: 4, borderLeftWidth: 0 },
   pillText: { flex: 1, fontSize: 13, fontWeight: '700' },
-  compactText: { fontSize: 10.5, fontWeight: '600' },
+  suffix: { fontSize: 12, fontWeight: '700' },
+  compactText: { fontSize: 9.5, lineHeight: 12, fontWeight: '600' },
   dotRow: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 1 },
   dot: { width: 3, height: 10, borderRadius: 2 },
   dotText: { flex: 1, fontSize: 12, color: colors.text },

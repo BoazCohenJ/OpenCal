@@ -1,4 +1,4 @@
-import { addDays, startOfDay } from 'date-fns';
+import { addDays, differenceInCalendarDays, startOfDay } from 'date-fns';
 import type { GestureResponderEvent } from 'react-native';
 import type { Occurrence } from '../services/occurrences';
 import { isMultiDay } from '../utils/dates';
@@ -103,4 +103,55 @@ export function layoutTimed(occs: Occurrence[], day: Date, minHeight = MIN_BLOCK
     }
   }
   return result;
+}
+
+/** First and last calendar day an occurrence covers (an end exactly at midnight belongs to the day before). */
+function dayRange(o: Occurrence): { first: Date; last: Date } {
+  return { first: startOfDay(o.start), last: startOfDay(new Date(Math.max(o.start.getTime(), o.end.getTime() - 1))) };
+}
+
+/** Where `day` falls in a multi-day occurrence ("2 of 3"), or null for one that fits in a day. */
+export function spanInfo(o: Occurrence, day: Date): { current: number; total: number } | null {
+  const { first, last } = dayRange(o);
+  const total = differenceInCalendarDays(last, first) + 1;
+  if (total < 2) return null;
+  return { current: Math.min(total, Math.max(1, differenceInCalendarDays(day, first) + 1)), total };
+}
+
+export interface SpanSegment {
+  occ: Occurrence;
+  /** First column (day) of the row it covers, and how many columns it runs across. */
+  col: number;
+  length: number;
+  lane: number;
+  /** Continues from the previous row / into the next one, so that end is drawn square. */
+  fromPrev: boolean;
+  toNext: boolean;
+}
+
+/**
+ * All-day and multi-day occurrences as bars across one row of `columns` days starting at `rowStart`
+ * (a week). Each bar is one long piece over the days it covers, stacked in lanes so they never overlap.
+ */
+export function layoutSpans(occs: Occurrence[], rowStart: Date, columns = 7): { segments: SpanSegment[]; lanes: number } {
+  const start = startOfDay(rowStart);
+  const segments: SpanSegment[] = [];
+  for (const occ of occs) {
+    if (!isAllDayLike(occ)) continue;
+    const { first, last } = dayRange(occ);
+    const a = differenceInCalendarDays(first, start);
+    const b = differenceInCalendarDays(last, start);
+    if (b < 0 || a >= columns) continue;
+    const col = Math.max(0, a);
+    segments.push({ occ, col, length: Math.min(columns - 1, b) - col + 1, lane: 0, fromPrev: a < 0, toNext: b > columns - 1 });
+  }
+  segments.sort((x, y) => x.col - y.col || y.length - x.length || x.occ.start.getTime() - y.occ.start.getTime());
+  const laneEnds: number[] = [];
+  for (const seg of segments) {
+    let lane = laneEnds.findIndex((end) => end < seg.col);
+    if (lane === -1) lane = laneEnds.length;
+    laneEnds[lane] = seg.col + seg.length - 1;
+    seg.lane = lane;
+  }
+  return { segments, lanes: laneEnds.length };
 }

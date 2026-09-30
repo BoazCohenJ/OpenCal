@@ -1,16 +1,18 @@
 import { addDays, format, isSameDay } from 'date-fns';
 import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { EventPill } from '../components/EventPill';
+import { SpanBar, SPAN_LANE_HEIGHT } from '../components/SpanBar';
 import { EventGlyph, eventIconKey } from '../components/Icon';
 import { occurrencesByDay, type Occurrence } from '../services/occurrences';
 import { createStyles, fonts } from '../theme';
 import { readableOn } from '../utils/color';
 import { atMinutes, dayKey, minutesSinceMidnight } from '../utils/dates';
 import { eventLabel } from '../utils/format';
-import { isAllDayLike, layoutTimed, PX_PER_MIN, slotMinutesFromPress } from './layout';
+import { isAllDayLike, layoutSpans, layoutTimed, PX_PER_MIN, slotMinutesFromPress } from './layout';
 import { SelectableBlock, SelectionCheckbox, SelectionToolbar, TOOLBAR_CLEARANCE, useEventSelection, type PendingMove, type SelectedOccurrence } from './selection';
 import { GRID_HEIGHT, GUTTER_WIDTH, HourGutter, HourLines, NowLine, type TimeGridHandle } from './TimeGrid';
+
+const MAX_SPAN_LANES = 4;
 
 export function WeekView({
   weekStart,
@@ -67,12 +69,15 @@ export function WeekView({
       const lists = occurrencesByDay(displayed, weekStart, 7);
       return lists.map((occs, i) => {
         const day = addDays(weekStart, i);
-        return { day, allDay: occs.filter(isAllDayLike), timed: layoutTimed(occs.filter((o) => !isAllDayLike(o)), day, 17) };
+        return { day, timed: layoutTimed(occs.filter((o) => !isAllDayLike(o)), day, 17) };
       });
     },
     [weekStart, displayed],
   );
-  const hasAllDay = perDay.some((p) => p.allDay.length > 0);
+  // All-day and multi-day events run across the days they cover as one bar each.
+  const spans = useMemo(() => layoutSpans(displayed, weekStart), [displayed, weekStart]);
+  const spanLanes = Math.min(spans.lanes, MAX_SPAN_LANES);
+  const hiddenSpans = spans.segments.filter((s) => s.lane >= MAX_SPAN_LANES).length;
   const selectedHasRecurring = occurrences.some((o) => selected.includes(o.key) && o.event.recurrenceRule);
 
   useImperativeHandle(ref, () => ({ scrollToY: (y) => scrollRef.current?.scrollTo({ y, animated: false }) }), []);
@@ -100,19 +105,28 @@ export function WeekView({
         })}
       </View>
 
-      {hasAllDay ? (
+      {spans.segments.length > 0 ? (
         <View style={styles.allDayRow}>
           <View style={[styles.allDayGutter, { width: GUTTER_WIDTH }]}>
             <Text style={styles.allDayLabel}>all-day</Text>
           </View>
-          {perDay.map(({ day, allDay }) => (
-            <View key={dayKey(day)} style={styles.allDayCell}>
-              {allDay.slice(0, 2).map((o) => (
-                <EventPill key={o.key} occ={o} compact variant="solid" onPress={() => onPressEvent(o)} />
-              ))}
-              {allDay.length > 2 ? <Text style={styles.more}>+{allDay.length - 2}</Text> : null}
+          <View style={styles.allDayBars}>
+            <View style={{ height: spanLanes * SPAN_LANE_HEIGHT }}>
+              {spans.segments
+                .filter((s) => s.lane < MAX_SPAN_LANES)
+                .map((s) => (
+                  <SpanBar
+                    key={`${s.occ.key}@${s.col}`}
+                    occ={s.occ}
+                    fromPrev={s.fromPrev}
+                    toNext={s.toNext}
+                    onPress={() => onPressEvent(s.occ)}
+                    style={{ position: 'absolute', top: s.lane * SPAN_LANE_HEIGHT, left: `${(s.col / 7) * 100}%`, width: `${(s.length / 7) * 100}%` }}
+                  />
+                ))}
             </View>
-          ))}
+            {hiddenSpans > 0 ? <Text style={styles.more}>+{hiddenSpans} more</Text> : null}
+          </View>
         </View>
       ) : null}
 
@@ -227,8 +241,8 @@ const useStyles = createStyles((colors) => ({
   allDayRow: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingVertical: 3 },
   allDayGutter: { justifyContent: 'center', alignItems: 'flex-end', paddingRight: 8 },
   allDayLabel: { fontSize: 10, color: colors.textFaint },
-  allDayCell: { flex: 1, gap: 2, paddingHorizontal: 1 },
-  more: { fontSize: 10, color: colors.textMuted, textAlign: 'center' },
+  allDayBars: { flex: 1, paddingHorizontal: 1 },
+  more: { fontSize: 10, color: colors.textMuted, paddingLeft: 4 },
   grid: { flexDirection: 'row' },
   columns: { flex: 1 },
   dayColumn: { position: 'absolute', top: 0, bottom: 0, borderLeftWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
