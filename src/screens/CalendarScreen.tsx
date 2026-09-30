@@ -3,6 +3,9 @@ import {
   addHours,
   addMonths,
   addWeeks,
+  differenceInCalendarDays,
+  differenceInCalendarMonths,
+  differenceInCalendarWeeks,
   endOfWeek,
   format,
   isSameDay,
@@ -74,7 +77,6 @@ function createPageCache() {
   let source: unknown = null;
   let map = new Map<string, PageData>();
   return {
-    has: (from: unknown, key: string): boolean => from === source && map.has(key),
     get(from: unknown, key: string, build: () => PageData): PageData {
       if (from !== source) {
         source = from;
@@ -96,6 +98,29 @@ function createPageCache() {
 /** Names a page, so the same day/week/month keeps its component (and scroll position) as it slides. */
 const pageKey = (mode: ViewMode, c: Date): string =>
   mode === 'month' ? format(c, 'yyyy-MM') : mode === 'week' ? dayKey(startOfWeek(c, { weekStartsOn: WEEK_STARTS_ON })) : dayKey(c);
+
+const pagePosition = (mode: ViewMode, date: Date, origin: Date): number =>
+  mode === 'month'
+    ? differenceInCalendarMonths(date, origin)
+    : mode === 'week'
+      ? differenceInCalendarWeeks(date, origin, { weekStartsOn: WEEK_STARTS_ON })
+      : differenceInCalendarDays(date, origin);
+
+function CalendarPage({ pan, position, width, active, children }: {
+  pan: Animated.Value;
+  position: number;
+  width: number;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  // Keep each retained page's animated node and native position unchanged when it becomes active.
+  const translateX = useMemo(() => Animated.add(pan, position * width), [pan, position, width]);
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX }] }]} pointerEvents={active ? 'auto' : 'none'}>
+      {children}
+    </Animated.View>
+  );
+}
 
 interface RepeatItem {
   event: Event;
@@ -136,39 +161,38 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
 
   const range = useMemo(() => rangeFor(mode, cursor), [mode, cursor]);
 
-  // Day, Week and Month are a strip of three pages: the previous and next period sit beside the
-  // current one, so a swipe drags the neighbour in instead of revealing blank space.
+  // Day, Week and Month keep neighbouring pages beside the current period, so a swipe drags
+  // the neighbour in instead of revealing blank space.
   const [pageWidth, setPageWidth] = useState(0);
   const paging = mode !== 'schedule' && pageWidth > 0;
-  // Pages already worked out, by mode and page key. After a swipe the two pages still on screen
-  // keep the same objects (and occurrence arrays), so they don't re-render; only the new one is built.
+  const [pageOrigin] = useState(() => cursor);
+  const [pan] = useState(() => new Animated.Value(0));
+  // Activate the already mounted destination first; build the new offscreen neighbour afterward.
+  const deferredCursor = useDeferredValue(cursor);
+  // Retained pages keep the same dates and occurrence arrays; memoized month grids skip rendering.
   const [pageCache] = useState(createPageCache);
   const pages = useMemo(() => {
-    const built = (paging ? [-1, 0, 1] : [0]).map((offset) => {
-      const c = shiftCursor(mode, cursor, offset);
+    const cursors = paging ? [-1, 0, 1].map((offset) => shiftCursor(mode, deferredCursor, offset)) : [cursor];
+    if (!cursors.some((c) => pageKey(mode, c) === pageKey(mode, cursor))) cursors.push(cursor);
+    const built = cursors.map((c) => {
       const key = pageKey(mode, c);
-      const fresh = !pageCache.has(getOccurrences, `${mode}:${key}`);
       const page = pageCache.get(getOccurrences, `${mode}:${key}`, () => {
         const r = rangeFor(mode, c);
         return { cursor: c, range: r, occurrences: mode === 'schedule' ? [] : getOccurrences(r.start, r.end) };
       });
-      return { offset, key, fresh, ...page };
+      return { offset: pagePosition(mode, c, cursor), position: pagePosition(mode, c, pageOrigin), key, ...page };
     });
     pageCache.keepOnly(built.map((p) => `${mode}:${p.key}`));
     return built;
-  }, [pageCache, paging, mode, cursor, getOccurrences]);
-  // A fresh offset for every page set, created in the same render as the new pages, so the strip
-  // re-centres on the page that just slid in without a frame of the old position.
+  }, [pageCache, paging, mode, cursor, deferredCursor, pageOrigin, getOccurrences]);
   const currentKey = `${mode}:${pageKey(mode, cursor)}`;
-  // New neighbour pages are off screen, so they're drawn in a deferred render after the current
-  // page is up, instead of tripling the work before anything shows.
-  const deferredKey = useDeferredValue(currentKey);
-  const drawPage = (page: (typeof pages)[number]) =>
-    page.offset === 0 || !page.fresh || deferredKey === currentKey ? renderPage(page) : null;
-  const [strip, setStrip] = useState(() => ({ key: currentKey, pan: new Animated.Value(0) }));
-  if (strip.key !== currentKey) setStrip({ key: currentKey, pan: new Animated.Value(0) });
-  const pan = strip.pan;
+  const position = pagePosition(mode, cursor, pageOrigin);
   const sliding = useRef(false);
+  useEffect(() => () => pan.stopAnimation(), [pan]);
+  useLayoutEffect(() => {
+    pan.setValue(-position * pageWidth);
+    sliding.current = false;
+  }, [currentKey, position, pageWidth, pan]);
   // Vertical scroll of the Day/Week page on screen; neighbours are lined up with it before a slide.
   const scrollY = useRef<number | null>(null);
   // Handles of the mounted Day/Week pages by page key (a stable map, mutated from callback refs).
@@ -213,25 +237,40 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
   /** One period back or forward: slides the neighbouring page in, then makes it the current one. */
   const step = (dir: 1 | -1) => {
     if (sliding.current) return;
-    if (!paging) {
+    if (!paging || !pages.some((page) => page.offset === dir)) {
       setDirection(dir);
       setCursor((c) => shiftCursor(mode, c, dir));
       return;
     }
     sliding.current = true;
     syncNeighbours();
-    Animated.timing(pan, { toValue: -dir * pageWidth, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start(() => {
-      sliding.current = false;
+    Animated.timing(pan, {
+      toValue: -(position + dir) * pageWidth,
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+      isInteraction: false,
+    }).start(({ finished }) => {
+      if (!finished) {
+        sliding.current = false;
+        return;
+      }
       skipFade.current = true;
       setCursor((c) => shiftCursor(mode, c, dir));
     });
   };
   // Swipe left/right on Day, Week and Month to move by one period. Only clearly horizontal
   // gestures are claimed, so vertical scrolling, taps and the event drags keep working.
-  const springBack = () => Animated.spring(pan, { toValue: 0, useNativeDriver: false, speed: 30, bounciness: 4 }).start();
-  const swipe = useRef({ enabled: false, paging, pan, step, springBack, syncNeighbours });
+  const springBack = () => Animated.spring(pan, {
+    toValue: -position * pageWidth, useNativeDriver: true, isInteraction: false, speed: 30, bounciness: 4,
+  }).start();
+  const previousReady = pages.some((page) => page.offset === -1);
+  const nextReady = pages.some((page) => page.offset === 1);
+  const swipe = useRef({ enabled: false, pan, position, pageWidth, previousReady, nextReady, step, springBack, syncNeighbours });
   useLayoutEffect(() => {
-    swipe.current = { enabled: mode !== 'schedule' && !selectionActive, paging, pan, step, springBack, syncNeighbours };
+    swipe.current = {
+      enabled: paging && !selectionActive, pan, position, pageWidth, previousReady, nextReady, step, springBack, syncNeighbours,
+    };
   });
   // eslint-disable-next-line react-hooks/refs -- the handlers read refs when a gesture fires, never during render
   const [swipeResponder] = useState(() =>
@@ -239,9 +278,16 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
       onMoveShouldSetPanResponderCapture: (_, g) =>
         swipe.current.enabled && !sliding.current && Math.abs(g.dx) > 16 && Math.abs(g.dx) > Math.abs(g.dy) * 1.8,
       onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: () => swipe.current.syncNeighbours(),
-      // With neighbours on screen the strip follows the finger 1:1; otherwise it just gives a little.
-      onPanResponderMove: (_, g) => swipe.current.pan.setValue(swipe.current.paging ? g.dx : g.dx * 0.55),
+      onPanResponderGrant: () => {
+        swipe.current.pan.stopAnimation();
+        swipe.current.syncNeighbours();
+      },
+      // Follow the finger by at most one page, and never drag an unprepared neighbour into view.
+      onPanResponderMove: (_, g) => {
+        const s = swipe.current;
+        const dx = (g.dx < 0 && !s.nextReady) || (g.dx > 0 && !s.previousReady) ? 0 : g.dx;
+        s.pan.setValue(-s.position * s.pageWidth + Math.max(-s.pageWidth, Math.min(s.pageWidth, dx)));
+      },
       onPanResponderRelease: (_, g) => {
         if (Math.abs(g.dx) > 70 || Math.abs(g.vx) > 0.45) swipe.current.step(g.dx < 0 ? 1 : -1);
         else swipe.current.springBack();
@@ -562,15 +608,13 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
         ) : (
           <View style={styles.flex} onLayout={(e) => setPageWidth(e.nativeEvent.layout.width)}>
             {paging ? (
-              <Animated.View
-                style={[styles.strip, { width: pageWidth * 3, transform: [{ translateX: -pageWidth }, { translateX: pan }] }]}
-              >
+              <View style={styles.flex}>
                 {pages.map((page) => (
-                  <View key={page.key} style={[{ width: pageWidth }, page.offset !== 0 && styles.inert]}>
-                    {drawPage(page)}
-                  </View>
+                  <CalendarPage key={`${mode}:${page.key}`} pan={pan} position={page.position} width={pageWidth} active={page.offset === 0}>
+                    {renderPage(page)}
+                  </CalendarPage>
                 ))}
-              </Animated.View>
+              </View>
             ) : (
               renderPage(pages[0]!)
             )}
@@ -720,9 +764,6 @@ const useStyles = createStyles((colors) => ({
     backgroundColor: colors.dock,
   },
   flex: { flex: 1 },
-  strip: { flex: 1, flexDirection: 'row' },
-  // Neighbouring pages are only for looking at while they slide in.
-  inert: { pointerEvents: 'none' },
   nlInput: {
     flexDirection: 'row',
     alignItems: 'center',
