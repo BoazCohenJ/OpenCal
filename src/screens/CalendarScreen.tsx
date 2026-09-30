@@ -275,8 +275,8 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
       setCursor((c) => shiftCursor(mode, c, dir));
     });
   };
-  // Swipe left/right on Day, Week and Month to move by one period. Only clearly horizontal
-  // gestures are claimed, so vertical scrolling, taps and the event drags keep working.
+  // Swipe left/right on Day, Week and Month to move by one period. Month cells are small and do not
+  // scroll vertically, so claim horizontal intent sooner there to avoid turning swipes into day taps.
   const springBack = () => {
     peekTo(0);
     Animated.spring(pan, {
@@ -285,10 +285,10 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
   };
   const previousReady = pages.some((page) => page.offset === -1);
   const nextReady = pages.some((page) => page.offset === 1);
-  const swipe = useRef({ enabled: false, pan, position, pageWidth, previousReady, nextReady, step, springBack, syncNeighbours, peekTo });
+  const swipe = useRef({ enabled: false, mode, pan, position, pageWidth, previousReady, nextReady, step, springBack, syncNeighbours, peekTo });
   useLayoutEffect(() => {
     swipe.current = {
-      enabled: paging && !selectionActive, pan, position, pageWidth, previousReady, nextReady, step, springBack, syncNeighbours, peekTo,
+      enabled: paging && !selectionActive, mode, pan, position, pageWidth, previousReady, nextReady, step, springBack, syncNeighbours, peekTo,
     };
   });
   useEffect(() => {
@@ -301,8 +301,12 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
   // eslint-disable-next-line react-hooks/refs -- the handlers read refs when a gesture fires, never during render
   const [swipeResponder] = useState(() =>
     PanResponder.create({
-      onMoveShouldSetPanResponderCapture: (_, g) =>
-        swipe.current.enabled && Math.abs(g.dx) > 16 && Math.abs(g.dx) > Math.abs(g.dy) * 1.8,
+      onMoveShouldSetPanResponderCapture: (_, g) => {
+        const s = swipe.current;
+        const minDistance = s.mode === 'month' ? 8 : 16;
+        const horizontalBias = s.mode === 'month' ? 1.3 : 1.8;
+        return s.enabled && Math.abs(g.dx) > minDistance && Math.abs(g.dx) > Math.abs(g.dy) * horizontalBias;
+      },
       onPanResponderTerminationRequest: () => false,
       // A swipe during a slide (or the render after it) only queues the next step.
       onPanResponderGrant: () => {
