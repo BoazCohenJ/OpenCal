@@ -8,7 +8,7 @@ import { createStyles } from '../theme';
 import { readableOn } from '../utils/color';
 import { atMinutes, dayKey, formatTime, minutesSinceMidnight } from '../utils/dates';
 import { eventLabel } from '../utils/format';
-import { isAllDayLike, layoutTimed, PX_PER_MIN, slotMinutesFromPress, type PositionedOccurrence } from './layout';
+import { isAllDayLike, layoutTimed, PX_PER_MIN, slotMinutesFromPress, spanInfo, type PositionedOccurrence } from './layout';
 import { SelectableBlock, SelectionCheckbox, SelectionToolbar, TOOLBAR_CLEARANCE, useEventSelection, type PendingMove, type SelectedOccurrence } from './selection';
 import { GRID_HEIGHT, HourGutter, HourLines, NowLine, type TimeGridHandle } from './TimeGrid';
 
@@ -115,9 +115,18 @@ export function DayView({
         <View style={styles.allDay}>
           <Text style={styles.allDayLabel}>ALL DAY</Text>
           <View style={styles.allDayList}>
-            {allDay.map((o) => (
-              <EventPill key={o.key} occ={o} variant="solid" onPress={() => onPressEvent(o)} />
-            ))}
+            {allDay.map((o) => {
+              const span = spanInfo(o, date);
+              return (
+                <EventPill
+                  key={o.key}
+                  occ={o}
+                  variant="solid"
+                  suffix={span ? `${span.current}/${span.total}` : undefined}
+                  onPress={() => onPressEvent(o)}
+                />
+              );
+            })}
           </View>
         </View>
       ) : null}
