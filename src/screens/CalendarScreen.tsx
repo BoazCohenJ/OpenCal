@@ -159,7 +159,13 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
     null,
   );
 
-  const range = useMemo(() => rangeFor(mode, cursor), [mode, cursor]);
+  // The header names the period being swiped into as soon as the swipe starts. Tied to the cursor it
+  // was set for, so it lapses by itself once that slide has landed.
+  const [peek, setPeek] = useState({ dir: 0, at: '' });
+  const cursorId = `${mode}:${cursor.getTime()}`;
+  const peekTo = (dir: -1 | 0 | 1) => setPeek((p) => (p.dir === dir && p.at === cursorId ? p : { dir, at: cursorId }));
+  const shown = useMemo(() => (peek.at === cursorId && peek.dir ? shiftCursor(mode, cursor, peek.dir) : cursor), [peek, cursorId, mode, cursor]);
+  const range = useMemo(() => rangeFor(mode, shown), [mode, shown]);
 
   // Day, Week and Month keep neighbouring pages beside the current period, so a swipe drags
   // the neighbour in instead of revealing blank space.
@@ -188,6 +194,8 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
   const currentKey = `${mode}:${pageKey(mode, cursor)}`;
   const position = pagePosition(mode, cursor, pageOrigin);
   const sliding = useRef(false);
+  // A step asked for while its neighbour page is still being built; it runs as soon as that page exists.
+  const pendingStep = useRef(0);
   useEffect(() => () => pan.stopAnimation(), [pan]);
   useLayoutEffect(() => {
     pan.setValue(-position * pageWidth);
@@ -226,6 +234,7 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
   );
 
   const changeMode = (m: ViewMode) => {
+    pendingStep.current = 0;
     setDirection(0);
     setMode(m);
   };
@@ -237,12 +246,18 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
   /** One period back or forward: slides the neighbouring page in, then makes it the current one. */
   const step = (dir: 1 | -1) => {
     if (sliding.current) return;
-    if (!paging || !pages.some((page) => page.offset === dir)) {
+    if (!paging) {
       setDirection(dir);
       setCursor((c) => shiftCursor(mode, c, dir));
       return;
     }
+    if (!pages.some((page) => page.offset === dir)) {
+      // Swiping on quickly: wait for the neighbour instead of jumping to it without a slide.
+      if (!pendingStep.current) pendingStep.current = dir;
+      return;
+    }
     sliding.current = true;
+    peekTo(dir);
     syncNeighbours();
     Animated.timing(pan, {
       toValue: -(position + dir) * pageWidth,
@@ -253,6 +268,7 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
     }).start(({ finished }) => {
       if (!finished) {
         sliding.current = false;
+        peekTo(0);
         return;
       }
       skipFade.current = true;
@@ -261,42 +277,64 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
   };
   // Swipe left/right on Day, Week and Month to move by one period. Only clearly horizontal
   // gestures are claimed, so vertical scrolling, taps and the event drags keep working.
-  const springBack = () => Animated.spring(pan, {
-    toValue: -position * pageWidth, useNativeDriver: true, isInteraction: false, speed: 30, bounciness: 4,
-  }).start();
+  const springBack = () => {
+    peekTo(0);
+    Animated.spring(pan, {
+      toValue: -position * pageWidth, useNativeDriver: true, isInteraction: false, speed: 30, bounciness: 4,
+    }).start();
+  };
   const previousReady = pages.some((page) => page.offset === -1);
   const nextReady = pages.some((page) => page.offset === 1);
-  const swipe = useRef({ enabled: false, pan, position, pageWidth, previousReady, nextReady, step, springBack, syncNeighbours });
+  const swipe = useRef({ enabled: false, pan, position, pageWidth, previousReady, nextReady, step, springBack, syncNeighbours, peekTo });
   useLayoutEffect(() => {
     swipe.current = {
-      enabled: paging && !selectionActive, pan, position, pageWidth, previousReady, nextReady, step, springBack, syncNeighbours,
+      enabled: paging && !selectionActive, pan, position, pageWidth, previousReady, nextReady, step, springBack, syncNeighbours, peekTo,
     };
   });
+  useEffect(() => {
+    const dir = Math.sign(pendingStep.current) as -1 | 0 | 1;
+    if (dir && !sliding.current && pages.some((page) => page.offset === dir)) {
+      pendingStep.current -= dir;
+      swipe.current.step(dir);
+    }
+  }, [pages]);
   // eslint-disable-next-line react-hooks/refs -- the handlers read refs when a gesture fires, never during render
   const [swipeResponder] = useState(() =>
     PanResponder.create({
       onMoveShouldSetPanResponderCapture: (_, g) =>
-        swipe.current.enabled && !sliding.current && Math.abs(g.dx) > 16 && Math.abs(g.dx) > Math.abs(g.dy) * 1.8,
+        swipe.current.enabled && Math.abs(g.dx) > 16 && Math.abs(g.dx) > Math.abs(g.dy) * 1.8,
       onPanResponderTerminationRequest: () => false,
+      // A swipe during a slide (or the render after it) only queues the next step.
       onPanResponderGrant: () => {
+        if (sliding.current) return;
+        pendingStep.current = 0;
         swipe.current.pan.stopAnimation();
         swipe.current.syncNeighbours();
       },
-      // Follow the finger by at most one page, and never drag an unprepared neighbour into view.
+      // Follow the finger by at most one page; a neighbour still being built only gives a little.
       onPanResponderMove: (_, g) => {
+        if (sliding.current) return;
         const s = swipe.current;
-        const dx = (g.dx < 0 && !s.nextReady) || (g.dx > 0 && !s.previousReady) ? 0 : g.dx;
+        s.peekTo(g.dx < 0 ? 1 : g.dx > 0 ? -1 : 0);
+        const dx = (g.dx < 0 && !s.nextReady) || (g.dx > 0 && !s.previousReady) ? g.dx * 0.25 : g.dx;
         s.pan.setValue(-s.position * s.pageWidth + Math.max(-s.pageWidth, Math.min(s.pageWidth, dx)));
       },
       onPanResponderRelease: (_, g) => {
+        if (sliding.current) {
+          if (Math.abs(g.dx) > 70 || Math.abs(g.vx) > 0.45) pendingStep.current += g.dx < 0 ? 1 : -1;
+          return;
+        }
         if (Math.abs(g.dx) > 70 || Math.abs(g.vx) > 0.45) swipe.current.step(g.dx < 0 ? 1 : -1);
         else swipe.current.springBack();
       },
-      onPanResponderTerminate: () => swipe.current.springBack(),
+      onPanResponderTerminate: () => {
+        if (!sliding.current) swipe.current.springBack();
+      },
     }),
   );
 
   const goToday = () => {
+    pendingStep.current = 0;
     const today = startOfDay(new Date());
     setDirection(today < cursor ? -1 : 1);
     setCursor(today);
@@ -314,27 +352,27 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
   const now = new Date();
   const title =
     mode === 'schedule'
-      ? format(cursor, 'MMMM')
+      ? format(shown, 'MMMM')
       : mode === 'day'
-      ? format(cursor, 'EEEE')
+      ? format(shown, 'EEEE')
       : mode === 'week'
         ? `${format(range.start, 'MMM d')} – ${format(endOfWeek(range.start, { weekStartsOn: WEEK_STARTS_ON }), 'd')}`
-        : format(cursor, 'MMMM');
+        : format(shown, 'MMMM');
   const eyebrow =
     mode === 'schedule'
-      ? `From ${format(cursor, 'EEE, MMM d')}`
+      ? `From ${format(shown, 'EEE, MMM d')}`
       : mode === 'day'
-        ? format(cursor, 'MMMM d, yyyy')
+        ? format(shown, 'MMMM d, yyyy')
         : mode === 'week'
           ? format(range.start, 'MMMM yyyy')
-          : format(cursor, 'yyyy');
+          : format(shown, 'yyyy');
   const showingToday =
     mode === 'day' || mode === 'schedule'
-      ? isSameDay(cursor, now)
+      ? isSameDay(shown, now)
       : mode === 'week'
         ? now >= range.start && now < range.end
-        : isSameMonth(cursor, now);
-  const positionLabel = relativeLabel(mode, mode === 'week' ? range.start : cursor, now);
+        : isSameMonth(shown, now);
+  const positionLabel = relativeLabel(mode, mode === 'week' ? range.start : shown, now);
 
   const defaultStart = (): Date => {
     if (isSameDay(cursor, new Date())) return nextRoundedHour();
@@ -499,7 +537,7 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
         }
       : undefined;
     if (mode === 'month') {
-      return <MonthView month={page.cursor} occurrences={page.occurrences} onPressDay={openDay} onPressEvent={openEvent} />;
+      return <MonthView month={page.cursor} occurrences={page.occurrences} onPressDay={openDay} />;
     }
     if (mode === 'week') {
       return (

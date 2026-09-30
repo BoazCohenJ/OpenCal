@@ -44,6 +44,7 @@ https://github.com/user-attachments/assets/96c68291-76bc-4ca8-a030-11c235435344
 - **Quiet time and Do Not Disturb** scheduled like events (e.g. every Monday 17:00–18:00): quiet delivers reminders silently, DND skips them.
 - **Multi-select in Day and Week view:** long-press events, then drag them together (in Week view sideways to another day too) or nudge by 15 minutes / 1 hour / 1 day, and tap Done to save. Moving one day of a repeating event splits it off into its own event. You can also delete everything selected at once, with Undo. For each repeating event it asks whether to delete only that occurrence, it and the following ones, or the whole series.
 - **Colors:** 20 named swatches, a color wheel, hex input, and your own saved colors by name.
+- **Color rules:** color every event whose title contains a word (all your "Break" events amber, all "Gym" green) in Settings → Color rules. Events are drawn in solid colors, and short events stay readable and never share a row with the event that follows them.
 - **Icons instead of emoji** for events and stamps, **dark mode** (System / Light / Dark), smooth animations.
 - **Import & export:** back up everything (calendars, events, stamps, birthdays, settings) to one file and restore or merge it on another phone, or move events to and from Google Calendar, Apple Calendar and Outlook with standard .ics files (a whole calendar, or any filtered set of events).
 - **Private by design:** everything is stored locally (SQLite on device, localStorage on web).

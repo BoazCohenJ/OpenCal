@@ -7,6 +7,7 @@ import {
   normalizeNotificationPrefs,
   type NotificationPrefs,
 } from '../models/NotificationPrefs';
+import type { ColorRule } from '../models/ColorRule';
 import type { SavedColor } from '../models/SavedColor';
 import type { EventTemplate } from '../models/Template';
 import { APP_VERSION } from '../services/appInfo';
@@ -24,6 +25,7 @@ const HIDDEN_CALENDARS_KEY = 'hiddenCalendarIds';
 const NOTIFICATION_PREFS_KEY = 'notificationPrefs';
 const THEME_MODE_KEY = 'themeMode';
 const SAVED_COLORS_KEY = 'savedColors';
+const COLOR_RULES_KEY = 'colorRules';
 const BIRTHDAYS_KEY = 'birthdays';
 const FLOATING_DEFAULT_KEY = 'floatingByDefault';
 /** The order loadEvents gives: by stored start. */
@@ -72,6 +74,12 @@ interface CalendarContextValue {
   /** Adds a named color, or renames it if that hex is already saved. */
   saveColor: (name: string, hex: string) => void;
   deleteSavedColor: (id: string) => void;
+  /** Keyword color rules in priority order: the first rule found in an event's title colors it. */
+  colorRules: ColorRule[];
+  /** Adds a rule, or updates the one with the same id. */
+  saveColorRule: (rule: ColorRule) => void;
+  deleteColorRule: (id: string) => void;
+  moveColorRule: (id: string, direction: -1 | 1) => void;
   /** Whether new events get floating time (see Event.floating). */
   floatingByDefault: boolean;
   setFloatingByDefault: (value: boolean) => void;
@@ -111,6 +119,7 @@ interface InitialData {
   themeMode: ThemeMode;
   notificationPrefs: NotificationPrefs;
   savedColors: SavedColor[];
+  colorRules: ColorRule[];
   birthdays: Birthday[];
   floatingByDefault: boolean;
 }
@@ -141,6 +150,7 @@ function loadInitialData(): { data: InitialData; error: null } | { data: null; e
         hiddenCalendarIds: db.getSetting<string[]>(HIDDEN_CALENDARS_KEY, []),
         themeMode: db.getSetting<ThemeMode>(THEME_MODE_KEY, 'system'),
         savedColors: db.getSetting<SavedColor[]>(SAVED_COLORS_KEY, []),
+        colorRules: db.getSetting<ColorRule[]>(COLOR_RULES_KEY, []),
         birthdays: db.getSetting<Birthday[]>(BIRTHDAYS_KEY, []),
         floatingByDefault: db.getSetting<boolean>(FLOATING_DEFAULT_KEY, false),
         notificationPrefs: normalizeNotificationPrefs(
@@ -169,6 +179,7 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
   const [reminderStatus, setReminderStatus] = useState<ScheduleResult | null>(null);
   const [themeMode, setThemeModeState] = useState<ThemeMode>(initial.data?.themeMode ?? 'system');
   const [savedColors, setSavedColors] = useState<SavedColor[]>(initial.data?.savedColors ?? []);
+  const [colorRules, setColorRules] = useState<ColorRule[]>(initial.data?.colorRules ?? []);
   const [birthdays, setBirthdays] = useState<Birthday[]>(initial.data?.birthdays ?? []);
   const [floatingByDefault, setFloatingByDefaultState] = useState(initial.data?.floatingByDefault ?? false);
 
@@ -240,6 +251,34 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
     setSavedColors((prev) => {
       const next = prev.filter((c) => c.id !== id);
       db.setSetting(SAVED_COLORS_KEY, next);
+      return next;
+    });
+  }, []);
+
+  const saveColorRule = useCallback((rule: ColorRule) => {
+    setColorRules((prev) => {
+      const next = prev.some((r) => r.id === rule.id) ? prev.map((r) => (r.id === rule.id ? rule : r)) : [...prev, rule];
+      db.setSetting(COLOR_RULES_KEY, next);
+      return next;
+    });
+  }, []);
+
+  const deleteColorRule = useCallback((id: string) => {
+    setColorRules((prev) => {
+      const next = prev.filter((r) => r.id !== id);
+      db.setSetting(COLOR_RULES_KEY, next);
+      return next;
+    });
+  }, []);
+
+  const moveColorRule = useCallback((id: string, direction: -1 | 1) => {
+    setColorRules((prev) => {
+      const from = prev.findIndex((r) => r.id === id);
+      const to = from + direction;
+      if (from < 0 || to < 0 || to >= prev.length) return prev;
+      const next = [...prev];
+      [next[from], next[to]] = [next[to]!, next[from]!];
+      db.setSetting(COLOR_RULES_KEY, next);
       return next;
     });
   }, []);
@@ -375,8 +414,8 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
   );
 
   const effectiveColor = useCallback(
-    (event: Event) => getEffectiveColor(event, calendarsById[event.calendarId]),
-    [calendarsById],
+    (event: Event) => getEffectiveColor(event, calendarsById[event.calendarId], colorRules),
+    [calendarsById, colorRules],
   );
 
   const createBackupFile = useCallback(
@@ -387,9 +426,9 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
         events,
         templates,
         birthdays,
-        settings: { themeMode, notificationPrefs, savedColors, hiddenCalendarIds },
+        settings: { themeMode, notificationPrefs, savedColors, colorRules, hiddenCalendarIds },
       }),
-    [calendars, events, templates, birthdays, themeMode, notificationPrefs, savedColors, hiddenCalendarIds],
+    [calendars, events, templates, birthdays, themeMode, notificationPrefs, savedColors, colorRules, hiddenCalendarIds],
   );
 
   const importBackup = useCallback(
@@ -425,6 +464,12 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
         : [...savedColors, ...incomingColors.filter((c) => !savedColors.some((x) => x.hex === c.hex))];
       db.setSetting(SAVED_COLORS_KEY, nextColors);
       setSavedColors(nextColors);
+      const incomingRules = s.colorRules ?? [];
+      const nextRules = replace
+        ? incomingRules
+        : [...colorRules, ...incomingRules.filter((r) => !colorRules.some((x) => x.keyword.toLowerCase() === r.keyword.toLowerCase()))];
+      db.setSetting(COLOR_RULES_KEY, nextRules);
+      setColorRules(nextRules);
       if (replace) {
         const hidden = s.hiddenCalendarIds ?? [];
         db.setSetting(HIDDEN_CALENDARS_KEY, hidden);
@@ -443,7 +488,7 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
         birthdays: backup.birthdays.length,
       };
     },
-    [calendars, birthdays, savedColors, setThemeMode],
+    [calendars, birthdays, savedColors, colorRules, setThemeMode],
   );
 
   const importEvents = useCallback(
@@ -471,14 +516,14 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
     (start: Date, end: Date, options?: { includeHidden?: boolean }) => {
       const includeHidden = options?.includeHidden ?? false;
       const source = includeHidden ? events : events.filter((e) => !hiddenSet.has(e.calendarId));
-      const occurrences = expandEvents(source, calendarsById, start, end);
+      const occurrences = expandEvents(source, calendarsById, start, end, colorRules);
       if (!birthdays.length || (!includeHidden && hiddenSet.has(BIRTHDAYS_CALENDAR_ID))) return occurrences;
       // All-day items first on a day, the same order expandEvents gives (start asc, longer first).
       return [...expandBirthdays(birthdays, start, end), ...occurrences].sort(
         (a, b) => a.start.getTime() - b.start.getTime() || b.end.getTime() - a.end.getTime(),
       );
     },
-    [events, calendarsById, hiddenSet, birthdays],
+    [events, calendarsById, hiddenSet, birthdays, colorRules],
   );
 
   const value = useMemo<CalendarContextValue>(
@@ -507,6 +552,10 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
       savedColors,
       saveColor,
       deleteSavedColor,
+      colorRules,
+      saveColorRule,
+      deleteColorRule,
+      moveColorRule,
       floatingByDefault,
       setFloatingByDefault,
       birthdays,
@@ -525,7 +574,7 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
       ready, error, calendars, calendarsById, events, templates, allTags, visibleCalendarIds,
       toggleCalendarVisibility, saveCalendar, deleteCalendarWithPlan, saveEvent, saveEvents, deleteEvent, deleteEvents,
       saveTemplate, deleteTemplate, moveTemplate, effectiveColor, themeMode, setThemeMode, savedColors, saveColor, deleteSavedColor,
-      floatingByDefault, setFloatingByDefault, birthdays, saveBirthday, deleteBirthday, notificationPrefs, updateNotificationPrefs,
+      colorRules, saveColorRule, deleteColorRule, moveColorRule, floatingByDefault, setFloatingByDefault, birthdays, saveBirthday, deleteBirthday, notificationPrefs, updateNotificationPrefs,
       reminderStatus, refreshReminders, createBackupFile, importBackup, importEvents, getOccurrences,
     ],
   );

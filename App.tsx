@@ -18,6 +18,7 @@ import { CalendarProvider, useCalendarContext } from './src/context/CalendarCont
 import type { RootStackParamList } from './src/navigation/types';
 import { BirthdayEditScreen } from './src/screens/BirthdayEditScreen';
 import { BirthdaysScreen } from './src/screens/BirthdaysScreen';
+import { ColorRulesScreen } from './src/screens/ColorRulesScreen';
 import { CalendarDeleteScreen } from './src/screens/CalendarDeleteScreen';
 import { CalendarEditScreen } from './src/screens/CalendarEditScreen';
 import { CalendarScreen } from './src/screens/CalendarScreen';
@@ -88,6 +89,7 @@ function RootNavigator() {
       <Stack.Screen name="TemplateEdit" component={TemplateEditScreen} options={{ title: 'Stamp' }} />
       <Stack.Screen name="HiddenEvents" component={HiddenEventsListScreen} options={{ title: 'Event List' }} />
       <Stack.Screen name="Birthdays" component={BirthdaysScreen} options={{ title: 'Birthdays' }} />
+      <Stack.Screen name="ColorRules" component={ColorRulesScreen} options={{ title: 'Color rules' }} />
       <Stack.Screen name="ImportExport" component={ImportExportScreen} options={{ title: 'Import & Export' }} />
       <Stack.Group screenOptions={{ presentation: 'modal', animation: 'slide_from_bottom' }}>
         <Stack.Screen name="EventEdit" component={EventEditScreen} options={{ title: 'Event' }} />

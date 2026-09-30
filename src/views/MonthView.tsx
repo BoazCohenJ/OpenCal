@@ -15,12 +15,10 @@ export const MonthView = React.memo(function MonthView({
   month,
   occurrences,
   onPressDay,
-  onPressEvent,
 }: {
   month: Date;
   occurrences: Occurrence[];
   onPressDay: (d: Date) => void;
-  onPressEvent: (o: Occurrence) => void;
 }) {
   const styles = useStyles();
   const days = useMemo(() => {
@@ -70,15 +68,10 @@ export const MonthView = React.memo(function MonthView({
                     {format(d, 'd')}
                   </Text>
                 </View>
-                <View style={styles.events}>
+                {/* Events here are only a preview: a tap anywhere in the cell opens the day. */}
+                <View style={styles.events} pointerEvents="none">
                   {list.slice(0, MAX_PER_CELL).map((o) => (
-                    <EventPill
-                      key={o.key}
-                      occ={o}
-                      compact
-                      variant={isAllDayLike(o) ? 'solid' : 'dot'}
-                      onPress={() => onPressEvent(o)}
-                    />
+                    <EventPill key={o.key} occ={o} compact />
                   ))}
                   {list.length > MAX_PER_CELL ? <Text style={styles.more}>+{list.length - MAX_PER_CELL} more</Text> : null}
                 </View>

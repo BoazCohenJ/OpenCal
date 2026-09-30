@@ -2,14 +2,14 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import type { Occurrence } from '../services/occurrences';
 import { createStyles } from '../theme';
-import { deepText, readableOn, softBg } from '../utils/color';
+import { readableOn } from '../utils/color';
 import { eventLabel } from '../utils/format';
 import { EventGlyph, eventIconKey } from './Icon';
 
 export function EventPill({
   occ,
   onPress,
-  variant = 'soft',
+  variant = 'solid',
   compact = false,
 }: {
   occ: Occurrence;
@@ -31,8 +31,7 @@ export function EventPill({
       </Pressable>
     );
   }
-  const solid = variant === 'solid';
-  const fg = solid ? readableOn(occ.color) : deepText(occ.color);
+  const fg = readableOn(occ.color);
   return (
     <Pressable
       onPress={onPress}
@@ -40,7 +39,7 @@ export function EventPill({
       style={[
         styles.pill,
         compact && styles.pillCompact,
-        { backgroundColor: solid ? occ.color : softBg(occ.color), borderLeftColor: occ.color },
+        { backgroundColor: occ.color, borderLeftColor: occ.color },
       ]}
     >
       {hasIcon ? <EventGlyph value={occ.event.emoji} size={compact ? 10 : 14} color={fg} /> : null}

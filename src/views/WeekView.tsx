@@ -5,7 +5,7 @@ import { EventPill } from '../components/EventPill';
 import { EventGlyph, eventIconKey } from '../components/Icon';
 import { occurrencesByDay, type Occurrence } from '../services/occurrences';
 import { createStyles, fonts } from '../theme';
-import { deepText, softBg } from '../utils/color';
+import { readableOn } from '../utils/color';
 import { atMinutes, dayKey, minutesSinceMidnight } from '../utils/dates';
 import { eventLabel } from '../utils/format';
 import { isAllDayLike, layoutTimed, PX_PER_MIN, slotMinutesFromPress } from './layout';
@@ -67,7 +67,7 @@ export function WeekView({
       const lists = occurrencesByDay(displayed, weekStart, 7);
       return lists.map((occs, i) => {
         const day = addDays(weekStart, i);
-        return { day, allDay: occs.filter(isAllDayLike), timed: layoutTimed(occs.filter((o) => !isAllDayLike(o)), day) };
+        return { day, allDay: occs.filter(isAllDayLike), timed: layoutTimed(occs.filter((o) => !isAllDayLike(o)), day, 17) };
       });
     },
     [weekStart, displayed],
@@ -146,7 +146,7 @@ export function WeekView({
                       onPress={(e) => (selectionMode ? done() : onPressSlot(atMinutes(day, slotMinutesFromPress(e))))}
                     />
                     {timed.map((pos) => {
-                      const w = (colWidth - 2) / pos.columns;
+                      const inner = colWidth - 2;
                       const isSelected = selected.includes(pos.occ.key);
                       return (
                         <SelectableBlock
@@ -155,14 +155,14 @@ export function WeekView({
                             styles.block,
                             {
                               top: pos.top,
-                              height: Math.max(pos.height - 1, 14),
-                              left: 1 + pos.column * w,
-                              width: w - 1,
-                              backgroundColor: softBg(pos.occ.color),
+                              height: pos.height - 1,
+                              left: 1 + pos.x * inner,
+                              width: pos.w * inner - 1,
+                              backgroundColor: pos.occ.color,
                               borderLeftColor: pos.occ.color,
                             },
                           ]}
-                          selectedStyle={[styles.blockSelected, { borderColor: pos.occ.color }]}
+                          selectedStyle={[styles.blockSelected, { borderColor: readableOn(pos.occ.color) }]}
                           selected={isSelected}
                           selectionMode={selectionMode}
                           drag={drag}
@@ -178,9 +178,9 @@ export function WeekView({
                             </View>
                           ) : null}
                           {pos.height > 40 && eventIconKey(pos.occ.event.emoji) ? (
-                            <EventGlyph value={pos.occ.event.emoji} size={11} color={deepText(pos.occ.color)} />
+                            <EventGlyph value={pos.occ.event.emoji} size={11} color={readableOn(pos.occ.color)} />
                           ) : null}
-                          <Text numberOfLines={pos.height > 40 ? 3 : 1} style={[styles.blockText, { color: deepText(pos.occ.color) }]}>
+                          <Text numberOfLines={pos.height > 40 ? 3 : 1} style={[styles.blockText, { color: readableOn(pos.occ.color) }]}>
                             {eventLabel(pos.occ.event)}
                           </Text>
                         </SelectableBlock>
@@ -234,8 +234,8 @@ const useStyles = createStyles((colors) => ({
   dayColumn: { position: 'absolute', top: 0, bottom: 0, borderLeftWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
   todayColumn: { backgroundColor: 'rgba(226, 85, 58, 0.05)' },
   raisedColumn: { zIndex: 5 },
-  block: { position: 'absolute', borderRadius: 6, borderLeftWidth: 3, paddingHorizontal: 3, paddingVertical: 3, overflow: 'hidden' },
-  blockSelected: { borderWidth: 2, borderLeftWidth: 3 },
+  block: { position: 'absolute', borderRadius: 6, paddingHorizontal: 3, paddingVertical: 2, justifyContent: 'center', overflow: 'hidden' },
+  blockSelected: { borderWidth: 2 },
   checkboxCorner: { alignSelf: 'flex-end', marginBottom: 1 },
   blockText: { fontSize: 10.5, fontWeight: '700' },
 }));
