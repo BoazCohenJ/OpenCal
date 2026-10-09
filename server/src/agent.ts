@@ -257,6 +257,124 @@ export class CalendarAgent {
     return { changeId, deleted: summary };
   }
 
+  // ---------- Series copies (import repair) ----------
+
+  /**
+   * One-off events that are really one day of a repeating series: same calendar, exactly where
+   * the series would be on a day it skips. Imports produce these (Google exports a renamed
+   * occurrence as an override, which arrives as a skipped day plus a separate event).
+   */
+  private seriesCopies(series: Event, oneOffs: Event[]) {
+    const skipped = series.skippedDates ?? [];
+    if (!series.recurrenceRule || !skipped.length) return [];
+    const cal = this.calendarsById()[series.calendarId];
+    const sorted = [...skipped].sort();
+    const unskipped: Event = { ...series, skippedDates: [] };
+    const where = new Map<string, Occurrence>();
+    for (const o of expandEvent(unskipped, cal, addDays(parseDayKey(sorted[0]!), -1), addDays(parseDayKey(sorted.at(-1)!), 2))) {
+      where.set(occurrenceDayKey(series, o.start), o);
+    }
+    const out: { copy: Event; day: string; differs: string[] }[] = [];
+    const taken = new Set<string>();
+    for (const day of sorted) {
+      const occ = where.get(day);
+      if (!occ) continue;
+      const copy = oneOffs.find(
+        (e) =>
+          !taken.has(e.id) &&
+          e.calendarId === series.calendarId &&
+          e.isAllDay === series.isAllDay &&
+          parseTimestamp(e.startDate).getTime() === occ.start.getTime() &&
+          parseTimestamp(e.endDate).getTime() === occ.end.getTime(),
+      );
+      if (!copy) continue;
+      taken.add(copy.id);
+      const differs: string[] = (['title', 'description', 'location', 'color', 'emoji'] as const).filter(
+        (k) => (copy[k] ?? '') !== (series[k] ?? ''),
+      );
+      if (JSON.stringify([...copy.reminders].sort()) !== JSON.stringify([...series.reminders].sort())) differs.push('reminders');
+      if (JSON.stringify([...copy.tags].sort()) !== JSON.stringify([...series.tags].sort())) differs.push('tags');
+      out.push({ copy, day, differs });
+    }
+    return out;
+  }
+
+  findSeriesCopies(input: { calendar?: string; seriesId?: string }) {
+    let events = this.store.list<Event>('event');
+    if (input.calendar) {
+      const cal = this.calendar(input.calendar);
+      events = events.filter((e) => e.calendarId === cal.id);
+    }
+    const oneOffs = events.filter((e) => !e.recurrenceRule);
+    const seriesList = input.seriesId ? [this.event(input.seriesId)] : events.filter((e) => e.recurrenceRule);
+    const result = [];
+    let total = 0;
+    for (const series of seriesList) {
+      const copies = this.seriesCopies(series, oneOffs);
+      if (!copies.length) continue;
+      total += copies.length;
+      const titleOnly = copies.filter((c) => c.differs.every((d) => d === 'title'));
+      const titles = new Map<string, number>();
+      for (const c of titleOnly) titles.set(c.copy.title, (titles.get(c.copy.title) ?? 0) + 1);
+      const [commonTitle] = [...titles.entries()].sort((a, b) => b[1] - a[1])[0] ?? [];
+      result.push({
+        seriesId: series.id,
+        title: series.title,
+        repeats: describeRRule(series.recurrenceRule, parseTimestamp(series.startDate)),
+        firstDay: dayKey(parseTimestamp(series.startDate)),
+        suggestedTitle: commonTitle && commonTitle !== series.title ? commonTitle : undefined,
+        sameExceptTitle: titleOnly.length,
+        otherwiseDifferent: copies
+          .filter((c) => !titleOnly.includes(c))
+          .map((c) => ({ eventId: c.copy.id, day: c.day, title: c.copy.title, differs: c.differs })),
+      });
+    }
+    return {
+      series: result.length,
+      copies: total,
+      note: total
+        ? 'Copies that differ only in title are usually import leftovers: fold_into_series without copyIds folds exactly those. Ones that differ otherwise are often real one-day changes: leave them unless asked.'
+        : 'No copies found.',
+      results: result,
+    };
+  }
+
+  /** Folds copies back into their series (see seriesCopies) as one change. */
+  foldIntoSeries(input: { items: { seriesId: string; copyIds?: string[]; title?: string }[] }) {
+    if (!input.items?.length) fail('Give items: [{ seriesId, copyIds, title? }].');
+    const all = this.store.list<Event>('event');
+    const oneOffs = all.filter((e) => !e.recurrenceRule);
+    const writes: Write[] = [];
+    const done: string[] = [];
+    let folded = 0;
+    const used = new Set<string>();
+    for (const { seriesId, copyIds, title } of input.items) {
+      const series = this.event(seriesId);
+      if (!series.recurrenceRule) fail(`"${series.title}" (${seriesId}) doesn't repeat.`);
+      const found = this.seriesCopies(series, oneOffs);
+      const copies = new Map(found.map((c) => [c.copy.id, c]));
+      const days = new Set<string>();
+      // Without copyIds: every copy that differs only in its title.
+      const ids = copyIds ?? found.filter((c) => c.differs.every((d) => d === 'title')).map((c) => c.copy.id);
+      for (const id of ids) {
+        const c = copies.get(id) ?? fail(`${id} isn't a copy of "${series.title}" (it must be a one-off at exactly a time the series skips). Check find_series_copies.`);
+        if (used.has(id)) fail(`${id} is listed twice.`);
+        used.add(id);
+        days.add(c.day);
+        writes.push({ kind: 'event', id, record: null });
+      }
+      const newTitle = title?.trim() || series.title;
+      if (!days.size && newTitle === series.title) continue;
+      writes.push(putEvent({ ...series, title: newTitle, skippedDates: (series.skippedDates ?? []).filter((d) => !days.has(d)) }));
+      folded += days.size;
+      done.push(`"${newTitle}" (${days.size})`);
+    }
+    if (!writes.length) fail('Nothing to fold: none of these series has copies that differ only in title.');
+    const summary = `Folded ${folded} copies back into ${done.length} series: ${done.join(', ')}`;
+    const changeId = this.store.write(writes, 'agent', summary.length > 500 ? `${summary.slice(0, 497)}…` : summary);
+    return { changeId, folded, series: done.length, summary: done };
+  }
+
   recentChanges(limit = 10) {
     return this.store.changes(Math.min(Math.max(limit, 1), 50)).map((c) => ({
       changeId: c.id,
