@@ -1,9 +1,11 @@
 {
   "compilerOptions": {
     "target": "es2024",
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "types": ["node"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": [
+      "node"
+    ],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noEmit": true,
@@ -12,5 +14,7 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ]
 }

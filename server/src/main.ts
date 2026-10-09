@@ -2,6 +2,8 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { join } from 'node:path';
+import { CalendarAgent } from './agent.ts';
+import { handleMcp } from './mcp.ts';
 import { checkChangeSet, Store } from './store.ts';
 
 /*
@@ -11,14 +13,18 @@ import { checkChangeSet, Store } from './store.ts';
  *
  *   GET  /api/health   no auth; is the server up, and which copy is it
  *   POST /api/sync     { serverId?, cursor, changes } → { serverId, cursor, changes, accepted }
+ *   POST /mcp          calendar tools for an AI agent (Model Context Protocol, see mcp.ts)
  *
- * Every /api route except health needs `Authorization: Bearer <OPENCAL_API_KEY>`.
+ * /api/sync needs `Authorization: Bearer <OPENCAL_API_KEY>`. /mcp takes that key or
+ * OPENCAL_AGENT_KEY, so an agent can have its own key that's revoked without touching the phones.
+ * Times the agent tools read and write are in the TZ time zone (e.g. TZ=Asia/Jerusalem).
  */
 
-const VERSION = '1';
+const VERSION = '2';
 const PORT = Number(process.env.PORT ?? 2290);
 const DATA_DIR = process.env.DATA_DIR ?? './data';
 const API_KEY = process.env.OPENCAL_API_KEY ?? '';
+const AGENT_KEY = process.env.OPENCAL_AGENT_KEY ?? '';
 const MAX_BODY = 50 * 1024 * 1024;
 
 if (API_KEY.length < 16) {
@@ -26,14 +32,22 @@ if (API_KEY.length < 16) {
   process.exit(1);
 }
 
+if (AGENT_KEY && AGENT_KEY.length < 16) {
+  console.error('OPENCAL_AGENT_KEY, when set, must be at least 16 characters.');
+  process.exit(1);
+}
+
 mkdirSync(DATA_DIR, { recursive: true });
 const store = new Store(join(DATA_DIR, 'opencal.db'));
+const agent = new CalendarAgent(store);
 
 const digest = (s: string) => createHash('sha256').update(s).digest();
-const keyDigest = digest(API_KEY);
-const authorized = (req: IncomingMessage): boolean => {
+const keyDigests = { sync: [digest(API_KEY)], agent: [digest(API_KEY), ...(AGENT_KEY ? [digest(AGENT_KEY)] : [])] };
+const authorized = (req: IncomingMessage, scope: keyof typeof keyDigests): boolean => {
   const m = /^Bearer (.+)$/.exec(req.headers.authorization ?? '');
-  return !!m && timingSafeEqual(digest(m[1]!), keyDigest);
+  if (!m) return false;
+  const given = digest(m[1]!);
+  return keyDigests[scope].some((k) => timingSafeEqual(given, k));
 };
 
 class HttpError extends Error {
@@ -70,8 +84,19 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   if (req.method === 'GET' && path === '/api/health') {
     return send(res, 200, { ok: true, app: 'opencal', version: VERSION, serverId: store.serverId });
   }
+  if (path === '/mcp') {
+    if (!authorized(req, 'agent')) throw new HttpError(401, 'Wrong or missing API key');
+    // JSON responses only: no server-initiated stream to open.
+    if (req.method !== 'POST') throw new HttpError(405, 'Use POST');
+    const reply = handleMcp(agent, await readJson(req), VERSION);
+    if (reply === null) {
+      res.writeHead(202).end();
+      return;
+    }
+    return send(res, 200, reply);
+  }
   if (!path.startsWith('/api/')) throw new HttpError(404, 'Not found');
-  if (!authorized(req)) throw new HttpError(401, 'Wrong or missing API key');
+  if (!authorized(req, 'sync')) throw new HttpError(401, 'Wrong or missing API key');
 
   if (req.method === 'POST' && path === '/api/sync') {
     const body = (await readJson(req)) as Record<string, unknown> | null;
@@ -94,7 +119,7 @@ const server = createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`OpenCal server ${VERSION} (${store.serverId}) on port ${PORT}, data in ${DATA_DIR}`, store.counts());
+  console.log(`OpenCal server ${VERSION} (${store.serverId}) on port ${PORT}, data in ${DATA_DIR}, time zone ${agent.timeZone}`, store.counts());
 });
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

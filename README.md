@@ -50,6 +50,7 @@ https://github.com/user-attachments/assets/96c68291-76bc-4ca8-a030-11c235435344
 - **Icons instead of emoji** for events and stamps, **dark mode** (System / Light / Dark), smooth animations.
 - **Import & export:** back up everything (calendars, events, stamps, birthdays, settings) to one file and restore or merge it on another phone, or move events to and from Google Calendar, Apple Calendar and Outlook with standard .ics files (a whole calendar, or any filtered set of events).
 - **Self-hosted sync (optional):** run the small [OpenCal server](server/README.md) at home (one Docker command, great with Tailscale), enter its address and key in Settings → Sync, and every phone connected to it stays in step: calendars, events, stamps, birthdays and color rules. Changes sync when the app opens, when you return to it and a few seconds after each edit; the latest change wins. Theme, notifications and hidden calendars stay per device.
+- **AI agent tools (optional):** the same server offers calendar tools over MCP, so an assistant like Hermes, Claude or ChatGPT can read your schedule and add, move or delete events ("only this one" for repeats included), with every change undoable. Forward it a message and the events appear on your phone.
 - **Private by design:** everything is stored locally (SQLite on device, localStorage on web), and only ever leaves the phone for your own sync server.
 
 ## Install on Android

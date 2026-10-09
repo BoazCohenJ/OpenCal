@@ -1,0 +1,9 @@
+# The build context is the repository root; only these go into the image.
+*
+!server/package.json
+!server/package-lock.json
+!server/src
+!src/models
+!src/utils
+!src/services/occurrences.ts
+!src/services/eventTimes.ts

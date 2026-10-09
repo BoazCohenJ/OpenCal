@@ -8,11 +8,15 @@
     "node": ">=24"
   },
   "scripts": {
-    "start": "node --disable-warning=ExperimentalWarning src/main.ts",
+    "start": "node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./src/register.js src/main.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "typescript": "~6.0.3"
+  },
+  "dependencies": {
+    "date-fns": "^4.4.0",
+    "rrule": "^2.8.1"
   }
 }

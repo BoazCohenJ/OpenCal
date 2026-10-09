@@ -1,11 +1,17 @@
 services:
   opencal:
-    build: .
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
     container_name: opencal
     restart: unless-stopped
     environment:
-      # Put OPENCAL_API_KEY=<random secret> in a .env file next to this one (openssl rand -hex 24).
+      # Put these in a .env file next to this one (make each key with: openssl rand -hex 24).
       OPENCAL_API_KEY: ${OPENCAL_API_KEY:?Set OPENCAL_API_KEY in .env}
+      # Optional: a separate key for an AI agent's calendar tools (/mcp).
+      OPENCAL_AGENT_KEY: ${OPENCAL_AGENT_KEY:-}
+      # Your time zone: times the agent tools read and write are in it.
+      TZ: ${TZ:-UTC}
     volumes:
       - ./data:/data
     ports:
