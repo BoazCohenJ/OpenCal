@@ -1,5 +1,6 @@
 import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
+import type { ChangeSet } from '../models/Sync';
 import type { EventTemplate } from '../models/Template';
 
 const storageKeys = {
@@ -113,4 +114,15 @@ export function getSetting<T>(key: string, fallback: T): T {
 
 export function setSetting(key: string, value: unknown): void {
   write(storageKeys.settings, { ...read<Record<string, unknown>>(storageKeys.settings, {}), [key]: value });
+}
+/*
+ * The web build keeps no change history: with sync it becomes a client of the server instead of
+ * keeping its own copy in localStorage, so it never has changes of its own to hand out.
+ */
+export function getChangesSince(_since: number): ChangeSet {
+  return { calendars: [], events: [], templates: [], settings: [], deletions: [] };
+}
+
+export function applyChanges(_changes: ChangeSet): number {
+  return 0;
 }
