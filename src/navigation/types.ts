@@ -6,7 +6,8 @@ export type EventDraft = Partial<Omit<Event, 'id'>>;
 
 export type RootStackParamList = {
   Calendar: undefined;
-  EventEdit: { eventId?: string; draft?: EventDraft; fromQuickAdd?: boolean } | undefined;
+  /** `occurrenceStart` (ISO): the tapped occurrence of a repeating event, so saving can ask what the change applies to. */
+  EventEdit: { eventId?: string; occurrenceStart?: string; draft?: EventDraft; fromQuickAdd?: boolean } | undefined;
   QuickAdd: undefined;
   Stamp: { templateId?: string; start?: string } | undefined;
   Settings: undefined;

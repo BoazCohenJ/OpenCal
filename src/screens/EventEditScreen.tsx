@@ -1,4 +1,4 @@
-import { addHours, endOfDay, format, setHours, startOfDay } from 'date-fns';
+import { addDays, addHours, differenceInCalendarDays, endOfDay, format, setHours, startOfDay } from 'date-fns';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ColorPicker } from '../components/ColorPicker';
@@ -6,6 +6,7 @@ import { DateTimeField } from '../components/DateTimeField';
 import { IconButtonTile, IconPicker } from '../components/IconPicker';
 import { PauseWindowsEditor } from '../components/PauseWindowsEditor';
 import { RecurrenceEditor } from '../components/RecurrenceEditor';
+import { RepeatDeleteSheet, type RepeatDeleteChoice } from '../components/RepeatDeleteSheet';
 import { ReminderEditor } from '../components/ReminderEditor';
 import { CalendarSelector, TagEditor } from '../components/Selectors';
 import { Button, Divider, Field, HeaderButton, Section, SwitchRow, TextField } from '../components/ui';
@@ -14,6 +15,8 @@ import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
 import type { NotificationPrefs } from '../models/NotificationPrefs';
 import type { EventDraft, ScreenProps } from '../navigation/types';
+import { occurrenceDayKey } from '../services/eventTimes';
+import { deleteFromSeries, editSeries, type SeriesChange } from '../services/seriesEdits';
 import { templateFromEvent } from '../services/templates';
 import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { confirmAsync, notify } from '../utils/confirm';
@@ -39,13 +42,38 @@ function inheritedValues(calendar: Calendar | undefined, allDay: boolean, prefs:
   };
 }
 
+/** Compares what the editor would save, ignoring key order and how the times are written. */
+function fingerprint(e: Event): string {
+  const flat: Record<string, unknown> = {
+    ...e,
+    title: e.title.trim(),
+    startDate: parseTimestamp(e.startDate).getTime(),
+    endDate: parseTimestamp(e.endDate).getTime(),
+    location: e.location?.trim() || undefined,
+    description: e.description?.trim() || undefined,
+    skippedDates: e.skippedDates?.length ? e.skippedDates : undefined,
+  };
+  return JSON.stringify(Object.keys(flat).sort().filter((k) => flat[k] !== undefined).map((k) => [k, flat[k]]));
+}
+
 function buildInitial(
   existing: Event | undefined,
+  occurrenceStart: Date | undefined,
   draft: EventDraft | undefined,
   defaultCalendarId: string,
   calendarsById: Record<string, Calendar>,
   prefs: NotificationPrefs,
 ): Event {
+  if (existing && occurrenceStart) {
+    // Show the tapped occurrence's own date and time, not the series' first one.
+    const seriesStart = parseTimestamp(existing.startDate);
+    const seriesEnd = parseTimestamp(existing.endDate);
+    // All-day events span whole days (a fixed length in ms would drift across a DST change).
+    const end = existing.isAllDay
+      ? endOfDay(addDays(occurrenceStart, differenceInCalendarDays(seriesEnd, seriesStart)))
+      : new Date(occurrenceStart.getTime() + Math.max(0, seriesEnd.getTime() - seriesStart.getTime()));
+    return { ...existing, startDate: occurrenceStart.toISOString(), endDate: end.toISOString() };
+  }
   if (existing) return existing;
   const start = draft?.startDate ? parseTimestamp(draft.startDate) : nextRoundedHour();
   const merged: Event = {
@@ -75,14 +103,35 @@ function buildInitial(
 export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const { calendars, calendarsById, events, saveEvent, deleteEvent, saveTemplate, allTags, notificationPrefs, floatingByDefault } =
-    useCalendarContext();
+  const {
+    calendars,
+    calendarsById,
+    events,
+    saveEvent,
+    saveEvents,
+    deleteEvent,
+    deleteEvents,
+    saveTemplate,
+    allTags,
+    notificationPrefs,
+    floatingByDefault,
+    getEffectiveColor,
+  } = useCalendarContext();
   const existing = route.params?.eventId ? events.find((e) => e.id === route.params?.eventId) : undefined;
-  const [form, setForm] = useState<Event>(() => {
-    const built = buildInitial(existing, route.params?.draft, calendars[0]?.id ?? '', calendarsById, notificationPrefs);
+  // The occurrence of a repeating event that was tapped; edits then ask which occurrences they apply to.
+  const [occurrenceStart] = useState(() => {
+    const iso = route.params?.occurrenceStart;
+    const d = iso && existing?.recurrenceRule ? new Date(iso) : undefined;
+    return d && !Number.isNaN(d.getTime()) ? d : undefined;
+  });
+  const [initialForm] = useState<Event>(() => {
+    const built = buildInitial(existing, occurrenceStart, route.params?.draft, calendars[0]?.id ?? '', calendarsById, notificationPrefs);
     const initial = { ...built, floating: built.floating ?? floatingByDefault };
     return calendarsById[initial.calendarId] ? initial : { ...initial, calendarId: calendars[0]?.id ?? '' };
   });
+  const [form, setForm] = useState<Event>(initialForm);
+  /** A save or delete of a repeating occurrence waiting for "this / following / all". */
+  const [scopeAsk, setScopeAsk] = useState<{ action: 'change'; event: Event } | { action: 'delete' } | null>(null);
   const [showEmoji, setShowEmoji] = useState(false);
   const fromQuickAdd = route.params?.fromQuickAdd ?? false;
   // Fields the user (or the Quick Add text) set explicitly; calendar defaults never overwrite these.
@@ -156,6 +205,14 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
   const save = () => {
     const event = normalized();
     if (!event) return;
+    if (existing?.recurrenceRule && occurrenceStart) {
+      if (fingerprint(event) === fingerprint(initialForm)) {
+        navigation.goBack();
+        return;
+      }
+      setScopeAsk({ action: 'change', event });
+      return;
+    }
     saveEvent(event);
     // From Quick Add, close both the editor and the text screen underneath it.
     if (fromQuickAdd) navigation.popToTop();
@@ -179,8 +236,26 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
     });
   }, [navigation, existing, fromQuickAdd]);
 
+  const applyChange = ({ save: toSave, deleteIds }: SeriesChange) => {
+    if (deleteIds.length) deleteEvents(deleteIds);
+    if (toSave.length) saveEvents(toSave);
+  };
+
+  const answerScope = (choice: RepeatDeleteChoice) => {
+    const ask = scopeAsk;
+    setScopeAsk(null);
+    if (!ask || !existing || !occurrenceStart || choice === 'keep') return;
+    if (ask.action === 'change') applyChange(editSeries(existing, ask.event, occurrenceStart, choice));
+    else applyChange(deleteFromSeries(existing, parseDayKey(occurrenceDayKey(existing, occurrenceStart)), choice));
+    navigation.goBack();
+  };
+
   const remove = async () => {
     if (!existing) return;
+    if (existing.recurrenceRule && occurrenceStart) {
+      setScopeAsk({ action: 'delete' });
+      return;
+    }
     const ok = await confirmAsync(
       'Delete event?',
       existing.recurrenceRule ? 'This deletes every occurrence of this repeating event.' : 'This cannot be undone.',
@@ -325,6 +400,17 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
         <Button variant="secondary" title="Save as stamp" onPress={saveAsStamp} />
         {existing ? <Button variant="danger" title="Delete event" onPress={remove} /> : null}
       </View>
+
+      <RepeatDeleteSheet
+        item={existing && occurrenceStart && scopeAsk ? { event: existing, day: parseDayKey(occurrenceDayKey(existing, occurrenceStart)) } : null}
+        color={existing ? getEffectiveColor(existing) : eventColor}
+        position={1}
+        total={1}
+        action={scopeAsk?.action ?? 'change'}
+        allowThis={scopeAsk?.action !== 'change' || scopeAsk.event.recurrenceRule === existing?.recurrenceRule}
+        onChoose={answerScope}
+        onCancel={() => setScopeAsk(null)}
+      />
     </ScrollView>
   );
 }
