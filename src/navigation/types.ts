@@ -21,6 +21,7 @@ export type RootStackParamList = {
   Birthdays: undefined;
   ColorRules: undefined;
   ImportExport: undefined;
+  Sync: undefined;
   BirthdayEdit: { birthdayId?: string } | undefined;
 };
 

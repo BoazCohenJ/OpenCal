@@ -1,10 +1,12 @@
 import React from 'react';
-import { ScrollView, View } from 'react-native';
+import { Platform, ScrollView, View } from 'react-native';
 import { Logo } from '../components/Logo';
+import { useSyncStatus } from '../components/SyncWatcher';
 import { Divider, Row, Section, Segmented, SwitchRow } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
 import { notificationsSupported } from '../services/notifications';
+import { getSyncConfig } from '../services/sync';
 import { APP_VERSION, updateInfo } from '../services/appInfo';
 import { createStyles, spacing, type ThemeMode } from '../theme';
 import { deviceTimeZone } from '../utils/dates';
@@ -25,6 +27,9 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
     colorRules,
   } = useCalendarContext();
   const timeZone = deviceTimeZone()?.replace(/_/g, ' ');
+  const syncStatus = useSyncStatus();
+  // Read on every render; connecting or disconnecting updates the sync status, which re-renders this.
+  const syncing = Platform.OS !== 'web' && !!getSyncConfig();
 
   const notificationSummary = !notificationsSupported
     ? 'Mobile only'
@@ -61,6 +66,17 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
         />
       </Section>
       <Section title="Data">
+        {Platform.OS !== 'web' ? (
+          <>
+            <Row
+              label="Sync"
+              subtitle="More devices, through your own server"
+              value={!syncing ? 'Off' : syncStatus.error ? 'Error' : 'On'}
+              onPress={() => navigation.navigate('Sync')}
+            />
+            <Divider />
+          </>
+        ) : null}
         <Row label="Import & export" subtitle="Backups and calendar files (.ics)" onPress={() => navigation.navigate('ImportExport')} />
       </Section>
       <Section title="Appearance">
@@ -84,7 +100,14 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
           onPress={() => navigation.navigate('Notifications')}
         />
       </Section>
-      <Section title="About" footer="All data is stored locally on this device. Nothing is synced.">
+      <Section
+        title="About"
+        footer={
+          syncing
+            ? 'Your data is stored on this device and synced only with your own server.'
+            : 'All data is stored locally on this device. Nothing is synced.'
+        }
+      >
         <Row label="OpenCal" value={APP_VERSION} subtitle={updateInfo()} left={<Logo size={34} variant="tile" />} />
       </Section>
     </ScrollView>

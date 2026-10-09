@@ -32,6 +32,7 @@ import { NotificationsScreen } from './src/screens/NotificationsScreen';
 import { QuickAddScreen } from './src/screens/QuickAddScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { StampScreen } from './src/screens/StampScreen';
+import { SyncScreen } from './src/screens/SyncScreen';
 import { TemplateEditScreen } from './src/screens/TemplateEditScreen';
 import { TemplatesScreen } from './src/screens/TemplatesScreen';
 import { createStyles, fonts, ThemeProvider, useTheme } from './src/theme';
@@ -92,6 +93,7 @@ function RootNavigator() {
       <Stack.Screen name="Birthdays" component={BirthdaysScreen} options={{ title: 'Birthdays' }} />
       <Stack.Screen name="ColorRules" component={ColorRulesScreen} options={{ title: 'Color rules' }} />
       <Stack.Screen name="ImportExport" component={ImportExportScreen} options={{ title: 'Import & Export' }} />
+      <Stack.Screen name="Sync" component={SyncScreen} options={{ title: 'Sync' }} />
       <Stack.Group screenOptions={{ presentation: 'modal', animation: 'slide_from_bottom' }}>
         <Stack.Screen name="EventEdit" component={EventEditScreen} options={{ title: 'Event' }} />
         <Stack.Screen name="QuickAdd" component={QuickAddScreen} options={{ title: 'Quick Add' }} />
