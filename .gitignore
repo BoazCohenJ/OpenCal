@@ -43,3 +43,7 @@ yarn-error.*
 # promo video renders
 promo/out/
 promo/music/
+
+# sync server data and secrets
+server/data/
+server/.env

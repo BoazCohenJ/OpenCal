@@ -119,6 +119,10 @@ export function setSetting(key: string, value: unknown): void {
  * The web build keeps no change history: with sync it becomes a client of the server instead of
  * keeping its own copy in localStorage, so it never has changes of its own to hand out.
  */
+export function stampNow(): number {
+  return Date.now();
+}
+
 export function getChangesSince(_since: number): ChangeSet {
   return { calendars: [], events: [], templates: [], settings: [], deletions: [] };
 }

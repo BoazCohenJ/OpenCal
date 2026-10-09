@@ -101,6 +101,7 @@ src/utils/              dates, recurrence, colors, formatting helpers
 scripts/make-logo.js    generates the app icon, splash and favicon
 docs/screenshots/       README screenshots
 promo/                  renders the promo video from code (see promo/README.md)
+server/                 optional self-hosted sync server (see server/README.md)
 ```
 
 ## License

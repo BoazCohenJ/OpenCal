@@ -1,0 +1,18 @@
+{
+  "name": "opencal-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Optional self-hosted sync server for OpenCal",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "~6.0.3"
+  }
+}

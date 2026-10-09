@@ -12,6 +12,7 @@ import React, { useEffect, useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Logo } from './src/components/Logo';
+import { SyncWatcher } from './src/components/SyncWatcher';
 import { ToastProvider } from './src/components/Toast';
 import { UpdateWatcher } from './src/components/UpdateWatcher';
 import { CalendarProvider, useCalendarContext } from './src/context/CalendarContext';
@@ -144,6 +145,7 @@ function AppShell() {
           <RootNavigator />
         </NavigationContainer>
         <UpdateWatcher />
+        <SyncWatcher />
       </ToastProvider>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
     </View>

@@ -42,7 +42,7 @@ Docs: https://docs.expo.dev/eas/index.md
 
 The phone runs an installed **preview** APK (`eas.json` → `preview` profile, channel `preview`, package `com.boazcohen.opencal`). Pushing to `main` updates it over the air:
 
-- `.github/workflows/eas-update.yml` runs on every push to `main` (changes only to Markdown, `.claude/`, `promo/`, `docs/`, `scripts/` or `LICENSE` are ignored, since they aren't in the app bundle): `npm ci` → `tsc --noEmit` → `expo lint` → `eas update --channel preview --environment preview --platform android`. A failing typecheck or lint blocks the update. It needs the `EXPO_TOKEN` repository secret and skips with a notice without it.
+- `.github/workflows/eas-update.yml` runs on every push to `main` (changes only to Markdown, `.claude/`, `promo/`, `docs/`, `scripts/`, `server/` or `LICENSE` are ignored, since they aren't in the app bundle): `npm ci` → `tsc --noEmit` → `expo lint` → `eas update --channel preview --environment preview --platform android`. A failing typecheck or lint blocks the update. It needs the `EXPO_TOKEN` repository secret and skips with a notice without it.
 - The app checks for updates on launch and when it returns to the foreground (`src/components/UpdateWatcher.tsx`), downloads them, and offers a **Restart** toast.
 - `--environment` is required by `eas update` for Expo SDK 55+; keep it in any manual command.
 
