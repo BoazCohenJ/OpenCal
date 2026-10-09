@@ -98,6 +98,40 @@ const TOOLS = [
     annotations: { destructiveHint: true },
   },
   {
+    name: 'find_series_copies',
+    description:
+      'Finds one-off events that are really one day of a repeating series (typical after importing from Google: a renamed occurrence arrives as a skipped day plus a separate event, so lessons stop showing as repeating). For each series: how many copies differ only in title, the suggested title, and the copies that differ in more (often real one-day changes).',
+    inputSchema: {
+      type: 'object',
+      properties: { calendar: str('Only this calendar (recommended).'), seriesId: str('Only this repeating event.') },
+    },
+    annotations: { readOnlyHint: true },
+  },
+  {
+    name: 'fold_into_series',
+    description:
+      'Puts copies back into their repeating series as ONE undoable change: deletes the copies, un-skips those days, and optionally renames the series. Without copyIds it folds exactly the copies that differ only in title. Every copy is re-checked; only exact matches are folded.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          minItems: 1,
+          items: {
+            type: 'object',
+            properties: {
+              seriesId: str('The repeating event (from find_series_copies).'),
+              copyIds: { type: 'array', items: { type: 'string' }, description: 'Copies to fold; omit to fold the ones that differ only in title.' },
+              title: str('New series title, e.g. the suggestedTitle.'),
+            },
+            required: ['seriesId'],
+          },
+        },
+      },
+      required: ['items'],
+    },
+  },
+  {
     name: 'recent_changes',
     description: 'The latest changes made with these tools (newest first), with their changeIds.',
     inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 50 } } },
@@ -133,6 +167,10 @@ function callTool(agent: CalendarAgent, name: string, a: Args): unknown {
       return agent.updateEvent(a as Parameters<CalendarAgent['updateEvent']>[0]);
     case 'delete_event':
       return agent.deleteEvent(a as Parameters<CalendarAgent['deleteEvent']>[0]);
+    case 'find_series_copies':
+      return agent.findSeriesCopies(a);
+    case 'fold_into_series':
+      return agent.foldIntoSeries(a as Parameters<CalendarAgent['foldIntoSeries']>[0]);
     case 'recent_changes':
       return agent.recentChanges(a.limit);
     case 'undo':

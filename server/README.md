@@ -62,6 +62,8 @@ events, which reach your phone on its next sync.
 - Tools: `list_calendars`, `find_events` (repeats expanded), `get_event`, `create_event`,
   `update_event`, `delete_event` (with "only this one" / "this and following" for repeating
   events, like the app), `recent_changes` and `undo`.
+- `find_series_copies` and `fold_into_series` repair repeating events that an import broke apart
+  (Google exports renamed occurrences as overrides, which arrive as one-off copies).
 - Every change the tools make is logged with what it replaced, so it can be undone.
 - Give the agent its own key: add `OPENCAL_AGENT_KEY=$(openssl rand -hex 24)` to `.env`. It only
   opens `/mcp`, not the sync API, and you can change it without touching your phones.
