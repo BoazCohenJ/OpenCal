@@ -38,7 +38,7 @@ https://github.com/user-attachments/assets/96c68291-76bc-4ca8-a030-11c235435344
 - **Quick Add:** type "Lunch with John Fri 1pm at Cafe X" and review the parsed event before saving; go back and edit the text anytime.
 - **Stamps:** save events you repeat (coffee, gym, calls) and drop them on any empty time slot in one tap, with Undo. Hold a stamp in the stamp menu to delete it.
 - **Birthdays:** add a name and date of birth in Settings and it shows up every year as "Dana's 36th birthday", with its own show/hide chip.
-- **Repeating events** with pauses: skip a date range for one event or a whole calendar, and it resumes on its own.
+- **Repeating events** with pauses: skip a date range for one event or a whole calendar, and it resumes on its own. Editing or deleting a repeat from the calendar asks whether it's for only that occurrence, it and the following ones, or the whole series.
 - **Calendars with defaults:** each calendar has a color plus default reminders, repeat, location and tags that new events inherit.
 - **Floating or fixed time:** a floating event keeps its clock time in any time zone (a 9:00 run stays at 9:00 when you travel), a fixed one keeps the same moment and remembers its time zone, so a repeating 9:00 meeting stays at 9:00 there across daylight-saving changes wherever you are. Set the default for new events in Settings and change it on any event; all-day events always float. This follows the iCalendar / JSCalendar (RFC 8984) model used by Google and Apple.
 - **Reminders down to the minute,** with presets and custom values; all-day reminders fire at a time you choose.

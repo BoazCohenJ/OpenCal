@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import React from 'react';
 import { Text, View } from 'react-native';
 import type { Event } from '../models/Event';
+import type { SeriesScope } from '../services/seriesEdits';
 import { createStyles, fonts, radius } from '../theme';
 import { deepText, softBg } from '../utils/color';
 import { parseTimestamp } from '../utils/dates';
@@ -10,12 +11,14 @@ import { EventGlyph } from './Icon';
 import { Sheet } from './Sheet';
 import { Button } from './ui';
 
-export type RepeatDeleteChoice = 'this' | 'following' | 'all' | 'keep';
+export type RepeatDeleteChoice = SeriesScope | 'keep';
 
 /**
- * Asks what to delete for one repeating event in a bulk delete: only the picked occurrence, it and
- * everything after, or the whole series. "Keep" skips this event; Cancel (or closing) stops the
- * whole delete. `position`/`total` show progress when several repeating events are selected.
+ * Asks which occurrences of a repeating event a delete (or, with `action="change"`, an edit or move)
+ * applies to: only the picked occurrence, it and everything after, or the whole series. "Keep"
+ * skips this event; Cancel (or closing) stops the whole operation. `position`/`total` show progress
+ * when several repeating events are handled at once. `allowThis={false}` hides "only this" (a
+ * change to the repeat rule itself can't apply to a single occurrence).
  */
 export function RepeatDeleteSheet({
   item,
@@ -24,6 +27,8 @@ export function RepeatDeleteSheet({
   total,
   onChoose,
   onCancel,
+  action = 'delete',
+  allowThis = true,
 }: {
   item: { event: Event; day: Date } | null;
   color: string;
@@ -31,7 +36,10 @@ export function RepeatDeleteSheet({
   total: number;
   onChoose: (choice: RepeatDeleteChoice) => void;
   onCancel: () => void;
+  action?: 'delete' | 'change';
+  allowThis?: boolean;
 }) {
+  const deleting = action === 'delete';
   const styles = useStyles();
   const event = item?.event;
   return (
@@ -55,11 +63,15 @@ export function RepeatDeleteSheet({
               <Text style={styles.meta}>Selected: {format(item.day, 'EEEE, MMM d')}</Text>
             </View>
           </View>
-          <Text style={styles.question}>What should be deleted?</Text>
-          <Button variant="secondary" title={`Only this event (${format(item.day, 'MMM d')})`} onPress={() => onChoose('this')} />
+          <Text style={styles.question}>{deleting ? 'What should be deleted?' : 'Apply the change to'}</Text>
+          {allowThis ? (
+            <Button variant="secondary" title={`Only this event (${format(item.day, 'MMM d')})`} onPress={() => onChoose('this')} />
+          ) : null}
           <Button variant="secondary" title="This and following events" onPress={() => onChoose('following')} />
-          <Button variant="danger" title="All events in the series" onPress={() => onChoose('all')} />
-          {total > 1 ? <Button variant="ghost" title="Don't delete this one" onPress={() => onChoose('keep')} /> : null}
+          <Button variant={deleting ? 'danger' : 'secondary'} title="All events in the series" onPress={() => onChoose('all')} />
+          {total > 1 ? (
+            <Button variant="ghost" title={deleting ? "Don't delete this one" : "Don't change this one"} onPress={() => onChoose('keep')} />
+          ) : null}
         </View>
       ) : null}
     </Sheet>
