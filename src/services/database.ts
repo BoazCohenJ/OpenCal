@@ -2,10 +2,11 @@ import * as SQLite from 'expo-sqlite';
 import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
 import type { PauseWindow } from '../models/PauseWindow';
+import type { ChangeSet, Deletion, SettingChange, Stamped, SyncKind } from '../models/Sync';
 import type { EventTemplate } from '../models/Template';
 
 const db = SQLite.openDatabaseSync('calendar.db');
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 type Row = Record<string, any>;
 
@@ -102,8 +103,75 @@ export function initDatabase(): void {
     if (version < 6) {
       db.execSync(`ALTER TABLE events ADD COLUMN timeZone TEXT;`);
     }
+    if (version < 7) {
+      // Sync groundwork: when each record last changed (0 for rows from before this version) and
+      // tombstones for deleted ones, so another copy can tell which side is newer (see models/Sync).
+      db.execSync(`
+        ALTER TABLE calendars ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE events ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE templates ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE app_settings ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0;
+        CREATE TABLE IF NOT EXISTS tombstones (
+          kind TEXT NOT NULL,
+          id TEXT NOT NULL,
+          deletedAt INTEGER NOT NULL,
+          PRIMARY KEY (kind, id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_calendars_updated ON calendars(updatedAt);
+        CREATE INDEX IF NOT EXISTS idx_events_updated ON events(updatedAt);
+        CREATE INDEX IF NOT EXISTS idx_templates_updated ON templates(updatedAt);
+        CREATE INDEX IF NOT EXISTS idx_tombstones_deleted ON tombstones(deletedAt);
+      `);
+    }
     db.execSync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
   });
+}
+
+// ---------- Change tracking ----------
+
+const TABLES: Record<SyncKind, string> = { calendar: 'calendars', event: 'events', template: 'templates' };
+
+let lastStamp = 0;
+
+/**
+ * The change time for a local edit: wall-clock ms, but always above any stamp already seen (here or
+ * from another device), so an edit made after receiving a change counts as newer even if clocks differ.
+ */
+export function stampNow(): number {
+  if (!lastStamp) {
+    lastStamp =
+      db.getFirstSync<Row>(
+        `SELECT MAX(m) AS m FROM (
+           SELECT MAX(updatedAt) AS m FROM calendars UNION ALL SELECT MAX(updatedAt) FROM events
+           UNION ALL SELECT MAX(updatedAt) FROM templates UNION ALL SELECT MAX(updatedAt) FROM app_settings
+           UNION ALL SELECT MAX(deletedAt) FROM tombstones)`,
+      )?.m ?? 0;
+  }
+  lastStamp = Math.max(Date.now(), lastStamp + 1);
+  return lastStamp;
+}
+
+function observeStamp(at: number): void {
+  if (!lastStamp) stampNow();
+  lastStamp = Math.max(lastStamp, at);
+}
+
+const UPSERT_TOMBSTONE = 'ON CONFLICT(kind, id) DO UPDATE SET deletedAt = MAX(deletedAt, excluded.deletedAt)';
+
+function bury(kind: SyncKind, id: string, at: number): void {
+  db.runSync(`INSERT INTO tombstones (kind, id, deletedAt) VALUES (?, ?, ?) ${UPSERT_TOMBSTONE}`, [kind, id, at]);
+}
+
+/** Tombstones every row of `kind` matching `where`; call it before deleting them. */
+function buryWhere(kind: SyncKind, where: string, params: SQLite.SQLiteBindValue[], at: number): void {
+  db.runSync(
+    `INSERT INTO tombstones (kind, id, deletedAt) SELECT ?, id, ? FROM ${TABLES[kind]} WHERE ${where} ${UPSERT_TOMBSTONE}`,
+    [kind, at, ...params],
+  );
+}
+
+function unbury(kind: SyncKind, id: string): void {
+  db.runSync('DELETE FROM tombstones WHERE kind = ? AND id = ?', [kind, id]);
 }
 
 function groupPauseWindows(rows: Row[], key: string): Map<string, PauseWindow[]> {
@@ -123,23 +191,26 @@ export function loadCalendars(): Calendar[] {
     db.getAllSync<Row>('SELECT calendarId, startDate, endDate FROM calendar_pause_windows ORDER BY startDate'),
     'calendarId',
   );
-  return db.getAllSync<Row>('SELECT * FROM calendars ORDER BY sortOrder, name').map((r) => ({
-    id: r.id,
-    name: r.name,
-    color: r.color,
-    sortOrder: r.sortOrder ?? 0,
-    pauseWindows: pauses.get(r.id) ?? [],
-    defaults: parseJson<Calendar['defaults']>(r.defaults, undefined),
-  }));
+  return db.getAllSync<Row>('SELECT * FROM calendars ORDER BY sortOrder, name').map((r) => rowToCalendar(r, pauses));
 }
 
-function writeCalendar(c: Calendar): void {
+const rowToCalendar = (r: Row, pauses: Map<string, PauseWindow[]>): Calendar => ({
+  id: r.id,
+  name: r.name,
+  color: r.color,
+  sortOrder: r.sortOrder ?? 0,
+  pauseWindows: pauses.get(r.id) ?? [],
+  defaults: parseJson<Calendar['defaults']>(r.defaults, undefined),
+});
+
+function writeCalendar(c: Calendar, at = stampNow()): void {
   db.runSync(
-    `INSERT INTO calendars (id, name, color, sortOrder, defaults) VALUES (?, ?, ?, ?, ?)
+    `INSERT INTO calendars (id, name, color, sortOrder, defaults, updatedAt) VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET name = excluded.name, color = excluded.color, sortOrder = excluded.sortOrder,
-       defaults = excluded.defaults`,
-    [c.id, c.name, c.color, c.sortOrder, c.defaults ? JSON.stringify(c.defaults) : null],
+       defaults = excluded.defaults, updatedAt = excluded.updatedAt`,
+    [c.id, c.name, c.color, c.sortOrder, c.defaults ? JSON.stringify(c.defaults) : null, at],
   );
+  unbury('calendar', c.id);
   db.runSync('DELETE FROM calendar_pause_windows WHERE calendarId = ?', [c.id]);
   for (const w of c.pauseWindows) {
     db.runSync('INSERT INTO calendar_pause_windows (calendarId, startDate, endDate) VALUES (?, ?, ?)', [
@@ -164,13 +235,17 @@ export function deleteCalendarWithPlan(
   templatesTo: string | null,
 ): void {
   db.withTransactionSync(() => {
+    const at = stampNow();
     for (const [eventId, target] of Object.entries(plan)) {
-      if (target) db.runSync('UPDATE events SET calendarId = ? WHERE id = ? AND calendarId = ?', [target, eventId, id]);
-      else db.runSync('DELETE FROM events WHERE id = ? AND calendarId = ?', [eventId, id]);
+      if (target) {
+        db.runSync('UPDATE events SET calendarId = ?, updatedAt = ? WHERE id = ? AND calendarId = ?', [target, at, eventId, id]);
+      }
     }
-    // Anything not covered by the plan (e.g. created meanwhile) is deleted with the calendar.
+    // Everything left, including events created meanwhile that the plan doesn't cover, goes with the calendar.
+    buryWhere('event', 'calendarId = ?', [id], at);
     db.runSync('DELETE FROM events WHERE calendarId = ?', [id]);
-    db.runSync('UPDATE templates SET calendarId = ? WHERE calendarId = ?', [templatesTo, id]);
+    db.runSync('UPDATE templates SET calendarId = ?, updatedAt = ? WHERE calendarId = ?', [templatesTo, at, id]);
+    bury('calendar', id, at);
     db.runSync('DELETE FROM calendars WHERE id = ?', [id]);
   });
 }
@@ -220,17 +295,17 @@ export function loadEvents(ids?: string[]): Event[] {
   return out;
 }
 
-function writeEvent(e: Event): void {
+function writeEvent(e: Event, at = stampNow()): void {
   db.runSync(
-    `INSERT INTO events (id, title, description, startDate, endDate, isAllDay, floating, timeZone, location, calendarId, color, recurrenceRule, skippedDates, reminders, emoji, tags)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO events (id, title, description, startDate, endDate, isAllDay, floating, timeZone, location, calendarId, color, recurrenceRule, skippedDates, reminders, emoji, tags, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        title = excluded.title, description = excluded.description, startDate = excluded.startDate,
        endDate = excluded.endDate, isAllDay = excluded.isAllDay, floating = excluded.floating, timeZone = excluded.timeZone,
        location = excluded.location,
        calendarId = excluded.calendarId, color = excluded.color, recurrenceRule = excluded.recurrenceRule,
        skippedDates = excluded.skippedDates,
-       reminders = excluded.reminders, emoji = excluded.emoji, tags = excluded.tags`,
+       reminders = excluded.reminders, emoji = excluded.emoji, tags = excluded.tags, updatedAt = excluded.updatedAt`,
     [
       e.id,
       e.title,
@@ -248,8 +323,10 @@ function writeEvent(e: Event): void {
       JSON.stringify(e.reminders),
       orNull(e.emoji),
       JSON.stringify(e.tags),
+      at,
     ],
   );
+  unbury('event', e.id);
   db.runSync('DELETE FROM pause_windows WHERE eventId = ?', [e.id]);
   for (const w of e.pauseWindows) {
     db.runSync('INSERT INTO pause_windows (eventId, startDate, endDate) VALUES (?, ?, ?)', [e.id, w.startDate, w.endDate]);
@@ -261,46 +338,56 @@ export function saveEvent(e: Event): void {
 }
 
 export function saveEvents(list: Event[]): void {
-  db.withTransactionSync(() => list.forEach(writeEvent));
+  db.withTransactionSync(() => list.forEach((e) => writeEvent(e)));
 }
 
-export function deleteEvent(id: string): void {
+function removeEvent(id: string, at: number): void {
+  bury('event', id, at);
   db.runSync('DELETE FROM events WHERE id = ?', [id]);
 }
 
+export function deleteEvent(id: string): void {
+  db.withTransactionSync(() => removeEvent(id, stampNow()));
+}
+
 export function deleteEvents(ids: string[]): void {
-  db.withTransactionSync(() => ids.forEach(deleteEvent));
+  db.withTransactionSync(() => {
+    const at = stampNow();
+    ids.forEach((id) => removeEvent(id, at));
+  });
 }
 
 // ---------- Templates ----------
 
+const rowToTemplate = (r: Row): EventTemplate => ({
+  id: r.id,
+  name: r.name,
+  title: r.title,
+  description: orUndef(r.description),
+  emoji: orUndef(r.emoji),
+  durationMinutes: r.durationMinutes,
+  isAllDay: r.isAllDay === 1 || r.isAllDay === true,
+  location: orUndef(r.location),
+  calendarId: r.calendarId ?? '',
+  color: orUndef(r.color),
+  reminders: parseJson<number[]>(r.reminders, []),
+  tags: parseJson<string[]>(r.tags, []),
+  sortOrder: r.sortOrder ?? 0,
+});
+
 export function loadTemplates(): EventTemplate[] {
-  return db.getAllSync<Row>('SELECT * FROM templates ORDER BY sortOrder, name').map((r) => ({
-    id: r.id,
-    name: r.name,
-    title: r.title,
-    description: orUndef(r.description),
-    emoji: orUndef(r.emoji),
-    durationMinutes: r.durationMinutes,
-    isAllDay: r.isAllDay === 1 || r.isAllDay === true,
-    location: orUndef(r.location),
-    calendarId: r.calendarId ?? '',
-    color: orUndef(r.color),
-    reminders: parseJson<number[]>(r.reminders, []),
-    tags: parseJson<string[]>(r.tags, []),
-    sortOrder: r.sortOrder ?? 0,
-  }));
+  return db.getAllSync<Row>('SELECT * FROM templates ORDER BY sortOrder, name').map(rowToTemplate);
 }
 
-export function saveTemplate(t: EventTemplate): void {
+function writeTemplate(t: EventTemplate, at = stampNow()): void {
   db.runSync(
-    `INSERT INTO templates (id, name, title, description, emoji, durationMinutes, isAllDay, location, calendarId, color, reminders, tags, sortOrder)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO templates (id, name, title, description, emoji, durationMinutes, isAllDay, location, calendarId, color, reminders, tags, sortOrder, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        name = excluded.name, title = excluded.title, description = excluded.description, emoji = excluded.emoji,
        durationMinutes = excluded.durationMinutes, isAllDay = excluded.isAllDay, location = excluded.location,
        calendarId = excluded.calendarId, color = excluded.color, reminders = excluded.reminders,
-       tags = excluded.tags, sortOrder = excluded.sortOrder`,
+       tags = excluded.tags, sortOrder = excluded.sortOrder, updatedAt = excluded.updatedAt`,
     [
       t.id,
       t.name,
@@ -315,12 +402,21 @@ export function saveTemplate(t: EventTemplate): void {
       JSON.stringify(t.reminders),
       JSON.stringify(t.tags),
       t.sortOrder,
+      at,
     ],
   );
+  unbury('template', t.id);
+}
+
+export function saveTemplate(t: EventTemplate): void {
+  db.withTransactionSync(() => writeTemplate(t));
 }
 
 export function deleteTemplate(id: string): void {
-  db.runSync('DELETE FROM templates WHERE id = ?', [id]);
+  db.withTransactionSync(() => {
+    bury('template', id, stampNow());
+    db.runSync('DELETE FROM templates WHERE id = ?', [id]);
+  });
 }
 
 /**
@@ -333,18 +429,24 @@ export function importData(
 ): void {
   db.withTransactionSync(() => {
     if (replace) {
+      // Everything is tombstoned; whatever the import brings back is revived as it's written.
+      const at = stampNow();
+      for (const kind of ['template', 'event', 'calendar'] as const) buryWhere(kind, '1', [], at);
       // Pause windows go with their events and calendars (ON DELETE CASCADE).
       db.execSync('DELETE FROM templates; DELETE FROM events; DELETE FROM calendars;');
     }
-    data.calendars.forEach(writeCalendar);
-    data.events.forEach(writeEvent);
-    data.templates.forEach(saveTemplate);
+    data.calendars.forEach((c) => writeCalendar(c));
+    data.events.forEach((e) => writeEvent(e));
+    data.templates.forEach((t) => writeTemplate(t));
   });
 }
 
 export function saveTemplateOrder(ids: string[]): void {
   db.withTransactionSync(() => {
-    ids.forEach((id, index) => db.runSync('UPDATE templates SET sortOrder = ? WHERE id = ?', [index, id]));
+    const at = stampNow();
+    ids.forEach((id, index) =>
+      db.runSync('UPDATE templates SET sortOrder = ?, updatedAt = ? WHERE id = ? AND sortOrder != ?', [index, at, id, index]),
+    );
   });
 }
 
@@ -355,9 +457,116 @@ export function getSetting<T>(key: string, fallback: T): T {
   return row ? parseJson<T>(row.value, fallback) : fallback;
 }
 
-export function setSetting(key: string, value: unknown): void {
+export function setSetting(key: string, value: unknown, at = stampNow()): void {
   db.runSync(
-    'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-    [key, JSON.stringify(value)],
+    `INSERT INTO app_settings (key, value, updatedAt) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updatedAt = excluded.updatedAt`,
+    [key, JSON.stringify(value), at],
   );
+}
+
+// ---------- Sync ----------
+
+/** Everything that changed after `since` (ms; pass -1 for everything, including rows from before tracking). */
+export function getChangesSince(since: number): ChangeSet {
+  const stamps = (table: string) =>
+    new Map(db.getAllSync<Row>(`SELECT id, updatedAt FROM ${table} WHERE updatedAt > ?`, [since]).map((r) => [r.id, r.updatedAt as number]));
+  const stamped = <T extends { id: string }>(list: T[], at: Map<string, number>): Stamped<T>[] =>
+    list.filter((record) => at.has(record.id)).map((record) => ({ record, updatedAt: at.get(record.id)! }));
+
+  const calendarStamps = stamps('calendars');
+  const eventStamps = stamps('events');
+  const templateStamps = stamps('templates');
+  return {
+    calendars: calendarStamps.size ? stamped(loadCalendars(), calendarStamps) : [],
+    events: eventStamps.size ? stamped(loadEvents([...eventStamps.keys()]), eventStamps) : [],
+    templates: templateStamps.size ? stamped(loadTemplates(), templateStamps) : [],
+    settings: db
+      .getAllSync<Row>('SELECT key, value, updatedAt FROM app_settings WHERE updatedAt > ?', [since])
+      .map((r): SettingChange => ({ key: r.key, value: parseJson<unknown>(r.value, null), updatedAt: r.updatedAt })),
+    deletions: db
+      .getAllSync<Row>('SELECT kind, id, deletedAt FROM tombstones WHERE deletedAt > ?', [since])
+      .map((r): Deletion => ({ kind: r.kind, id: r.id, deletedAt: r.deletedAt })),
+  };
+}
+
+/** The newest local stamp for a record, from its row or its tombstone; -1 if this copy has never seen it. */
+function localStamp(kind: SyncKind, id: string): number {
+  const row = db.getFirstSync<Row>(`SELECT updatedAt FROM ${TABLES[kind]} WHERE id = ?`, [id]);
+  const tomb = db.getFirstSync<Row>('SELECT deletedAt FROM tombstones WHERE kind = ? AND id = ?', [kind, id]);
+  return Math.max(row?.updatedAt ?? -1, tomb?.deletedAt ?? -1);
+}
+
+const calendarExists = (id: string): boolean => !!db.getFirstSync('SELECT 1 FROM calendars WHERE id = ?', [id]);
+
+/**
+ * Merges changes from another copy: per record and per setting, whichever side changed it last wins
+ * (an edit newer than a deletion brings the record back). Returns how many changes were taken.
+ *
+ * Two conflicts can't follow that rule without losing data, so they keep the data and re-stamp it
+ * to send back: an incoming event whose calendar is deleted here moves to the first calendar, and a
+ * deleted calendar that still has (newer) events here stays.
+ */
+export function applyChanges(changes: ChangeSet): number {
+  let applied = 0;
+  db.withTransactionSync(() => {
+    for (const at of [
+      ...changes.calendars.map((c) => c.updatedAt),
+      ...changes.events.map((e) => e.updatedAt),
+      ...changes.templates.map((t) => t.updatedAt),
+      ...changes.settings.map((s) => s.updatedAt),
+      ...changes.deletions.map((d) => d.deletedAt),
+    ]) {
+      observeStamp(at);
+    }
+
+    for (const { record, updatedAt } of changes.calendars) {
+      if (updatedAt <= localStamp('calendar', record.id)) continue;
+      writeCalendar(record, updatedAt);
+      applied++;
+    }
+    const fallbackCalendar = (): string | undefined =>
+      db.getFirstSync<Row>('SELECT id FROM calendars ORDER BY sortOrder, name LIMIT 1')?.id;
+    for (const { record, updatedAt } of changes.events) {
+      if (updatedAt <= localStamp('event', record.id)) continue;
+      if (calendarExists(record.calendarId)) writeEvent(record, updatedAt);
+      else {
+        const calendarId = fallbackCalendar();
+        if (!calendarId) continue;
+        writeEvent({ ...record, calendarId }, stampNow());
+      }
+      applied++;
+    }
+    for (const { record, updatedAt } of changes.templates) {
+      if (updatedAt <= localStamp('template', record.id)) continue;
+      // A stamp without its calendar just has none, like after its calendar is deleted here.
+      writeTemplate(calendarExists(record.calendarId) ? record : { ...record, calendarId: '' }, updatedAt);
+      applied++;
+    }
+    for (const { key, value, updatedAt } of changes.settings) {
+      const local = db.getFirstSync<Row>('SELECT updatedAt FROM app_settings WHERE key = ?', [key]);
+      if (local && updatedAt <= local.updatedAt) continue;
+      setSetting(key, value, updatedAt);
+      applied++;
+    }
+
+    // Calendars last, after the events and stamps that were in them.
+    const order: SyncKind[] = ['event', 'template', 'calendar'];
+    const deletions = [...changes.deletions].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
+    for (const { kind, id, deletedAt } of deletions) {
+      if (!TABLES[kind]) continue;
+      const row = db.getFirstSync<Row>(`SELECT updatedAt FROM ${TABLES[kind]} WHERE id = ?`, [id]);
+      if (row && row.updatedAt >= deletedAt) continue;
+      if (row && kind === 'calendar' && db.getFirstSync('SELECT 1 FROM events WHERE calendarId = ?', [id])) {
+        db.runSync('UPDATE calendars SET updatedAt = ? WHERE id = ?', [stampNow(), id]);
+        continue;
+      }
+      bury(kind, id, deletedAt);
+      if (row) {
+        db.runSync(`DELETE FROM ${TABLES[kind]} WHERE id = ?`, [id]);
+        applied++;
+      }
+    }
+  });
+  return applied;
 }
