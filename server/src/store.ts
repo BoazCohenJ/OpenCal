@@ -18,6 +18,38 @@ const LIST_OF: Record<SyncKind, 'calendars' | 'events' | 'templates'> = {
 
 type Row = Record<string, unknown>;
 
+export interface Write {
+  kind: SyncKind;
+  id: string;
+  /** The new version, or null to delete. */
+  record: { id: string } | null;
+}
+
+export interface LoggedItem {
+  kind: SyncKind;
+  id: string;
+  before: unknown;
+  after: unknown;
+}
+
+export interface Change {
+  id: number;
+  at: number;
+  source: string;
+  summary: string;
+  items: LoggedItem[];
+  undoneBy: number | null;
+}
+
+const rowToChange = (r: Row): Change => ({
+  id: r.id as number,
+  at: r.at as number,
+  source: r.source as string,
+  summary: r.summary as string,
+  items: JSON.parse(r.items as string) as LoggedItem[],
+  undoneBy: (r.undoneBy as number | null) ?? null,
+});
+
 export class Store {
   private db: DatabaseSync;
   readonly serverId: string;
@@ -44,6 +76,16 @@ export class Store {
       );
       CREATE INDEX IF NOT EXISTS idx_records_seq ON records(seq);
       CREATE INDEX IF NOT EXISTS idx_settings_seq ON settings(seq);
+      -- Changes made on the server itself (the agent tools), with what each record was before, so
+      -- any of them can be undone. Changes synced from devices aren't logged; they have their own undo.
+      CREATE TABLE IF NOT EXISTS changes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        at INTEGER NOT NULL,
+        source TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        items TEXT NOT NULL,
+        undoneBy INTEGER
+      );
     `);
     // Identifies this copy, so a client can tell when it's pointed at a new or reset server.
     let id = this.meta('serverId');
@@ -126,6 +168,72 @@ export class Store {
       out.settings.push({ key: r.key as string, value: JSON.parse(r.value as string), updatedAt: r.updatedAt as number });
     }
     return out;
+  }
+
+  /** The current version of a record, or undefined if it doesn't exist or was deleted. */
+  get<T>(kind: SyncKind, id: string): T | undefined {
+    const row = this.db.prepare('SELECT data FROM records WHERE kind = ? AND id = ? AND deleted = 0').get(kind, id) as Row | undefined;
+    return row ? (JSON.parse(row.data as string) as T) : undefined;
+  }
+
+  /** Every current record of a kind. */
+  list<T>(kind: SyncKind): T[] {
+    return (this.db.prepare('SELECT data FROM records WHERE kind = ? AND deleted = 0').all(kind) as Row[]).map(
+      (r) => JSON.parse(r.data as string) as T,
+    );
+  }
+
+  setting<T>(key: string, fallback: T): T {
+    const row = this.db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as Row | undefined;
+    return row ? (JSON.parse(row.value as string) as T) : fallback;
+  }
+
+  /**
+   * Saves records changed here on the server (a null record deletes it) as one logged change, and
+   * returns its id. Each gets a stamp newer than the version it replaces, so devices take it on
+   * their next sync whatever their clocks say.
+   */
+  write(items: Write[], source: string, summary: string): number {
+    const getStamp = this.db.prepare('SELECT updatedAt, data, deleted FROM records WHERE kind = ? AND id = ?');
+    const put = this.db.prepare(
+      `INSERT INTO records (kind, id, data, updatedAt, deleted, seq) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt,
+         deleted = excluded.deleted, seq = excluded.seq`,
+    );
+    let seq = this.cursor;
+    const logged: LoggedItem[] = [];
+    this.db.exec('BEGIN');
+    try {
+      for (const { kind, id, record } of items) {
+        const row = getStamp.get(kind, id) as Row | undefined;
+        const before = row && !row.deleted ? JSON.parse(row.data as string) : null;
+        const updatedAt = Math.max(Date.now(), ((row?.updatedAt as number | undefined) ?? 0) + 1);
+        put.run(kind, id, record ? JSON.stringify(record) : null, updatedAt, record ? 0 : 1, ++seq);
+        logged.push({ kind, id, before, after: record });
+      }
+      const info = this.db
+        .prepare('INSERT INTO changes (at, source, summary, items) VALUES (?, ?, ?, ?)')
+        .run(Date.now(), source, summary, JSON.stringify(logged));
+      this.db.exec('COMMIT');
+      return Number(info.lastInsertRowid);
+    } catch (e) {
+      this.db.exec('ROLLBACK');
+      throw e;
+    }
+  }
+
+  /** Logged server-side changes, newest first. */
+  changes(limit: number): Change[] {
+    return (this.db.prepare('SELECT * FROM changes ORDER BY id DESC LIMIT ?').all(limit) as Row[]).map(rowToChange);
+  }
+
+  change(id: number): Change | undefined {
+    const row = this.db.prepare('SELECT * FROM changes WHERE id = ?').get(id) as Row | undefined;
+    return row ? rowToChange(row) : undefined;
+  }
+
+  markUndone(id: number, by: number): void {
+    this.db.prepare('UPDATE changes SET undoneBy = ? WHERE id = ?').run(by, id);
   }
 
   counts(): Record<string, number> {

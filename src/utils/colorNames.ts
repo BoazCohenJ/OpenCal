@@ -1,5 +1,5 @@
 import type { SavedColor } from '../models/SavedColor';
-import { NAMED_PALETTE } from '../theme';
+import { NAMED_PALETTE } from './palette';
 
 /** Display name for a hex color: a saved name first, then a built-in swatch name, else null. */
 export function colorName(hex: string | undefined, saved: SavedColor[]): string | null {

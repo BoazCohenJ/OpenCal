@@ -16,14 +16,15 @@ You need Docker. On the machine that will host it:
 git clone https://github.com/BoazCohenJ/OpenCal.git
 cd OpenCal/server
 echo "OPENCAL_API_KEY=$(openssl rand -hex 24)" > .env
+echo "TZ=Asia/Jerusalem" >> .env    # your time zone, for the agent tools
 docker compose up -d --build
 ```
 
 Data is kept in `server/data/`. Keep `.env` secret: the key is the only thing protecting your
 calendar, and every device needs it.
 
-Without Docker, with Node 24 or newer: `OPENCAL_API_KEY=... npm start` (data goes to `./data`,
-or set `DATA_DIR`; the port is 2290, or set `PORT`).
+Without Docker, with Node 24 or newer: `npm install`, then `OPENCAL_API_KEY=... npm start` (data
+goes to `./data`, or set `DATA_DIR`; the port is 2290, or set `PORT`).
 
 ## Reach it from your phone
 
@@ -45,20 +46,47 @@ Check it with `curl https://<your address>/api/health`.
 |---|---|---|
 | `GET /api/health` | none | `{ ok, app: "opencal", version, serverId }` |
 | `POST /api/sync` | `Authorization: Bearer <key>` | `{ serverId?, cursor, changes }` → `{ serverId, cursor, changes, accepted }` |
+| `POST /mcp` | the key above, or `OPENCAL_AGENT_KEY` | Calendar tools for an AI agent (see below) |
 
 `changes` is a `ChangeSet` ([src/models/Sync.ts](../src/models/Sync.ts)): records with the time
 they last changed, and deletions. The server keeps the newer version of each record and returns
 everything accepted after `cursor`. A client whose `serverId` doesn't match (a new or reset server)
 gets everything and sends everything.
 
+## Calendar tools for an AI agent (MCP)
+
+`/mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server, so an agent such as
+Hermes, Claude or ChatGPT can read and change the calendar: forward it a message and it adds the
+events, which reach your phone on its next sync.
+
+- Tools: `list_calendars`, `find_events` (repeats expanded), `get_event`, `create_event`,
+  `update_event`, `delete_event` (with "only this one" / "this and following" for repeating
+  events, like the app), `recent_changes` and `undo`.
+- Every change the tools make is logged with what it replaced, so it can be undone.
+- Give the agent its own key: add `OPENCAL_AGENT_KEY=$(openssl rand -hex 24)` to `.env`. It only
+  opens `/mcp`, not the sync API, and you can change it without touching your phones.
+- Times are read and written in the server's time zone (`TZ` in `.env`).
+
+For Hermes (`~/.hermes/config.yaml`):
+
+```yaml
+mcp_servers:
+  opencal:
+    url: "https://<your address>/mcp"
+    headers:
+      Authorization: "Bearer <OPENCAL_AGENT_KEY>"
+```
+
 ## Development
 
-The server runs its TypeScript directly on Node 24 (type stripping) and has no runtime
-dependencies; storage is Node's built-in `node:sqlite`.
+The server runs its TypeScript directly on Node 24 (type stripping); storage is Node's built-in
+`node:sqlite`. The agent tools reuse the app's own calendar code (`src/services/occurrences.ts`,
+`eventTimes.ts`, `src/utils`), which `src/register.js` lets Node import, so the Docker image is
+built from the repository root (`docker build -f server/Dockerfile .`).
 
 ```bash
 cd server
-npm install        # only TypeScript and Node types, for the typecheck
+npm install
 npm run typecheck
 OPENCAL_API_KEY=dev-key-0123456789 npm start
 ```

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useMemo } from 'react';
 import { StyleSheet, useColorScheme } from 'react-native';
 import { setEventColorScheme } from './utils/color';
+import { NAMED_PALETTE } from './utils/palette';
 
 // Warm "paper planner" palette: cream paper, ink text, one tomato accent. Dark mode is the same
 // idea at night: warm charcoal paper, cream ink, a slightly brighter tomato.
@@ -86,28 +87,7 @@ export const shadow = {
 };
 
 /** Built-in swatches with display names (shown in the color picker). */
-export const NAMED_PALETTE: { hex: string; name: string }[] = [
-  { hex: '#4F6BED', name: 'Iris' },
-  { hex: '#3B82F6', name: 'Cobalt' },
-  { hex: '#06B6D4', name: 'Lagoon' },
-  { hex: '#14B8A6', name: 'Teal' },
-  { hex: '#10B981', name: 'Emerald' },
-  { hex: '#22C55E', name: 'Leaf' },
-  { hex: '#84CC16', name: 'Lime' },
-  { hex: '#EAB308', name: 'Mustard' },
-  { hex: '#F59E0B', name: 'Amber' },
-  { hex: '#F2994A', name: 'Apricot' },
-  { hex: '#EF4444', name: 'Cherry' },
-  { hex: '#E5484D', name: 'Poppy' },
-  { hex: '#EC4899', name: 'Flamingo' },
-  { hex: '#D946EF', name: 'Orchid' },
-  { hex: '#A855F7', name: 'Amethyst' },
-  { hex: '#8B5CF6', name: 'Violet' },
-  { hex: '#6366F1', name: 'Indigo' },
-  { hex: '#64748B', name: 'Slate' },
-  { hex: '#78716C', name: 'Stone' },
-  { hex: '#1F2937', name: 'Ink' },
-];
+export { NAMED_PALETTE };
 
 export const PALETTE = NAMED_PALETTE.map((c) => c.hex);
 
