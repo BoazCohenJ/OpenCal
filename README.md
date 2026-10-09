@@ -6,7 +6,8 @@
 
 <p align="center">
   A calm, local-first calendar for Android (and iOS/web) built with Expo.<br/>
-  No accounts, no sync, no ads: your calendar lives on your phone.
+  No accounts, no ads: your calendar lives on your phone,<br/>
+  and syncs across your devices only through a server you run yourself, if you want it to.
 </p>
 
 <p align="center">
@@ -48,7 +49,8 @@ https://github.com/user-attachments/assets/96c68291-76bc-4ca8-a030-11c235435344
 - **Multi-day events** run as one long bar across the days they cover in Month and Week view (Day view adds a 2/3-style counter), and month cells fit as many events as their height allows.
 - **Icons instead of emoji** for events and stamps, **dark mode** (System / Light / Dark), smooth animations.
 - **Import & export:** back up everything (calendars, events, stamps, birthdays, settings) to one file and restore or merge it on another phone, or move events to and from Google Calendar, Apple Calendar and Outlook with standard .ics files (a whole calendar, or any filtered set of events).
-- **Private by design:** everything is stored locally (SQLite on device, localStorage on web).
+- **Self-hosted sync (optional):** run the small [OpenCal server](server/README.md) at home (one Docker command, great with Tailscale), enter its address and key in Settings → Sync, and every phone connected to it stays in step: calendars, events, stamps, birthdays and color rules. Changes sync when the app opens, when you return to it and a few seconds after each edit; the latest change wins. Theme, notifications and hidden calendars stay per device.
+- **Private by design:** everything is stored locally (SQLite on device, localStorage on web), and only ever leaves the phone for your own sync server.
 
 ## Install on Android
 
