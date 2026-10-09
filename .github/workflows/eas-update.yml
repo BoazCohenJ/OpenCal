@@ -14,6 +14,8 @@ on:
       - 'promo/**'
       - 'docs/**'
       - 'scripts/**'
+      # The self-hosted sync server runs on its own, outside the app.
+      - 'server/**'
       - 'LICENSE'
   workflow_dispatch:
 

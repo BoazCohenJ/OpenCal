@@ -97,6 +97,8 @@ interface CalendarContextValue {
   createBackupFile: () => string;
   /** Merge adds and updates by id; replace wipes calendars, events, stamps and birthdays first and restores settings. */
   importBackup: (backup: Backup, mode: 'merge' | 'replace') => ImportSummary;
+  /** Re-reads everything a sync can change (calendars, events, stamps, birthdays, colors) from the database. */
+  reloadSyncedData: () => void;
   /** Adds events (e.g. from an .ics file), updating ones with the same id. */
   importEvents: (events: Event[], target: ImportTarget) => { added: number; updated: number };
   /** Occurrences in [start, end), birthdays included. Excludes hidden calendars unless includeHidden is set. */
@@ -350,6 +352,15 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
     setEvents((prev) => [...prev.filter((e) => !changed.has(e.id)), ...fresh].sort(byStart));
   }, []);
 
+  const reloadSyncedData = useCallback(() => {
+    setCalendars(db.loadCalendars());
+    setEvents(db.loadEvents());
+    setTemplates(db.loadTemplates());
+    setBirthdays(db.getSetting<Birthday[]>(BIRTHDAYS_KEY, []));
+    setSavedColors(db.getSetting<SavedColor[]>(SAVED_COLORS_KEY, []));
+    setColorRules(db.getSetting<ColorRule[]>(COLOR_RULES_KEY, []));
+  }, []);
+
   const saveEvent = useCallback(
     (event: Event) => {
       db.saveEvent(withStoredTimes(event, floatingByDefault));
@@ -567,6 +578,7 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
       refreshReminders,
       createBackupFile,
       importBackup,
+      reloadSyncedData,
       importEvents,
       getOccurrences,
     }),
@@ -575,7 +587,7 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
       toggleCalendarVisibility, saveCalendar, deleteCalendarWithPlan, saveEvent, saveEvents, deleteEvent, deleteEvents,
       saveTemplate, deleteTemplate, moveTemplate, effectiveColor, themeMode, setThemeMode, savedColors, saveColor, deleteSavedColor,
       colorRules, saveColorRule, deleteColorRule, moveColorRule, floatingByDefault, setFloatingByDefault, birthdays, saveBirthday, deleteBirthday, notificationPrefs, updateNotificationPrefs,
-      reminderStatus, refreshReminders, createBackupFile, importBackup, importEvents, getOccurrences,
+      reminderStatus, refreshReminders, createBackupFile, importBackup, reloadSyncedData, importEvents, getOccurrences,
     ],
   );
 

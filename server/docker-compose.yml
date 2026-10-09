@@ -1,0 +1,12 @@
+services:
+  opencal:
+    build: .
+    container_name: opencal
+    restart: unless-stopped
+    environment:
+      # Put OPENCAL_API_KEY=<random secret> in a .env file next to this one (openssl rand -hex 24).
+      OPENCAL_API_KEY: ${OPENCAL_API_KEY:?Set OPENCAL_API_KEY in .env}
+    volumes:
+      - ./data:/data
+    ports:
+      - "2290:2290"
