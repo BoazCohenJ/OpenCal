@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { Logo } from '../components/Logo';
 import { useSyncStatus } from '../components/SyncWatcher';
 import { Divider, Row, Section, Segmented, SwitchRow } from '../components/ui';
@@ -29,7 +29,7 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
   const timeZone = deviceTimeZone()?.replace(/_/g, ' ');
   const syncStatus = useSyncStatus();
   // Read on every render; connecting or disconnecting updates the sync status, which re-renders this.
-  const syncing = Platform.OS !== 'web' && !!getSyncConfig();
+  const syncing = !!getSyncConfig();
 
   const notificationSummary = !notificationsSupported
     ? 'Mobile only'
@@ -66,17 +66,13 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
         />
       </Section>
       <Section title="Data">
-        {Platform.OS !== 'web' ? (
-          <>
-            <Row
-              label="Sync"
-              subtitle="More devices, through your own server"
-              value={!syncing ? 'Off' : syncStatus.error ? 'Error' : 'On'}
-              onPress={() => navigation.navigate('Sync')}
-            />
-            <Divider />
-          </>
-        ) : null}
+        <Row
+          label="Sync"
+          subtitle="More devices, through your own server"
+          value={!syncing ? 'Off' : syncStatus.error ? 'Error' : 'On'}
+          onPress={() => navigation.navigate('Sync')}
+        />
+        <Divider />
         <Row label="Import & export" subtitle="Backups and calendar files (.ics)" onPress={() => navigation.navigate('ImportExport')} />
       </Section>
       <Section title="Appearance">
