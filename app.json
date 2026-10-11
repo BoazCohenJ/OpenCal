@@ -2,7 +2,8 @@
   "expo": {
     "name": "OpenCal",
     "slug": "opencal",
-    "version": "1.3.0",
+    "scheme": "opencal",
+    "version": "1.4.0",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -50,7 +51,67 @@
           }
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "react-native-android-widget",
+        {
+          "fonts": [
+            "./node_modules/@expo-google-fonts/fraunces/600SemiBold/Fraunces_600SemiBold.ttf",
+            "./node_modules/@expo-google-fonts/fraunces/800ExtraBold/Fraunces_800ExtraBold.ttf",
+            "./node_modules/@expo-google-fonts/fraunces/500Medium_Italic/Fraunces_500Medium_Italic.ttf"
+          ],
+          "widgets": [
+            {
+              "name": "Schedule",
+              "previewImage": "./assets/widgets/schedule-preview.png",
+              "label": "Schedule",
+              "description": "What’s coming up over the next two weeks",
+              "minWidth": "180dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 3,
+              "targetCellHeight": 3,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "Day",
+              "previewImage": "./assets/widgets/day-preview.png",
+              "label": "Today",
+              "description": "Today’s events with their times",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "Week",
+              "previewImage": "./assets/widgets/week-preview.png",
+              "label": "Week",
+              "description": "This week at a glance, one column per day",
+              "minWidth": "250dp",
+              "minHeight": "180dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 3,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "Month",
+              "previewImage": "./assets/widgets/month-preview.png",
+              "label": "Month",
+              "description": "The month grid; tap a day to open it",
+              "minWidth": "250dp",
+              "minHeight": "180dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 3,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ]
     ],
     "extra": {
       "eas": {

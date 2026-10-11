@@ -23,12 +23,13 @@ import { MonthYearSheet } from '../components/MonthYearPicker';
 import { RepeatDeleteSheet, type RepeatDeleteChoice } from '../components/RepeatDeleteSheet';
 import { Sheet } from '../components/Sheet';
 import { useToast } from '../components/Toast';
-import { Button, Chip, IconButton, PressableScale, Segmented } from '../components/ui';
+import { Button, IconButton, PressableScale } from '../components/ui';
+import { VIEW_OPTIONS, ViewMenu, type ViewMode } from '../components/ViewMenu';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { Event } from '../models/Event';
 import type { EventTemplate } from '../models/Template';
 import type { ScreenProps } from '../navigation/types';
-import { BIRTHDAY_COLOR, BIRTHDAYS_CALENDAR_ID, birthdayIdOf } from '../services/birthdays';
+import { BIRTHDAYS_CALENDAR_ID, birthdayIdOf } from '../services/birthdays';
 import { occurrenceDayKey } from '../services/eventTimes';
 import type { Occurrence } from '../services/occurrences';
 import { confirmDeleteStamp, eventFromTemplate } from '../services/templates';
@@ -44,8 +45,6 @@ import { ScheduleView } from '../views/ScheduleView';
 import { shiftDate, type PendingMove, type SelectedOccurrence } from '../views/selection';
 import type { TimeGridHandle } from '../views/TimeGrid';
 import { WeekView } from '../views/WeekView';
-
-type ViewMode = 'schedule' | 'day' | 'week' | 'month';
 
 interface Range {
   start: Date;
@@ -122,13 +121,20 @@ function CalendarPage({ pan, position, width, active, children }: {
   );
 }
 
+/** The view and date a widget link asks for (see Calendar's route params); unset parts stay as they are. */
+function fromLink(params: { mode?: string; date?: string } | undefined): { mode?: ViewMode; date?: Date } {
+  const mode = VIEW_OPTIONS.find((o) => o.value === params?.mode)?.value;
+  const date = params?.date ? parseDayKey(params.date) : undefined;
+  return { mode, date: date && !Number.isNaN(date.getTime()) ? date : undefined };
+}
+
 interface RepeatItem {
   event: Event;
   /** The event's own date (see occurrenceDayKey) of the occurrence it was selected by, at local midnight. */
   day: Date;
 }
 
-export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
+export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
   const styles = useStyles();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -136,7 +142,6 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
     calendars,
     calendarsById,
     visibleCalendarIds,
-    toggleCalendarVisibility,
     getOccurrences,
     events,
     saveEvent,
@@ -149,11 +154,20 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
     getEffectiveColor,
   } = useCalendarContext();
   const showToast = useToast();
-  const [mode, setMode] = useState<ViewMode>('month');
-  const [cursor, setCursor] = useState(() => startOfDay(new Date()));
+  const [mode, setMode] = useState<ViewMode>(() => fromLink(route.params).mode ?? 'month');
+  const [cursor, setCursor] = useState(() => startOfDay(fromLink(route.params).date ?? new Date()));
+  // A widget link while the app is open brings new params: go to that view and date.
+  const [seenParams, setSeenParams] = useState(route.params);
+  if (route.params !== seenParams) {
+    setSeenParams(route.params);
+    const link = fromLink(route.params);
+    if (link.mode) setMode(link.mode);
+    if (link.date) setCursor(startOfDay(link.date));
+  }
   const [selectionActive, setSelectionActive] = useState(false);
   const [slot, setSlot] = useState<Date | null>(null);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const [viewMenuOpen, setViewMenuOpen] = useState(false);
   // Bulk delete waiting on answers for its repeating events (one sheet per event).
   const [repeatQueue, setRepeatQueue] = useState<{ plain: Event[]; repeating: RepeatItem[]; choices: RepeatDeleteChoice[] } | null>(
     null,
@@ -376,6 +390,11 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
       : mode === 'week'
         ? now >= range.start && now < range.end
         : isSameMonth(shown, now);
+  const viewOption = VIEW_OPTIONS.find((o) => o.value === mode)!;
+  // Hidden calendars no longer show as chips, so the view button carries a dot while any are off.
+  const hiddenCount =
+    calendars.filter((c) => !visibleCalendarIds.includes(c.id)).length +
+    (birthdays.length && !visibleCalendarIds.includes(BIRTHDAYS_CALENDAR_ID) ? 1 : 0);
   const positionLabel = relativeLabel(mode, mode === 'week' ? range.start : shown, now);
 
   const defaultStart = (): Date => {
@@ -607,41 +626,24 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
             <IconButton icon="settings" onPress={() => navigation.navigate('Settings')} accessibilityLabel="Settings" />
           </View>
         </View>
-        <Pressable onPress={() => setMonthPickerOpen(true)} style={styles.titleButton} accessibilityLabel={`${title}. Choose a month`}>
-          <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit>
-            {title}
-          </Text>
-          <Icon name="chevron-down" size={22} color={colors.textFaint} strokeWidth={2.5} />
-        </Pressable>
-        <Segmented
-          options={[
-            { value: 'schedule', label: 'Schedule' },
-            { value: 'day', label: 'Day' },
-            { value: 'week', label: 'Week' },
-            { value: 'month', label: 'Month' },
-          ]}
-          value={mode}
-          onChange={changeMode}
-        />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.calendarChips}>
-          {calendars.map((c) => (
-            <Chip
-              key={c.id}
-              label={c.name}
-              color={c.color}
-              selected={visibleCalendarIds.includes(c.id)}
-              onPress={() => toggleCalendarVisibility(c.id)}
-            />
-          ))}
-          {birthdays.length ? (
-            <Chip
-              label="Birthdays"
-              color={BIRTHDAY_COLOR}
-              selected={visibleCalendarIds.includes(BIRTHDAYS_CALENDAR_ID)}
-              onPress={() => toggleCalendarVisibility(BIRTHDAYS_CALENDAR_ID)}
-            />
-          ) : null}
-        </ScrollView>
+        <View style={styles.titleRow}>
+          <Pressable onPress={() => setMonthPickerOpen(true)} style={styles.titleButton} accessibilityLabel={`${title}. Choose a month`}>
+            <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit>
+              {title}
+            </Text>
+            <Icon name="chevron-down" size={22} color={colors.textFaint} strokeWidth={2.5} />
+          </Pressable>
+          <PressableScale
+            style={styles.viewButton}
+            scaleTo={0.94}
+            onPress={() => setViewMenuOpen(true)}
+            accessibilityLabel={`${viewOption.label} view${hiddenCount ? `, ${hiddenCount} hidden` : ''}. Change view and calendars`}
+          >
+            <Icon name={viewOption.icon} size={17} />
+            <Text style={styles.viewButtonText}>{viewOption.label}</Text>
+            {hiddenCount ? <View style={styles.hiddenDot} /> : null}
+          </PressableScale>
+        </View>
       </View>
 
       <Animated.View style={[styles.body, bodyMotion]} {...swipeResponder.panHandlers}>
@@ -708,6 +710,14 @@ export function CalendarScreen({ navigation }: ScreenProps<'Calendar'>) {
         onCancel={() => setRepeatQueue(null)}
       />
 
+      <ViewMenu
+        visible={viewMenuOpen}
+        onClose={() => setViewMenuOpen(false)}
+        mode={mode}
+        onChangeMode={changeMode}
+        onManageCalendars={() => navigation.navigate('Calendars')}
+      />
+
       <MonthYearSheet visible={monthPickerOpen} onClose={() => setMonthPickerOpen(false)} value={cursor} onSelect={jumpToMonth} />
 
       <Sheet visible={!!slot} onClose={() => setSlot(null)} title={slot ? format(slot, 'EEE, MMM d · h:mm a') : ''} actionLabel="Close">
@@ -769,7 +779,21 @@ const useStyles = createStyles((colors) => ({
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, marginBottom: -spacing.md },
   eyebrowButton: { flexShrink: 1 },
   eyebrow: { flexShrink: 1, fontFamily: fonts.displayItalic, fontSize: 17, color: colors.primary },
-  titleButton: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', maxWidth: '100%' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+  titleButton: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  viewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 38,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  viewButtonText: { fontSize: 14, fontWeight: '700', color: colors.text },
+  hiddenDot: { position: 'absolute', top: 2, right: 4, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.primary, borderWidth: 2, borderColor: colors.bg },
   title: { flexShrink: 1, fontFamily: fonts.displayBold, fontSize: 42, lineHeight: 50, color: colors.text, letterSpacing: -1.2 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   navPill: {
@@ -785,7 +809,6 @@ const useStyles = createStyles((colors) => ({
   navArrow: { width: 32, height: 34, alignItems: 'center', justifyContent: 'center' },
   todayText: { fontSize: 13, fontWeight: '700', color: colors.primary, paddingHorizontal: 4, maxWidth: 120 },
   todayTextOn: { color: colors.textFaint },
-  calendarChips: { gap: 8, paddingVertical: 2 },
   body: {
     flex: 1,
     borderTopLeftRadius: radius.xl,

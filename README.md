@@ -34,10 +34,11 @@ https://github.com/user-attachments/assets/96c68291-76bc-4ca8-a030-11c235435344
 
 ## Features
 
-- **Four views:** Schedule (agenda), Day, Week and Month. Swipe left/right to move between days, weeks and months, with the next one sliding in under your finger and staying ready for event taps when the slide finishes; Day and Week keep your scroll position. The header tells you where you are ("Tomorrow", "In 3 weeks", "Next month"). Tap the month or year to jump to any month, scrolling year by year.
+- **Four views:** Schedule (agenda), Day, Week and Month, switched from the View button next to the title, which also shows or hides each calendar (a dot on it means some are hidden). Swipe left/right to move between days, weeks and months, with the next one sliding in under your finger and staying ready for event taps when the slide finishes; Day and Week keep your scroll position. The header tells you where you are ("Tomorrow", "In 3 weeks", "Next month"). Tap the month or year to jump to any month, scrolling year by year.
+- **Home-screen widgets (Android):** Schedule (the next two weeks), Today, Week and Month, in the app's colors and following its light/dark theme. Tap an event to open it, a day to open it in Day view, or + for Quick Add; Week and Month page back and forward right on the home screen. They redraw a moment after any change in the app and roll over to the new day on their own.
 - **Quick Add:** type "Lunch with John Fri 1pm at Cafe X" and review the parsed event before saving; go back and edit the text anytime.
 - **Stamps:** save events you repeat (coffee, gym, calls) and drop them on any empty time slot in one tap, with Undo. Hold a stamp in the stamp menu to delete it.
-- **Birthdays:** add a name and date of birth in Settings and it shows up every year as "Dana's 36th birthday", with its own show/hide chip.
+- **Birthdays:** add a name and date of birth in Settings and it shows up every year as "Dana's 36th birthday", with its own show/hide toggle in the View menu.
 - **Repeating events** with pauses: skip a date range for one event or a whole calendar, and it resumes on its own.
 - **Calendars with defaults:** each calendar has a color plus default reminders, repeat, location and tags that new events inherit.
 - **Floating or fixed time:** a floating event keeps its clock time in any time zone (a 9:00 run stays at 9:00 when you travel), a fixed one keeps the same moment and remembers its time zone, so a repeating 9:00 meeting stays at 9:00 there across daylight-saving changes wherever you are. Set the default for new events in Settings and change it on any event; all-day events always float. This follows the iCalendar / JSCalendar (RFC 8984) model used by Google and Apple.

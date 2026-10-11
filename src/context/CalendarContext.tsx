@@ -17,17 +17,19 @@ import * as db from '../services/database';
 import { isFloating, migrateLegacyAllDay, withStoredTimes } from '../services/eventTimes';
 import { rescheduleReminders, type ScheduleResult } from '../services/notifications';
 import { expandEvents, getEffectiveColor, type Occurrence } from '../services/occurrences';
+import {
+  BIRTHDAYS_KEY,
+  COLOR_RULES_KEY,
+  FLOATING_DEFAULT_KEY,
+  HIDDEN_CALENDARS_KEY,
+  NOTIFICATION_PREFS_KEY,
+  SAVED_COLORS_KEY,
+  THEME_MODE_KEY,
+} from '../services/settingKeys';
 import type { ThemeMode } from '../theme';
 import { deviceTimeZone, isFloatingISO } from '../utils/dates';
 import { newId } from '../utils/id';
 
-const HIDDEN_CALENDARS_KEY = 'hiddenCalendarIds';
-const NOTIFICATION_PREFS_KEY = 'notificationPrefs';
-const THEME_MODE_KEY = 'themeMode';
-const SAVED_COLORS_KEY = 'savedColors';
-const COLOR_RULES_KEY = 'colorRules';
-const BIRTHDAYS_KEY = 'birthdays';
-const FLOATING_DEFAULT_KEY = 'floatingByDefault';
 /** The order loadEvents gives: by stored start. */
 const byStart = (a: Event, b: Event): number => (a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : 0);
 const DEFAULT_CALENDARS = [

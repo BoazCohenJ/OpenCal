@@ -2,6 +2,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { Logo } from '../components/Logo';
 import { useSyncStatus } from '../components/SyncWatcher';
+import { useToast } from '../components/Toast';
 import { Divider, Row, Section, Segmented, SwitchRow } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
@@ -10,9 +11,18 @@ import { getSyncConfig } from '../services/sync';
 import { APP_VERSION, updateInfo } from '../services/appInfo';
 import { createStyles, spacing, type ThemeMode } from '../theme';
 import { deviceTimeZone } from '../utils/dates';
+import { addWidgetToHomeScreen, widgetsSupported } from '../widgets/homeScreen';
+
+const WIDGETS = [
+  { name: 'Schedule', label: 'Schedule', subtitle: 'The next two weeks, day by day' },
+  { name: 'Day', label: 'Today', subtitle: 'Today’s events with their times' },
+  { name: 'Week', label: 'Week', subtitle: 'A column per day' },
+  { name: 'Month', label: 'Month', subtitle: 'The month grid' },
+];
 
 export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
   const styles = useStyles();
+  const showToast = useToast();
   const {
     calendars,
     templates,
@@ -88,6 +98,25 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
           />
         </View>
       </Section>
+      {widgetsSupported ? (
+        <Section title="Home-screen widgets" footer="You can also add them from your home screen: long-press an empty spot, then Widgets → OpenCal.">
+          {WIDGETS.map((w, i) => (
+            <React.Fragment key={w.name}>
+              {i ? <Divider /> : null}
+              <Row
+                label={w.label}
+                subtitle={w.subtitle}
+                value="Add"
+                onPress={() =>
+                  void addWidgetToHomeScreen(w.name).then((asked) => {
+                    if (!asked) showToast({ message: 'Your home screen can’t add widgets from here. Long-press it, then Widgets → OpenCal.' });
+                  })
+                }
+              />
+            </React.Fragment>
+          ))}
+        </Section>
+      ) : null}
       <Section title="Reminders">
         <Row
           label="Notifications"

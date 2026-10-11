@@ -4,12 +4,12 @@ import {
   Fraunces_800ExtraBold,
   useFonts,
 } from '@expo-google-fonts/fraunces';
-import { DarkTheme, DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, NavigationContainer, type LinkingOptions, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo } from 'react';
-import { Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Logo } from './src/components/Logo';
 import { SyncWatcher } from './src/components/SyncWatcher';
@@ -36,8 +36,26 @@ import { SyncScreen } from './src/screens/SyncScreen';
 import { TemplateEditScreen } from './src/screens/TemplateEditScreen';
 import { TemplatesScreen } from './src/screens/TemplatesScreen';
 import { createStyles, fonts, ThemeProvider, useTheme } from './src/theme';
+import { WidgetWatcher } from './src/widgets/WidgetWatcher';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+/**
+ * Links home-screen widgets open (see src/widgets/look.ts). The calendar stays underneath anything opened.
+ * Not used on web, where it would put screens in the address bar of a static site that can't serve them.
+ */
+const linking: LinkingOptions<RootStackParamList> = {
+  prefixes: ['opencal://'],
+  config: {
+    initialRouteName: 'Calendar',
+    screens: {
+      Calendar: 'calendar',
+      EventEdit: 'event/:eventId',
+      BirthdayEdit: 'birthday/:birthdayId',
+      QuickAdd: 'quick-add',
+    },
+  },
+};
 
 // Keep the native launch screen up until fonts are loaded, then fade into the app.
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -143,11 +161,12 @@ function AppShell() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ToastProvider>
-        <NavigationContainer theme={navigationTheme}>
+        <NavigationContainer theme={navigationTheme} linking={Platform.OS === 'web' ? undefined : linking}>
           <RootNavigator />
         </NavigationContainer>
         <UpdateWatcher />
         <SyncWatcher />
+        <WidgetWatcher />
       </ToastProvider>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
     </View>
