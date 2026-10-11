@@ -15,6 +15,7 @@ import {
   PADDING,
   RoundButton,
   TodayButton,
+  timeLabel,
 } from './parts';
 
 /** Everything a widget draws from, worked out once and drawn in light and dark. */
@@ -36,7 +37,7 @@ const dayHeading = (day: Date, now: Date): string => {
 export const SCHEDULE_DAYS = 14;
 
 /** What's coming up over the next two weeks, grouped by day. Things already over today are left out. */
-export function ScheduleWidget({ c, now, occurrences }: WidgetProps) {
+export function ScheduleWidget({ c, now, width, occurrences }: WidgetProps) {
   const from = startOfDay(now);
   const days = occurrencesByDay(occurrences, from, SCHEDULE_DAYS);
   const items: React.ReactElement[] = [];
@@ -59,7 +60,7 @@ export function ScheduleWidget({ c, now, occurrences }: WidgetProps) {
   });
   return (
     <Frame c={c}>
-      <Header c={c} eyebrow={format(now, 'EEEE')} title={format(now, 'MMMM d')} uri={links.view('schedule', now)}>
+      <Header c={c} eyebrow={format(now, 'EEEE')} title={format(now, width < 220 ? 'MMM d' : 'MMMM d')} uri={links.view('schedule', now)}>
         <AddButton c={c} />
       </Header>
       {items.length ? (
@@ -72,8 +73,10 @@ export function ScheduleWidget({ c, now, occurrences }: WidgetProps) {
 }
 
 /** Today: the date big, then what's still to come. Events already over fold into one line on top. */
-export function DayWidget({ c, now, width, occurrences }: WidgetProps) {
+export function DayWidget({ c, now, width, height, occurrences }: WidgetProps) {
   const compact = width < 220;
+  // One row tall: only room for a single line under the date.
+  const short = height < 140;
   const today = occurrencesByDay(occurrences, now, 1)[0] ?? [];
   const done = today.filter((o) => o.end <= now).length;
   const upcoming = today.filter((o) => o.end > now);
@@ -91,7 +94,10 @@ export function DayWidget({ c, now, width, occurrences }: WidgetProps) {
         </FlexWidget>
         <AddButton c={c} />
       </FlexWidget>
-      {done ? (
+      {short ? (
+        <NextLine c={c} now={now} next={upcoming[0]} />
+      ) : null}
+      {!short && done ? (
         <FlexWidget style={{ width: 'match_parent', paddingTop: 4, paddingBottom: 2 }} {...open(links.view('day', now))}>
           <TextWidget
             text={`${done} earlier today`}
@@ -101,7 +107,7 @@ export function DayWidget({ c, now, width, occurrences }: WidgetProps) {
           />
         </FlexWidget>
       ) : null}
-      {upcoming.length ? (
+      {short ? null : upcoming.length ? (
         <ListWidget style={{ width: 'match_parent', height: 'match_parent', marginTop: 4 }}>
           {upcoming.map((o) => (
             <FlexWidget key={o.key} style={{ width: 'match_parent' }}>
@@ -113,6 +119,24 @@ export function DayWidget({ c, now, width, occurrences }: WidgetProps) {
         <EmptyNote c={c} text={done ? 'Nothing else today' : 'Nothing planned today'} />
       )}
     </Frame>
+  );
+}
+
+/** The Today widget's single line when it's one row tall: what's next, or that the day is clear. */
+function NextLine({ c, now, next }: { c: WidgetColors; now: Date; next?: Occurrence }) {
+  return (
+    <FlexWidget
+      style={{ width: 'match_parent', flexDirection: 'row', alignItems: 'center', marginTop: 2 }}
+      {...open(next ? links.occurrence(next) : links.view('day', now))}
+    >
+      {next ? <FlexWidget style={{ width: 4, height: 14, borderRadius: 2, backgroundColor: c.hex(next.color), marginRight: 6 }} /> : null}
+      <TextWidget
+        text={next ? `${next.event.title || 'Untitled'} · ${timeLabel(next, now)}` : 'Nothing else today'}
+        maxLines={1}
+        truncate="END"
+        style={{ fontSize: 13, fontWeight: '600', color: next ? c.deep(next.color) : c.textMuted }}
+      />
+    </FlexWidget>
   );
 }
 
