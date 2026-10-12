@@ -85,6 +85,8 @@ const assets = {
   'android-icon-foreground.png': [svg(mark(), { scale: 0.62 }), 1024],
   'android-icon-background.png': [svg('', { background: bg }), 1024],
   'android-icon-monochrome.png': [svg(mark({ mono: true }), { scale: 0.62 }), 1024],
+  // Android status-bar/notification icon: white silhouette filling the 24dp box (expo-notifications tints it).
+  'notification-icon.png': [svg(mark({ mono: true }), { scale: 1.1 }), 384],
   // Splash: the mark alone on a transparent canvas; app.json supplies the paper background.
   'splash-icon.png': [svg(mark(), { scale: 0.92 }), 1024],
   'favicon.png': [svg(mark(), { scale: 0.86, background: bg }), 48],
@@ -100,8 +102,8 @@ const assets = {
   fs.writeFileSync(path.join(OUT, 'logo.svg'), svg(mark(), { scale: 1 }));
   if (!PREVIEW) return;
   // Preview sheet to eyeball everything together.
-  const tiles = ['icon.png', 'android-icon-foreground.png', 'android-icon-monochrome.png', 'splash-icon.png'];
-  const sheet = sharp({ create: { width: 4 * 260 + 40, height: 300, channels: 4, background: '#888888' } });
+  const tiles = ['icon.png', 'android-icon-foreground.png', 'android-icon-monochrome.png', 'notification-icon.png', 'splash-icon.png'];
+  const sheet = sharp({ create: { width: 5 * 260 + 40, height: 300, channels: 4, background: '#888888' } });
   await sheet
     .composite(
       await Promise.all(
