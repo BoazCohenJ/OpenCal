@@ -161,6 +161,15 @@ async function doReschedule(
       if (status !== 'granted') return empty(status);
     }
 
+    // Usually nothing changed since the last pass (e.g. just reopening the app): keep what's queued.
+    const signature = (key: unknown, silent: unknown, title: unknown, body: unknown) => `${key}|${silent === true}|${title}|${body}`;
+    const queued = await Notifications.getAllScheduledNotificationsAsync();
+    const wanted = new Set(pending.map((p) => signature(p.key, p.silent, p.title, p.body)));
+    const have = new Set(queued.map((n) => signature(n.content.data?.key, n.content.data?.silent, n.content.title, n.content.body)));
+    if (queued.length === wanted.size && have.size === wanted.size && [...have].every((s) => wanted.has(s))) {
+      return { scheduled: queued.length, truncated: planned.length > MAX_SCHEDULED, next: pending[0]?.date ?? null, status };
+    }
+
     await Notifications.cancelAllScheduledNotificationsAsync();
     let scheduled = 0;
     for (const p of pending) {

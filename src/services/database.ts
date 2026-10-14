@@ -272,6 +272,18 @@ const rowToEvent = (r: Row, pauses: Map<string, PauseWindow[]>): Event => ({
   tags: parseJson<string[]>(r.tags, []),
 });
 
+/**
+ * Changes whenever an event or calendar is added, changed or deleted: every write stamps updatedAt,
+ * so their sums (and the row counts) move. Cheap enough to check before re-reading everything.
+ */
+export function contentVersion(): string {
+  const r = db.getFirstSync<Row>(
+    `SELECT (SELECT COUNT(*) || ':' || IFNULL(SUM(updatedAt), 0) FROM events) || '/' ||
+            (SELECT COUNT(*) || ':' || IFNULL(SUM(updatedAt), 0) FROM calendars) AS v`,
+  );
+  return String(r?.v ?? '');
+}
+
 /** All events ordered by start, or only those with the given ids (in no particular order). */
 export function loadEvents(ids?: string[]): Event[] {
   if (!ids) {

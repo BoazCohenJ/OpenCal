@@ -141,6 +141,10 @@ export function deleteCalendarWithPlan(
 
 // ---------- Events ----------
 
+/** Changes whenever an event or calendar is written (see database.ts). */
+export const contentVersion = (): string =>
+  `${window.localStorage.getItem(storageKeys.events)?.length ?? 0}/${window.localStorage.getItem(storageKeys.stamps) ?? ''}`;
+
 export function loadEvents(ids?: string[]): Event[] {
   const wanted = ids ? new Set(ids) : null;
   return read<Event[]>(storageKeys.events, [])

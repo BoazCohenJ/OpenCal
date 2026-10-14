@@ -86,6 +86,23 @@ export function createRuleAt(rule: string, wallStart: Date): RRule | null {
   }
 }
 
+const DAY_MS = 86400000;
+
+/**
+ * The same daily or weekly rule, started a whole number of its periods later: shortly before
+ * `fromMs` instead of years back. rrule steps through every repeat from the start, so this saves
+ * that walk for long-running series and gives the same dates from `fromMs` on. Rules with a COUNT
+ * (which counts from the very first repeat) and other frequencies are returned as they are.
+ */
+export function fastForwardRule(rule: RRule, fromMs: number): RRule {
+  const o = rule.origOptions;
+  if (o.count != null || !o.dtstart || (o.freq !== RRule.DAILY && o.freq !== RRule.WEEKLY)) return rule;
+  const period = (o.interval || 1) * (o.freq === RRule.DAILY ? 1 : 7) * DAY_MS;
+  const start = o.dtstart.getTime();
+  const steps = Math.floor((fromMs - period - start) / period);
+  return steps > 0 ? new RRule({ ...o, dtstart: new Date(start + steps * period) }) : rule;
+}
+
 const UNITS = {
   daily: ['day', 'days'],
   weekly: ['week', 'weeks'],

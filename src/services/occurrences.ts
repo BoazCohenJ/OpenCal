@@ -6,7 +6,7 @@ import type { Event } from '../models/Event';
 import type { PauseWindow } from '../models/PauseWindow';
 import { DEFAULT_EVENT_COLOR } from '../utils/color';
 import { dayKey, deviceTimeZone, parseTimestamp } from '../utils/dates';
-import { createRuleAt } from '../utils/recurrence';
+import { createRuleAt, fastForwardRule } from '../utils/recurrence';
 import { wallDayKey } from '../utils/timeZones';
 import { eventClock, type EventClock } from './eventTimes';
 
@@ -45,8 +45,12 @@ function overlaps(start: Date, end: Date, rangeStart: Date, rangeEnd: Date): boo
 interface Prepared {
   /** What it was prepared against; a change to either means preparing again. */
   calendar: Calendar | undefined;
-  rules: ColorRule[];
   zone: string | null;
+  /**
+   * The keyword rules `color` was worked out with. Only the color depends on them, so different
+   * rules (or another copy of the same empty list) recolor the event but keep its repeats.
+   */
+  rules: ColorRule[];
   start: number;
   end: number;
   duration: number;
@@ -64,7 +68,13 @@ const prepared = new WeakMap<Event, Prepared>();
 
 function prepare(event: Event, calendar: Calendar | undefined, zone: string | null, rules: ColorRule[]): Prepared | null {
   const cached = prepared.get(event);
-  if (cached && cached.calendar === calendar && cached.zone === zone && cached.rules === rules) return cached;
+  if (cached && cached.calendar === calendar && cached.zone === zone) {
+    if (cached.rules !== rules) {
+      cached.rules = rules;
+      cached.color = getEffectiveColor(event, calendar, rules);
+    }
+    return cached;
+  }
   const start = parseTimestamp(event.startDate).getTime();
   const end = parseTimestamp(event.endDate).getTime();
   if (Number.isNaN(start) || Number.isNaN(end)) return null;
@@ -91,7 +101,8 @@ function prepare(event: Event, calendar: Calendar | undefined, zone: string | nu
 function repeatsInYear(p: Prepared, rule: RRule, year: number): number[] {
   let list = p.years.get(year);
   if (!list) {
-    const walls = rule.between(new Date(Date.UTC(year, 0, 1)), new Date(Date.UTC(year + 1, 0, 1) - 1), true);
+    const from = Date.UTC(year, 0, 1);
+    const walls = fastForwardRule(rule, from).between(new Date(from), new Date(Date.UTC(year + 1, 0, 1) - 1), true);
     list = [];
     for (const wall of walls) {
       const k = wallDayKey(wall);

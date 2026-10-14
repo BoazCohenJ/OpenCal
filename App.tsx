@@ -9,7 +9,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo } from 'react';
-import { Platform, Text, View } from 'react-native';
+import { Linking, Platform, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Logo } from './src/components/Logo';
 import { SyncWatcher } from './src/components/SyncWatcher';
@@ -40,12 +40,57 @@ import { WidgetWatcher } from './src/widgets/WidgetWatcher';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+/** How long the first screen waits for the link the app was opened with (a widget's view and date). */
+const LINK_WAIT_MS = 600;
+
+let launchLink: Promise<string | null> | undefined;
+/** getInitialURL stopped waiting before the link was read; it's delivered through subscribe instead. */
+let linkLate = false;
+
+/**
+ * The link the app was opened with. Android can take a while to hand it over (seconds when a widget
+ * update had already started the app in the background), longer than React Navigation's default
+ * 150 ms wait, and then a widget opened the default view instead of the one it links to.
+ */
+function getInitialURL(): Promise<string | null> {
+  launchLink ??= Linking.getInitialURL().catch(() => null);
+  const link = launchLink;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      linkLate = true;
+      resolve(null);
+    }, LINK_WAIT_MS);
+    void link.then((url) => {
+      if (linkLate) return;
+      clearTimeout(timer);
+      resolve(url);
+    });
+  });
+}
+
+/** Links that arrive while the app is open, plus a launch link that came too late for getInitialURL. */
+function subscribe(listener: (url: string) => void): () => void {
+  const sub = Linking.addEventListener('url', ({ url }) => listener(url));
+  let open = true;
+  void launchLink?.then((url) => {
+    if (!open || !linkLate || !url) return;
+    linkLate = false;
+    listener(url);
+  });
+  return () => {
+    open = false;
+    sub.remove();
+  };
+}
+
 /**
  * Links home-screen widgets open (see src/widgets/look.ts). The calendar stays underneath anything opened.
  * Not used on web, where it would put screens in the address bar of a static site that can't serve them.
  */
 const linking: LinkingOptions<RootStackParamList> = {
   prefixes: ['opencal://'],
+  getInitialURL,
+  subscribe,
   config: {
     initialRouteName: 'Calendar',
     screens: {

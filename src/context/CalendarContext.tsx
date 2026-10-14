@@ -32,6 +32,26 @@ import { newId } from '../utils/id';
 
 /** The order loadEvents gives: by stored start. */
 const byStart = (a: Event, b: Event): number => (a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : 0);
+/**
+ * `fresh`, reusing the objects in `prev` that haven't changed (and `prev` itself when nothing did).
+ * Unchanged events keep the repeats already worked out for them (see expandEvent), and an unchanged
+ * list doesn't re-render anything.
+ */
+function keepUnchanged<T extends { id: string }>(prev: T[], fresh: T[]): T[] {
+  const byId = new Map(prev.map((x) => [x.id, x]));
+  let same = prev.length === fresh.length;
+  const next = fresh.map((x, i) => {
+    const old = byId.get(x.id);
+    if (old && JSON.stringify(old) === JSON.stringify(x)) {
+      if (prev[i] !== old) same = false;
+      return old;
+    }
+    same = false;
+    return x;
+  });
+  return same ? prev : next;
+}
+
 const DEFAULT_CALENDARS = [
   { name: 'Personal', color: '#4F6BED' },
   { name: 'Work', color: '#F2994A' },
@@ -140,16 +160,23 @@ function loadInitialData(): { data: InitialData; error: null } | { data: null; e
     // All-day events used to be stored as UTC instants, which shifted them by a day abroad. Store
     // them as wall-clock times, recovering each date from the zone it was created in (not the
     // phone's current one, in case the update is first opened while travelling).
-    const oldAllDay = db.loadEvents().filter((e) => e.isAllDay && !isFloatingISO(e.startDate));
-    if (oldAllDay.length) db.saveEvents(oldAllDay.map(migrateLegacyAllDay));
+    let events = db.loadEvents();
+    const oldAllDay = events.filter((e) => e.isAllDay && !isFloatingISO(e.startDate));
+    if (oldAllDay.length) {
+      db.saveEvents(oldAllDay.map(migrateLegacyAllDay));
+      events = db.loadEvents();
+    }
     // Fixed events from before time zones were stored belong to the phone's zone at the time.
-    const zoneless = db.loadEvents().filter((e) => !isFloating(e) && !e.timeZone);
-    if (zoneless.length && deviceTimeZone()) db.saveEvents(zoneless.map((e) => withStoredTimes(e, false)));
+    const zoneless = events.filter((e) => !isFloating(e) && !e.timeZone);
+    if (zoneless.length && deviceTimeZone()) {
+      db.saveEvents(zoneless.map((e) => withStoredTimes(e, false)));
+      events = db.loadEvents();
+    }
     return {
       error: null,
       data: {
         calendars: db.loadCalendars(),
-        events: db.loadEvents(),
+        events,
         templates: db.loadTemplates(),
         hiddenCalendarIds: db.getSetting<string[]>(HIDDEN_CALENDARS_KEY, []),
         themeMode: db.getSetting<ThemeMode>(THEME_MODE_KEY, 'system'),
@@ -355,9 +382,12 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const reloadSyncedData = useCallback(() => {
-    setCalendars(db.loadCalendars());
-    setEvents(db.loadEvents());
-    setTemplates(db.loadTemplates());
+    const calendarsNow = db.loadCalendars();
+    const eventsNow = db.loadEvents();
+    const templatesNow = db.loadTemplates();
+    setCalendars((prev) => keepUnchanged(prev, calendarsNow));
+    setEvents((prev) => keepUnchanged(prev, eventsNow));
+    setTemplates((prev) => keepUnchanged(prev, templatesNow));
     setBirthdays(db.getSetting<Birthday[]>(BIRTHDAYS_KEY, []));
     setSavedColors(db.getSetting<SavedColor[]>(SAVED_COLORS_KEY, []));
     setColorRules(db.getSetting<ColorRule[]>(COLOR_RULES_KEY, []));
