@@ -1,5 +1,5 @@
 import { addDays, format, isSameDay, isSameMonth, startOfDay } from 'date-fns';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, SectionList, Text, View } from 'react-native';
 import { EventGlyph, eventIconKey, Icon } from '../components/Icon';
 import { occurrencesByDay, type Occurrence } from '../services/occurrences';
@@ -9,6 +9,12 @@ import { eventLabel } from '../utils/format';
 import { isAllDayLike } from './layout';
 
 const PAGE_DAYS = 60;
+const MAX_DAYS = 730;
+
+interface DayRow {
+  day: Date;
+  data: Occurrence[];
+}
 
 interface DaySection {
   key: string;
@@ -16,6 +22,32 @@ interface DaySection {
   /** First section of a new month: shows a month divider above the day. */
   newMonth: boolean;
   data: Occurrence[];
+}
+
+/**
+ * The days from `fromMs` that have something on them (plus today), worked out a page at a time and
+ * kept, so loading more only works out the new page.
+ */
+function dayPages(getOccurrences: (from: Date, to: Date) => Occurrence[], fromMs: number): (page: number) => DayRow[] {
+  const cache = new Map<number, DayRow[]>();
+  return (page) => {
+    const cached = cache.get(page);
+    if (cached) return cached;
+    const from = addDays(new Date(fromMs), page * PAGE_DAYS);
+    const count = Math.min(PAGE_DAYS, MAX_DAYS - page * PAGE_DAYS);
+    const byDay = occurrencesByDay(getOccurrences(from, addDays(from, count)), from, count);
+    const today = startOfDay(new Date());
+    const rows: DayRow[] = [];
+    for (let i = 0; i < count; i++) {
+      const day = addDays(from, i);
+      const data = byDay[i]!.sort(
+        (a, b) => Number(isAllDayLike(b)) - Number(isAllDayLike(a)) || a.start.getTime() - b.start.getTime(),
+      );
+      if (data.length || isSameDay(day, today)) rows.push({ day, data });
+    }
+    cache.set(page, rows);
+    return rows;
+  };
 }
 
 /**
@@ -48,25 +80,23 @@ export function ScheduleView({
     listRef.current?.getScrollResponder()?.scrollTo({ y: 0, animated: false });
   }, [fromMs]);
 
+  // A short list asks for more pages straight away; redoing every earlier day each time held up taps for seconds.
+  const pageRows = useMemo(() => dayPages(getOccurrences, fromMs), [getOccurrences, fromMs]);
+
   const sections = useMemo<DaySection[]>(() => {
-    const from = new Date(fromMs);
-    const byDay = occurrencesByDay(getOccurrences(from, addDays(from, days)), from, days);
-    const today = startOfDay(new Date());
     const result: DaySection[] = [];
     let prev: Date | null = null;
-    for (let i = 0; i < days; i++) {
-      const day = addDays(from, i);
-      const list = byDay[i]!.sort(
-        (a, b) => Number(isAllDayLike(b)) - Number(isAllDayLike(a)) || a.start.getTime() - b.start.getTime(),
-      );
-      if (list.length === 0 && !isSameDay(day, today)) continue;
-      result.push({ key: dayKey(day), day, newMonth: !prev || !isSameMonth(prev, day), data: list });
-      prev = day;
+    for (let page = 0; page * PAGE_DAYS < days; page++) {
+      for (const { day, data } of pageRows(page)) {
+        result.push({ key: dayKey(day), day, newMonth: !prev || !isSameMonth(prev, day), data });
+        prev = day;
+      }
     }
     return result;
-  }, [getOccurrences, fromMs, days]);
+  }, [pageRows, days]);
 
-  const loadMore = useCallback(() => setDays((d) => Math.min(d + PAGE_DAYS, 730)), []);
+  // A transition, so a tap (like the View button) is handled between pages instead of after them all.
+  const loadMore = useCallback(() => startTransition(() => setDays((d) => Math.min(d + PAGE_DAYS, MAX_DAYS))), []);
   const now = new Date();
 
   return (
