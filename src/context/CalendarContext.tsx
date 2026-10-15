@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, InteractionManager } from 'react-native';
 import type { Birthday } from '../models/Birthday';
 import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
@@ -152,10 +152,12 @@ interface InitialData {
 function loadInitialData(): { data: InitialData; error: null } | { data: null; error: string } {
   try {
     db.initDatabase();
-    if (db.loadCalendars().length === 0) {
+    let calendars = db.loadCalendars();
+    if (calendars.length === 0) {
       DEFAULT_CALENDARS.forEach((c, i) =>
         db.saveCalendar({ id: newId(), name: c.name, color: c.color, sortOrder: i, pauseWindows: [] }),
       );
+      calendars = db.loadCalendars();
     }
     // All-day events used to be stored as UTC instants, which shifted them by a day abroad. Store
     // them as wall-clock times, recovering each date from the zone it was created in (not the
@@ -175,7 +177,7 @@ function loadInitialData(): { data: InitialData; error: null } | { data: null; e
     return {
       error: null,
       data: {
-        calendars: db.loadCalendars(),
+        calendars,
         events,
         templates: db.loadTemplates(),
         hiddenCalendarIds: db.getSetting<string[]>(HIDDEN_CALENDARS_KEY, []),
@@ -247,8 +249,15 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
   // is fine: it only happens once reminders actually exist, and the OS shows the prompt at most once.
   useEffect(() => {
     if (!ready || error) return;
-    const id = setTimeout(() => void refreshReminders({ askPermission: true }), 800);
-    return () => clearTimeout(id);
+    let task: { cancel: () => void } | undefined;
+    // Planning expands every event with a reminder, so let startup animations and taps finish first.
+    const id = setTimeout(() => {
+      task = InteractionManager.runAfterInteractions(() => void refreshReminders({ askPermission: true }));
+    }, 800);
+    return () => {
+      clearTimeout(id);
+      task?.cancel();
+    };
   }, [ready, error, events, calendarsById, notificationPrefs, refreshReminders]);
 
   // Only the next `horizonDays` are queued, so top the queue up (and pick up permission changes

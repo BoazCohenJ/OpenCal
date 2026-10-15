@@ -107,6 +107,11 @@ export function ScheduleView({
       stickySectionHeadersEnabled={false}
       onEndReached={loadMore}
       onEndReachedThreshold={0.6}
+      initialNumToRender={12}
+      maxToRenderPerBatch={8}
+      updateCellsBatchingPeriod={40}
+      windowSize={7}
+      removeClippedSubviews
       contentContainerStyle={styles.content}
       renderSectionHeader={({ section }) => {
         const isToday = isSameDay(section.day, now);
