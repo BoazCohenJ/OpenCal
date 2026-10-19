@@ -6,7 +6,6 @@ import { occurrencesByDay, type Occurrence } from '../services/occurrences';
 import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { dayKey, formatTime } from '../utils/dates';
 import { eventLabel } from '../utils/format';
-import { isAllDayLike } from './layout';
 
 const PAGE_DAYS = 60;
 const MAX_DAYS = 730;
@@ -41,7 +40,7 @@ function dayPages(getOccurrences: (from: Date, to: Date) => Occurrence[], fromMs
     for (let i = 0; i < count; i++) {
       const day = addDays(from, i);
       const data = byDay[i]!.sort(
-        (a, b) => Number(isAllDayLike(b)) - Number(isAllDayLike(a)) || a.start.getTime() - b.start.getTime(),
+        (a, b) => Number(b.event.isAllDay) - Number(a.event.isAllDay) || a.start.getTime() - b.start.getTime(),
       );
       if (data.length || isSameDay(day, today)) rows.push({ day, data });
     }
@@ -131,7 +130,7 @@ export function ScheduleView({
         );
       }}
       renderItem={({ item: o }) => {
-        const allDay = isAllDayLike(o);
+        const allDay = o.event.isAllDay;
         const past = o.end < now;
         return (
           <Pressable

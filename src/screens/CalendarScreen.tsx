@@ -419,9 +419,17 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
   }, []);
 
   /** Dropping a stamp on a tapped slot adds the event right away; the toast offers Undo. */
+  const lastDrop = useRef('');
   const dropStamp = (template: EventTemplate, start: Date) => {
     const calendar = calendarsById[template.calendarId] ?? calendars[0];
     if (!calendar) return;
+    // Rapid repeat taps on the same slot would otherwise add a copy each.
+    const key = `${template.id}@${start.getTime()}`;
+    if (lastDrop.current === key) return;
+    lastDrop.current = key;
+    setTimeout(() => {
+      if (lastDrop.current === key) lastDrop.current = '';
+    }, 1500);
     const event = eventFromTemplate(template, start, calendar.id);
     saveEvent(event);
     showToast({

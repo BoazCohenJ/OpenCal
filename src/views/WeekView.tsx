@@ -8,7 +8,7 @@ import { createStyles, fonts } from '../theme';
 import { readableOn } from '../utils/color';
 import { atMinutes, dayKey, minutesSinceMidnight } from '../utils/dates';
 import { eventLabel } from '../utils/format';
-import { isAllDayLike, layoutSpans, layoutTimed, PX_PER_MIN, slotMinutesFromPress } from './layout';
+import { layoutSpans, layoutTimed, PX_PER_MIN, slotMinutesFromPress } from './layout';
 import { SelectableBlock, SelectionCheckbox, SelectionToolbar, TOOLBAR_CLEARANCE, useEventSelection, type PendingMove, type SelectedOccurrence } from './selection';
 import { GRID_HEIGHT, GUTTER_WIDTH, HourGutter, HourLines, NowLine, type TimeGridHandle } from './TimeGrid';
 
@@ -69,13 +69,13 @@ export function WeekView({
       const lists = occurrencesByDay(displayed, weekStart, 7);
       return lists.map((occs, i) => {
         const day = addDays(weekStart, i);
-        return { day, timed: layoutTimed(occs.filter((o) => !isAllDayLike(o)), day, 17) };
+        return { day, timed: layoutTimed(occs.filter((o) => !o.event.isAllDay), day, 17) };
       });
     },
     [weekStart, displayed],
   );
   // All-day and multi-day events run across the days they cover as one bar each.
-  const spans = useMemo(() => layoutSpans(displayed, weekStart), [displayed, weekStart]);
+  const spans = useMemo(() => layoutSpans(displayed, weekStart, 7, false), [displayed, weekStart]);
   const spanLanes = Math.min(spans.lanes, MAX_SPAN_LANES);
   const hiddenSpans = spans.segments.filter((s) => s.lane >= MAX_SPAN_LANES).length;
   const selectedHasRecurring = occurrences.some((o) => selected.includes(o.key) && o.event.recurrenceRule);

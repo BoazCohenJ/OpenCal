@@ -554,7 +554,7 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
         calendarId = target.calendarId;
       }
       const existing = new Set(events.map((e) => e.id));
-      const incoming = list.map((e) => withStoredTimes({ ...e, calendarId }, false));
+      const incoming = [...new Map(list.map((e) => [e.id, withStoredTimes({ ...e, calendarId }, false)] as const)).values()];
       db.importData({ calendars: newCalendars, events: incoming, templates: [] }, false);
       if (newCalendars.length) setCalendars(db.loadCalendars());
       reloadEvents(incoming.map((e) => e.id));

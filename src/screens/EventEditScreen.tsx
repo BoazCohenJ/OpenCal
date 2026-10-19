@@ -1,4 +1,4 @@
-import { addHours, endOfDay, format, setHours, startOfDay } from 'date-fns';
+import { addDays, addHours, differenceInCalendarDays, endOfDay, format, setHours, startOfDay } from 'date-fns';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ColorPicker } from '../components/ColorPicker';
@@ -110,6 +110,12 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
   const eventColor = form.color ?? calendar?.color ?? colors.primary;
 
   const setStart = (d: Date) => {
+    if (form.isAllDay) {
+      // Keep the day count, not a millisecond span, so a 23/25-hour DST day doesn't spill over.
+      const days = Math.max(0, differenceInCalendarDays(end, start));
+      update({ startDate: startOfDay(d).toISOString(), endDate: endOfDay(addDays(d, days)).toISOString() });
+      return;
+    }
     const duration = Math.max(0, end.getTime() - start.getTime());
     update({ startDate: d.toISOString(), endDate: new Date(d.getTime() + duration).toISOString() });
   };
@@ -153,9 +159,13 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
     };
   };
 
+  const saved = useRef(false);
+  const stampId = useRef(newId());
   const save = () => {
+    if (saved.current) return;
     const event = normalized();
     if (!event) return;
+    saved.current = true;
     saveEvent(event);
     // From Quick Add, close both the editor and the text screen underneath it.
     if (fromQuickAdd) navigation.popToTop();
@@ -195,7 +205,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
   const saveAsStamp = () => {
     const event = normalized();
     if (!event) return;
-    saveTemplate(templateFromEvent(event));
+    saveTemplate({ ...templateFromEvent(event), id: stampId.current });
     notify('Saved as stamp', `“${event.title}” is now in Settings › Stamps and can be dropped onto any date.`);
   };
 

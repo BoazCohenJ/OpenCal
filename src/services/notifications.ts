@@ -96,13 +96,16 @@ export function planReminders(
   const pending: PendingReminder[] = [];
   const horizonEnd = addDays(now, prefs.horizonDays);
   const focus = expandFocusWindows(prefs.focusWindows, addDays(now, -2), horizonEnd);
-  for (const occ of expandEvents(candidates, calendarsById, now, horizonEnd)) {
+  // A reminder fires before its occurrence, so look past the horizon by the longest lead time (plus a day for all-day anchors).
+  const maxLead = Math.max(0, ...candidates.flatMap((e) => e.reminders));
+  const searchEnd = addMinutes(horizonEnd, maxLead + 24 * 60);
+  for (const occ of expandEvents(candidates, calendarsById, now, searchEnd)) {
     // All-day reminders count back from a configurable time of day instead of midnight.
     const anchor = occ.event.isAllDay ? addMinutes(startOfDay(occ.start), prefs.allDayTime) : occ.start;
     for (const minutes of new Set(occ.event.reminders)) {
       const date = new Date(anchor.getTime() - minutes * 60000);
       const key = `${occ.event.id}@${date.getTime()}`;
-      if (date <= now || seen.has(key)) continue;
+      if (date <= now || date > horizonEnd || seen.has(key)) continue;
       seen.add(key);
       const state = focusStateAt(date, focus);
       if (state === 'dnd') continue;

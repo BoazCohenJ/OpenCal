@@ -1,5 +1,5 @@
 import { addDays, addMinutes, endOfDay, format } from 'date-fns';
-import React, { useLayoutEffect, useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { DateTimeField } from '../components/DateTimeField';
 import { EventGlyph, Icon } from '../components/Icon';
@@ -20,6 +20,7 @@ export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
   const [templateId, setTemplateId] = useState(route.params?.templateId);
   const [start, setStart] = useState(() => (route.params?.start ? new Date(route.params.start) : nextRoundedHour()));
   const template = templates.find((t) => t.id === templateId);
+  const added = useRef(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({ headerLeft: () => <HeaderButton title="Cancel" onPress={() => navigation.goBack()} /> });
@@ -79,7 +80,8 @@ export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
   const end = template.isAllDay ? endOfDay(addDays(start, days - 1)) : addMinutes(start, template.durationMinutes);
 
   const add = () => {
-    if (!calendar) return;
+    if (!calendar || added.current) return;
+    added.current = true;
     saveEvent(eventFromTemplate(template, start, calendar.id));
     navigation.goBack();
   };

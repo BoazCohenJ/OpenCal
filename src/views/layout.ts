@@ -133,11 +133,17 @@ export interface SpanSegment {
  * All-day and multi-day occurrences as bars across one row of `columns` days starting at `rowStart`
  * (a week). Each bar is one long piece over the days it covers, stacked in lanes so they never overlap.
  */
-export function layoutSpans(occs: Occurrence[], rowStart: Date, columns = 7): { segments: SpanSegment[]; lanes: number } {
+export function layoutSpans(
+  occs: Occurrence[],
+  rowStart: Date,
+  columns = 7,
+  /** Timed events that cross midnight: bars (Month) or left to the time grid (Week/Day). */
+  includeTimedMultiDay = true,
+): { segments: SpanSegment[]; lanes: number } {
   const start = startOfDay(rowStart);
   const segments: SpanSegment[] = [];
   for (const occ of occs) {
-    if (!isAllDayLike(occ)) continue;
+    if (!(includeTimedMultiDay ? isAllDayLike(occ) : occ.event.isAllDay)) continue;
     const { first, last } = dayRange(occ);
     const a = differenceInCalendarDays(first, start);
     const b = differenceInCalendarDays(last, start);

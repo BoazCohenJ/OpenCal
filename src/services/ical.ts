@@ -408,7 +408,13 @@ export function parseICS(text: string, allDayTime: number): ICSImport | null {
         tags: [...new Set(all('CATEGORIES').flatMap((p) => splitList(p.value).map(unescapeText)))],
       };
       if (recurrenceId) overrides.push({ uid: baseId, recurrenceId, event: cancelled ? null : event });
-      else masters.set(baseId, event);
+      else {
+        // Two distinct events sharing a UID: keep both rather than letting the second overwrite the first.
+        let id = event.id;
+        for (let n = 2; masters.has(id); n++) id = `${event.id}-dup${n}`;
+        event.id = id;
+        masters.set(id, event);
+      }
     }
   }
 

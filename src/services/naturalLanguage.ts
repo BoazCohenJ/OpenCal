@@ -32,7 +32,16 @@ export function parseEventText(text: string, reference: Date = new Date()): Pars
   const input = text.trim();
   if (!input) return { title: '', isAllDay: false };
 
-  const result = chrono.parse(input, reference, { forwardDate: true })[0];
+  // Prefer the most specific match (explicit dates/times, ranges) over bare words like "night".
+  const PARTS = ['year', 'month', 'day', 'weekday', 'hour', 'minute'] as const;
+  const certain = (c: chrono.ParsedComponents) => PARTS.filter((p) => c.isCertain(p)).length;
+  const specificity = (r: chrono.ParsedResult) => certain(r.start) + (r.end ? certain(r.end) : 0);
+  const result = chrono
+    .parse(input, reference, { forwardDate: true })
+    .reduce<chrono.ParsedResult | undefined>(
+      (best, r) => (!best || specificity(r) > specificity(best) ? r : best),
+      undefined,
+    );
   let remainder = input;
   let start: Date | undefined;
   let end: Date | undefined;

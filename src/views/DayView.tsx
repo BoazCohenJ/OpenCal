@@ -8,7 +8,7 @@ import { createStyles } from '../theme';
 import { readableOn } from '../utils/color';
 import { atMinutes, dayKey, formatTime, minutesSinceMidnight } from '../utils/dates';
 import { eventLabel } from '../utils/format';
-import { isAllDayLike, layoutTimed, PX_PER_MIN, slotMinutesFromPress, spanInfo, type PositionedOccurrence } from './layout';
+import { layoutTimed, PX_PER_MIN, slotMinutesFromPress, spanInfo, type PositionedOccurrence } from './layout';
 import { SelectableBlock, SelectionCheckbox, SelectionToolbar, TOOLBAR_CLEARANCE, useEventSelection, type PendingMove, type SelectedOccurrence } from './selection';
 import { GRID_HEIGHT, HourGutter, HourLines, NowLine, type TimeGridHandle } from './TimeGrid';
 
@@ -86,8 +86,8 @@ export function DayView({
     offset,
     scrollEnabled,
   } = useEventSelection({ resetKey: `${key}:${active}`, columnWidth: 0, occurrences, onCommitMoves, onSelectionModeChange });
-  const allDay = useMemo(() => displayed.filter(isAllDayLike), [displayed]);
-  const timed = useMemo(() => layoutTimed(displayed.filter((o) => !isAllDayLike(o)), date), [displayed, date]);
+  const allDay = useMemo(() => displayed.filter((o) => o.event.isAllDay), [displayed]);
+  const timed = useMemo(() => layoutTimed(displayed.filter((o) => !o.event.isAllDay), date), [displayed, date]);
 
   useImperativeHandle(ref, () => ({ scrollToY: (y) => scrollRef.current?.scrollTo({ y, animated: false }) }), []);
 

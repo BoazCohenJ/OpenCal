@@ -14,6 +14,8 @@ export interface RepeatConfig {
   /** rrule weekday indexes: 0 = Monday … 6 = Sunday */
   weekdays: number[];
   end: RepeatEnd;
+  /** Rule parts the editor can't express (e.g. monthly BYDAY=1MO), kept while the frequency is unchanged. */
+  preserved?: { freq: RepeatFreq; parts: string[] };
 }
 
 export const WEEKDAY_CODES = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
@@ -48,7 +50,10 @@ export function parseRRule(rule: string | undefined, start: Date): RepeatConfig 
   config.freq = freq;
   config.interval = Math.max(1, parseInt(parts.get('INTERVAL') ?? '1', 10) || 1);
   const byday = parts.get('BYDAY');
-  if (byday) {
+  if (freq === 'monthly' || freq === 'yearly') {
+    const keep = ['BYDAY', 'BYSETPOS', 'BYMONTHDAY', 'BYMONTH'].filter((k) => parts.has(k)).map((k) => `${k}=${parts.get(k)}`);
+    if (keep.length) config.preserved = { freq, parts: keep };
+  } else if (byday) {
     const days = byday.split(',').map((c) => WEEKDAY_CODES.indexOf(c.slice(-2).toUpperCase())).filter((i) => i >= 0);
     if (days.length) config.weekdays = days;
   }
@@ -68,6 +73,7 @@ export function buildRRule(config: RepeatConfig): string | undefined {
   if (config.freq === 'weekly' && config.weekdays.length) {
     parts.push(`BYDAY=${[...config.weekdays].sort((a, b) => a - b).map((i) => WEEKDAY_CODES[i]).join(',')}`);
   }
+  if (config.preserved && config.preserved.freq === config.freq) parts.push(...config.preserved.parts);
   if (config.end.type === 'until') parts.push(`UNTIL=${config.end.date.replace(/-/g, '')}T235959Z`);
   if (config.end.type === 'count') parts.push(`COUNT=${Math.max(1, config.end.count)}`);
   return parts.join(';');
