@@ -16,7 +16,7 @@ import {
   startOfWeek,
 } from 'date-fns';
 import React, { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, PanResponder, Platform, Pressable, PressableStateCallbackType, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EventGlyph, Icon } from '../components/Icon';
 import { MonthYearSheet } from '../components/MonthYearPicker';
@@ -672,7 +672,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
           <Pressable
             onPress={goToday}
             disabled={showingToday}
-            style={({ hovered }: { hovered?: boolean }) => [styles.todayButton, hovered && !showingToday && styles.todayButtonHover]}
+            style={({ hovered }: PressableStateCallbackType & { hovered?: boolean }) => [styles.todayButton, hovered && !showingToday && styles.todayButtonHover]}
             accessibilityLabel="Go to today"
           >
             <Text style={[styles.todayButtonText, showingToday && styles.todayTextOn]}>Today</Text>
@@ -691,7 +691,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
           <View style={styles.toolbarRight}>
           <Pressable
             onPress={() => navigation.navigate('QuickAdd')}
-            style={({ hovered }: { hovered?: boolean }) => [styles.quickAdd, hovered && styles.quickAddHover]}
+            style={({ hovered }: PressableStateCallbackType & { hovered?: boolean }) => [styles.quickAdd, hovered && styles.quickAddHover]}
             accessibilityLabel="Quick add with natural language"
           >
             <Icon name="sparkles" size={16} color={colors.primary} />

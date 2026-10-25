@@ -1,6 +1,6 @@
 import { startOfDay } from 'date-fns';
 import React, { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, PressableStateCallbackType, ScrollView, Text, View } from 'react-native';
 import { useCalendarContext } from '../context/CalendarContext';
 import { BIRTHDAY_COLOR, BIRTHDAYS_CALENDAR_ID } from '../services/birthdays';
 import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
@@ -8,7 +8,7 @@ import { Icon, type IconName } from './Icon';
 import { Logo } from './Logo';
 import { MiniMonth } from './MiniMonth';
 
-type Hover = { hovered?: boolean };
+type Hover = PressableStateCallbackType & { hovered?: boolean };
 
 /**
  * The desktop browser's left rail: new event, a month to jump around in, the calendars to show,

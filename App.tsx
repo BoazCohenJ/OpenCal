@@ -192,8 +192,8 @@ function RootNavigator() {
         headerStyle: { backgroundColor: colors.bg },
         contentStyle: { backgroundColor: colors.bg },
         headerBackButtonDisplayMode: 'minimal',
-        headerLeftContainerStyle: { paddingLeft: headerInset },
-        headerRightContainerStyle: { paddingRight: headerInset },
+        // Not in the native stack's option types; honoured by the web header.
+        ...({ headerLeftContainerStyle: { paddingLeft: headerInset }, headerRightContainerStyle: { paddingRight: headerInset } } as object),
         animation: 'slide_from_right',
         animationDuration: 280,
       }}
