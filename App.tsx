@@ -5,7 +5,7 @@ import {
   useFonts,
 } from '@expo-google-fonts/fraunces';
 import { DarkTheme, DefaultTheme, NavigationContainer, type LinkingOptions, type Theme } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createNativeStackNavigator, type NativeStackHeaderProps } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo } from 'react';
@@ -112,43 +112,29 @@ SplashScreen.setOptions({ duration: 250, fade: true });
  * Forms and settings are phone-width layouts: on a wide browser window keep each in a centred,
  * readable column. Wrapped once at module level so the screen components stay stable between renders.
  */
-function narrow<P extends { navigation: { goBack: () => void } }>(Screen: React.ComponentType<P>): React.ComponentType<P> {
+function narrow<P extends object>(Screen: React.ComponentType<P>): React.ComponentType<P> {
   if (Platform.OS !== 'web') return Screen;
-  const Narrow = (props: P) => {
-    const desktop = useDesktop();
-    const { goBack } = props.navigation;
-    // Esc steps back out of a page, as it closes the dialogs.
-    useEffect(() => {
-      if (!desktop) return;
-      const onKey = (e: KeyboardEvent) => {
-        const el = e.target as HTMLElement | null;
-        if (e.key === 'Escape' && !(el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) goBack();
-      };
-      document.addEventListener('keydown', onKey);
-      return () => document.removeEventListener('keydown', onKey);
-    }, [desktop, goBack]);
-    return (
-      <View style={{ flex: 1, width: '100%', maxWidth: WEB_COLUMN, alignSelf: 'center' }}>
-        <Screen {...props} />
-      </View>
-    );
-  };
+  const Narrow = (props: P) => (
+    <View style={{ flex: 1, width: '100%', maxWidth: WEB_COLUMN, alignSelf: 'center' }}>
+      <Screen {...props} />
+    </View>
+  );
   return Narrow;
 }
 
 const narrowed = {
-  SettingsScreen: narrow(SettingsScreen),
-  NotificationsScreen: narrow(NotificationsScreen),
-  CalendarsScreen: narrow(CalendarsScreen),
-  CalendarEditScreen: narrow(CalendarEditScreen),
-  CalendarDeleteScreen: narrow(CalendarDeleteScreen),
-  TemplatesScreen: narrow(TemplatesScreen),
-  TemplateEditScreen: narrow(TemplateEditScreen),
-  HiddenEventsListScreen: narrow(HiddenEventsListScreen),
-  BirthdaysScreen: narrow(BirthdaysScreen),
-  ColorRulesScreen: narrow(ColorRulesScreen),
-  ImportExportScreen: narrow(ImportExportScreen),
-  SyncScreen: narrow(SyncScreen),
+  SettingsScreen: dialog(narrow(SettingsScreen)),
+  NotificationsScreen: dialog(narrow(NotificationsScreen)),
+  CalendarsScreen: dialog(narrow(CalendarsScreen)),
+  CalendarEditScreen: dialog(narrow(CalendarEditScreen)),
+  CalendarDeleteScreen: dialog(narrow(CalendarDeleteScreen)),
+  TemplatesScreen: dialog(narrow(TemplatesScreen)),
+  TemplateEditScreen: dialog(narrow(TemplateEditScreen)),
+  HiddenEventsListScreen: dialog(narrow(HiddenEventsListScreen)),
+  BirthdaysScreen: dialog(narrow(BirthdaysScreen)),
+  ColorRulesScreen: dialog(narrow(ColorRulesScreen)),
+  ImportExportScreen: dialog(narrow(ImportExportScreen)),
+  SyncScreen: dialog(narrow(SyncScreen)),
   EventEditScreen: dialog(narrow(EventEditScreen)),
   QuickAddScreen: dialog(narrow(QuickAddScreen)),
   FocusEditScreen: dialog(narrow(FocusEditScreen)),
@@ -158,6 +144,15 @@ const narrowed = {
 
 /** Width of the centred column non-calendar screens use on web (see `narrow`). */
 const WEB_COLUMN = 720;
+
+/** Desktop browsers show editors and settings as dialogs over the calendar (see WebDialog). */
+const dialogOptions = {
+  presentation: 'transparentModal',
+  animation: 'fade',
+  animationDuration: 140,
+  header: (props: NativeStackHeaderProps) => <DialogHeader {...props} />,
+  contentStyle: { backgroundColor: 'transparent' },
+} as const;
 
 function RootNavigator() {
   const styles = useStyles();
@@ -204,24 +199,22 @@ function RootNavigator() {
       }}
     >
       <Stack.Screen name="Calendar" component={CalendarScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Settings" component={narrowed.SettingsScreen} options={{ title: 'Settings' }} />
-      <Stack.Screen name="Notifications" component={narrowed.NotificationsScreen} options={{ title: 'Notifications' }} />
-      <Stack.Screen name="Calendars" component={narrowed.CalendarsScreen} options={{ title: 'Calendars' }} />
-      <Stack.Screen name="CalendarEdit" component={narrowed.CalendarEditScreen} options={{ title: 'Calendar' }} />
-      <Stack.Screen name="CalendarDelete" component={narrowed.CalendarDeleteScreen} options={{ title: 'Delete calendar' }} />
-      <Stack.Screen name="Templates" component={narrowed.TemplatesScreen} options={{ title: 'Stamps' }} />
-      <Stack.Screen name="TemplateEdit" component={narrowed.TemplateEditScreen} options={{ title: 'Stamp' }} />
-      <Stack.Screen name="HiddenEvents" component={narrowed.HiddenEventsListScreen} options={{ title: 'Event List' }} />
-      <Stack.Screen name="Birthdays" component={narrowed.BirthdaysScreen} options={{ title: 'Birthdays' }} />
-      <Stack.Screen name="ColorRules" component={narrowed.ColorRulesScreen} options={{ title: 'Color rules' }} />
-      <Stack.Screen name="ImportExport" component={narrowed.ImportExportScreen} options={{ title: 'Import & Export' }} />
-      <Stack.Screen name="Sync" component={narrowed.SyncScreen} options={{ title: 'Sync' }} />
+      <Stack.Group screenOptions={desktop ? dialogOptions : {}}>
+        <Stack.Screen name="Settings" component={narrowed.SettingsScreen} options={{ title: 'Settings' }} />
+        <Stack.Screen name="Notifications" component={narrowed.NotificationsScreen} options={{ title: 'Notifications' }} />
+        <Stack.Screen name="Calendars" component={narrowed.CalendarsScreen} options={{ title: 'Calendars' }} />
+        <Stack.Screen name="CalendarEdit" component={narrowed.CalendarEditScreen} options={{ title: 'Calendar' }} />
+        <Stack.Screen name="CalendarDelete" component={narrowed.CalendarDeleteScreen} options={{ title: 'Delete calendar' }} />
+        <Stack.Screen name="Templates" component={narrowed.TemplatesScreen} options={{ title: 'Stamps' }} />
+        <Stack.Screen name="TemplateEdit" component={narrowed.TemplateEditScreen} options={{ title: 'Stamp' }} />
+        <Stack.Screen name="HiddenEvents" component={narrowed.HiddenEventsListScreen} options={{ title: 'Event List' }} />
+        <Stack.Screen name="Birthdays" component={narrowed.BirthdaysScreen} options={{ title: 'Birthdays' }} />
+        <Stack.Screen name="ColorRules" component={narrowed.ColorRulesScreen} options={{ title: 'Color rules' }} />
+        <Stack.Screen name="ImportExport" component={narrowed.ImportExportScreen} options={{ title: 'Import & Export' }} />
+        <Stack.Screen name="Sync" component={narrowed.SyncScreen} options={{ title: 'Sync' }} />
+      </Stack.Group>
       <Stack.Group
-        screenOptions={
-          desktop
-            ? { presentation: 'transparentModal', animation: 'fade', animationDuration: 140, header: DialogHeader, contentStyle: { backgroundColor: 'transparent' } }
-            : { presentation: 'modal', animation: 'slide_from_bottom' }
-        }
+        screenOptions={desktop ? { ...dialogOptions, animationDuration: 140 } : { presentation: 'modal', animation: 'slide_from_bottom' }}
       >
         <Stack.Screen name="EventEdit" component={narrowed.EventEditScreen} options={{ title: 'Event' }} />
         <Stack.Screen name="QuickAdd" component={narrowed.QuickAddScreen} options={{ title: 'Quick Add' }} />

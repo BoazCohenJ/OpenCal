@@ -15,19 +15,20 @@ export const DIALOG_WIDTH = 640;
  */
 export function DialogHeader({ navigation, options, route, back }: NativeStackHeaderProps) {
   const styles = useStyles();
+  const nested = isNested(navigation);
   const { colors } = useTheme();
   const title = getHeaderTitle(options, route.name);
   const tintColor = colors.primary;
   const left = options.headerLeft?.({ tintColor, canGoBack: !!back });
   const right = options.headerRight?.({ tintColor, canGoBack: !!back });
   return (
-    <View style={styles.headerBackdrop}>
+    <View style={[styles.headerBackdrop, nested && styles.clear]}>
       <Pressable style={styles.dismiss} onPress={() => navigation.goBack()} accessibilityLabel="Close" />
       <View style={[styles.headerCard, shadow]}>
         <View style={styles.side}>
           {left ?? (
             <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
-              <Text style={styles.close}>Close</Text>
+              <Text style={styles.close}>{back ? 'Back' : 'Close'}</Text>
             </Pressable>
           )}
         </View>
@@ -40,24 +41,35 @@ export function DialogHeader({ navigation, options, route, back }: NativeStackHe
   );
 }
 
+type NavLike = { goBack: () => void; isFocused: () => boolean; getState: () => { index: number; routes: { name: string }[] } };
+
+/** Dialogs opened from another dialog sit on top of it without dimming the calendar a second time. */
+function isNested(navigation: { getState: () => { index: number; routes: { name: string }[] } }): boolean {
+  const state = navigation.getState();
+  const below = state.routes[state.index - 1];
+  return !!below && below.name !== 'Calendar';
+}
+
 /** Wraps an editor screen as the body of the dialog card; Esc closes it. Phone-sized windows keep the page. */
-export function dialog<P extends { navigation: { goBack: () => void } }>(Screen: React.ComponentType<P>): React.ComponentType<P> {
+export function dialog<P extends { navigation: NavLike }>(Screen: React.ComponentType<P>): React.ComponentType<P> {
   function Dialog(props: P) {
     const styles = useStyles();
     const desktop = useDesktop();
-    const { goBack } = props.navigation;
+    const { navigation } = props;
+    const nested = isNested(navigation);
     useEffect(() => {
       if (!desktop) return;
       const onKey = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') goBack();
+        const el = e.target as HTMLElement | null;
+        if (e.key === 'Escape' && navigation.isFocused() && !(el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) navigation.goBack();
       };
       document.addEventListener('keydown', onKey);
       return () => document.removeEventListener('keydown', onKey);
-    }, [desktop, goBack]);
+    }, [desktop, navigation]);
     if (!desktop) return <Screen {...props} />;
     return (
-      <View style={styles.backdrop}>
-        <Pressable style={styles.dismiss} onPress={goBack} accessibilityLabel="Close" />
+      <View style={[styles.backdrop, nested && styles.clear]}>
+        <Pressable style={styles.dismiss} onPress={navigation.goBack} accessibilityLabel="Close" />
         <View style={styles.body}>
           <Screen {...props} />
         </View>
@@ -70,6 +82,7 @@ export function dialog<P extends { navigation: { goBack: () => void } }>(Screen:
 const useStyles = createStyles((colors) => ({
   headerBackdrop: { alignItems: 'center', backgroundColor: colors.backdrop, paddingTop: 40 },
   backdrop: { flex: 1, alignItems: 'center', backgroundColor: colors.backdrop, paddingBottom: 40 },
+  clear: { backgroundColor: 'transparent' },
   dismiss: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   headerCard: {
     width: '100%',
