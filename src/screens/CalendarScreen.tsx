@@ -16,15 +16,16 @@ import {
   startOfWeek,
 } from 'date-fns';
 import React, { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EventGlyph, Icon } from '../components/Icon';
 import { MonthYearSheet } from '../components/MonthYearPicker';
 import { RepeatDeleteSheet, type RepeatDeleteChoice } from '../components/RepeatDeleteSheet';
 import { Sheet } from '../components/Sheet';
 import { useToast } from '../components/Toast';
-import { Button, IconButton, PressableScale } from '../components/ui';
+import { Button, IconButton, PressableScale, Segmented } from '../components/ui';
 import { VIEW_OPTIONS, ViewMenu, type ViewMode } from '../components/ViewMenu';
+import { WebSidebar } from '../components/WebSidebar';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { Event } from '../models/Event';
 import type { EventTemplate } from '../models/Template';
@@ -35,6 +36,7 @@ import type { Occurrence } from '../services/occurrences';
 import { confirmDeleteStamp, eventFromTemplate } from '../services/templates';
 import { createStyles, fonts, radius, shadow, spacing, useTheme } from '../theme';
 import { deepText, softBg } from '../utils/color';
+import { useDesktop } from '../utils/desktop';
 import { dayKey, nextRoundedHour, parseDayKey, parseTimestamp, relativeLabel, WEEK_STARTS_ON } from '../utils/dates';
 import { formatDuration } from '../utils/format';
 import { newId } from '../utils/id';
@@ -138,6 +140,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
   const styles = useStyles();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const desktop = useDesktop();
   const {
     calendars,
     calendarsById,
@@ -302,7 +305,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
   const swipe = useRef({ enabled: false, mode, pan, position, pageWidth, previousReady, nextReady, step, springBack, syncNeighbours, peekTo });
   useLayoutEffect(() => {
     swipe.current = {
-      enabled: paging && !selectionActive, mode, pan, position, pageWidth, previousReady, nextReady, step, springBack, syncNeighbours, peekTo,
+      enabled: paging && !selectionActive && !desktop, mode, pan, position, pageWidth, previousReady, nextReady, step, springBack, syncNeighbours, peekTo,
     };
   });
   useEffect(() => {
@@ -556,6 +559,53 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
   };
   const currentRepeat = repeatQueue ? (repeatQueue.repeating[repeatQueue.choices.length] ?? null) : null;
 
+  // Desktop keyboard shortcuts, active while the calendar is the screen on top and nothing else is open.
+  const shortcut = useRef<(e: KeyboardEvent) => void>(() => undefined);
+  const handleKey = (e: KeyboardEvent) => {
+    const target = e.target as HTMLElement | null;
+    if (e.metaKey || e.ctrlKey || e.altKey || !navigation.isFocused()) return;
+    if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+    if (viewMenuOpen || monthPickerOpen || slot || repeatQueue || selectionActive) return;
+    const key = e.key.toLowerCase();
+    const go = (fn: () => void) => {
+      e.preventDefault();
+      fn();
+    };
+    if (key === 't') go(goToday);
+    else if (key === 'arrowleft' || key === 'j' || key === 'p') go(() => step(-1));
+    else if (key === 'arrowright' || key === 'k' || key === 'n') go(() => step(1));
+    else if (key === 'd') go(() => changeMode('day'));
+    else if (key === 'w') go(() => changeMode('week'));
+    else if (key === 'm') go(() => changeMode('month'));
+    else if (key === 's') go(() => changeMode('schedule'));
+    else if (key === 'c') go(() => newEventAt(defaultStart()));
+    else if (key === 'q' || key === '/') go(() => navigation.navigate('QuickAdd'));
+  };
+  useLayoutEffect(() => {
+    shortcut.current = handleKey;
+  });
+  useEffect(() => {
+    if (!desktop) return;
+    const onKey = (e: KeyboardEvent) => shortcut.current(e);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [desktop]);
+
+  const jumpTo = (d: Date) => {
+    pendingStep.current = 0;
+    const target = startOfDay(d);
+    if (target.getTime() === cursor.getTime()) return;
+    setDirection(target < cursor ? -1 : 1);
+    setCursor(target);
+  };
+  const weekEnd = addDays(range.start, 6);
+  const desktopTitle =
+    mode === 'day'
+      ? format(shown, 'EEEE, MMMM d, yyyy')
+      : mode === 'week'
+        ? `${format(range.start, 'MMM d')} – ${format(weekEnd, range.start.getMonth() === weekEnd.getMonth() ? 'd, yyyy' : 'MMM d, yyyy')}`
+        : format(shown, 'MMMM yyyy');
+
   const renderPage = (page: (typeof pages)[number]) => {
     const active = page.offset === 0;
     const setRef = (handle: TimeGridHandle | null) => {
@@ -604,7 +654,58 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, desktop && styles.containerDesktop, { paddingTop: insets.top }]}>
+      {desktop ? (
+        <WebSidebar
+          cursor={cursor}
+          onSelectDay={jumpTo}
+          onNewEvent={() => newEventAt(defaultStart())}
+          onOpenSettings={() => navigation.navigate('Settings')}
+          onOpenStamps={() => navigation.navigate('Templates')}
+          onManageCalendars={() => navigation.navigate('Calendars')}
+        />
+      ) : null}
+      <View style={styles.main}>
+      {desktop ? (
+        <View style={styles.toolbar}>
+          <View style={styles.toolbarLeft}>
+          <Pressable
+            onPress={goToday}
+            disabled={showingToday}
+            style={({ hovered }: { hovered?: boolean }) => [styles.todayButton, hovered && !showingToday && styles.todayButtonHover]}
+            accessibilityLabel="Go to today"
+          >
+            <Text style={[styles.todayButtonText, showingToday && styles.todayTextOn]}>Today</Text>
+          </Pressable>
+          <View style={styles.toolbarNav}>
+            <IconButton icon="chevron-left" onPress={() => step(-1)} accessibilityLabel="Previous" />
+            <IconButton icon="chevron-right" onPress={() => step(1)} accessibilityLabel="Next" />
+          </View>
+          <Pressable onPress={() => setMonthPickerOpen(true)} accessibilityLabel={`${desktopTitle}. Choose a month`} style={styles.toolbarTitleButton}>
+            <Text style={styles.toolbarTitle} numberOfLines={1}>
+              {desktopTitle}
+            </Text>
+            <Icon name="chevron-down" size={18} color={colors.textFaint} strokeWidth={2.5} />
+          </Pressable>
+          </View>
+          <View style={styles.toolbarRight}>
+          <Pressable
+            onPress={() => navigation.navigate('QuickAdd')}
+            style={({ hovered }: { hovered?: boolean }) => [styles.quickAdd, hovered && styles.quickAddHover]}
+            accessibilityLabel="Quick add with natural language"
+          >
+            <Icon name="sparkles" size={16} color={colors.primary} />
+            <Text style={styles.quickAddText} numberOfLines={1}>
+              Quick add…
+            </Text>
+            <Text style={styles.quickAddKey}>Q</Text>
+          </Pressable>
+          <View style={styles.viewSwitch}>
+            <Segmented<ViewMode> options={[...VIEW_OPTIONS].reverse().map((o) => ({ value: o.value, label: o.label }))} value={mode} onChange={changeMode} />
+          </View>
+          </View>
+        </View>
+      ) : (
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Pressable onPress={() => setMonthPickerOpen(true)} style={styles.eyebrowButton} accessibilityLabel="Choose a month">
@@ -653,8 +754,9 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
           </PressableScale>
         </View>
       </View>
+      )}
 
-      <Animated.View style={[styles.body, bodyMotion]} {...swipeResponder.panHandlers}>
+      <Animated.View style={[styles.body, desktop && styles.bodyDesktop, bodyMotion]} {...swipeResponder.panHandlers}>
         {mode === 'schedule' ? (
           <ScheduleView start={cursor} getOccurrences={getOccurrences} onPressEvent={openEvent} onPressDay={openDay} />
         ) : (
@@ -674,7 +776,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
         )}
       </Animated.View>
 
-      {!selectionActive ? (
+      {!selectionActive && !desktop ? (
         <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
           <View style={[styles.dock, shadow]}>
             <PressableScale
@@ -708,6 +810,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
           </View>
         </View>
       ) : null}
+      </View>
 
       <RepeatDeleteSheet
         item={currentRepeat}
@@ -781,8 +884,28 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
   );
 }
 
+/** On a desktop browser the phone layout is kept to a sensible width instead of stretching edge to edge. */
+const isWeb = Platform.OS === 'web';
+
 const useStyles = createStyles((colors) => ({
   container: { flex: 1, backgroundColor: colors.bg },
+  containerDesktop: { flexDirection: 'row' },
+  main: { flex: 1, minWidth: 0 },
+  toolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, paddingVertical: 12, minHeight: 68 },
+  toolbarLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexGrow: 1, flexShrink: 1, flexBasis: 420 },
+  toolbarRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  toolbarNav: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  toolbarTitleButton: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, minWidth: 200 },
+  toolbarTitle: { flexShrink: 1, fontFamily: fonts.displayBold, fontSize: 26, color: colors.text, letterSpacing: -0.6 },
+  todayButton: { height: 36, paddingHorizontal: 16, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border },
+  todayButtonHover: { backgroundColor: colors.surfaceAlt },
+  todayButtonText: { fontSize: 14, fontWeight: '700', color: colors.text },
+  quickAdd: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 36, width: 200, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  quickAddHover: { backgroundColor: colors.surfaceAlt },
+  quickAddText: { flex: 1, fontSize: 14, color: colors.textMuted },
+  quickAddKey: { fontSize: 11, fontWeight: '700', color: colors.textFaint },
+  viewSwitch: { width: 290 },
+  bodyDesktop: { borderRadius: radius.lg, marginRight: spacing.lg, marginBottom: spacing.lg, borderBottomWidth: StyleSheet.hairlineWidth },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.md, paddingBottom: spacing.md },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, marginBottom: -spacing.md },
   eyebrowButton: { flexShrink: 1 },
@@ -829,6 +952,7 @@ const useStyles = createStyles((colors) => ({
   },
   bottomBar: { paddingHorizontal: spacing.md, paddingTop: 10, backgroundColor: colors.surface },
   dock: {
+    ...(isWeb && { width: '100%', maxWidth: 560, alignSelf: 'center' }),
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,

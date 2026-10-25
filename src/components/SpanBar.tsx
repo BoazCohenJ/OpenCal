@@ -4,6 +4,7 @@ import type { Occurrence } from '../services/occurrences';
 import { createStyles } from '../theme';
 import { readableOn } from '../utils/color';
 import { eventLabel } from '../utils/format';
+import { useDesktop } from '../utils/desktop';
 import { EventGlyph, eventIconKey } from './Icon';
 
 export const SPAN_BAR_HEIGHT = 17;
@@ -11,6 +12,9 @@ export const SPAN_LANE_HEIGHT = SPAN_BAR_HEIGHT + 2;
 /** The small size the month grid uses to fit more rows into a cell. */
 export const COMPACT_BAR_HEIGHT = 14;
 export const COMPACT_LANE_HEIGHT = COMPACT_BAR_HEIGHT + 1;
+/** The month grid's bars on a desktop browser, where there is room for readable text. */
+export const DESKTOP_BAR_HEIGHT = 19;
+export const DESKTOP_LANE_HEIGHT = DESKTOP_BAR_HEIGHT + 1;
 
 /** One long bar for an all-day or multi-day event; a square end means it carries on past that side. */
 export function SpanBar({
@@ -29,6 +33,7 @@ export function SpanBar({
   style?: StyleProp<ViewStyle>;
 }) {
   const styles = useStyles();
+  const big = useDesktop() && compact;
   const fg = readableOn(occ.color);
   const shape = {
     borderTopLeftRadius: fromPrev ? 0 : 5,
@@ -38,13 +43,13 @@ export function SpanBar({
   };
   const content = (
     <>
-      {eventIconKey(occ.event.emoji) ? <EventGlyph value={occ.event.emoji} size={compact ? 9 : 10} color={fg} /> : null}
-      <Text numberOfLines={1} style={[styles.text, compact && styles.textCompact, { color: fg }]}>
+      {eventIconKey(occ.event.emoji) ? <EventGlyph value={occ.event.emoji} size={big ? 12 : compact ? 9 : 10} color={fg} /> : null}
+      <Text numberOfLines={1} style={[styles.text, compact && styles.textCompact, big && styles.textBig, { color: fg }]}>
         {eventLabel(occ.event)}
       </Text>
     </>
   );
-  const box = [styles.bar, compact && styles.barCompact, { backgroundColor: occ.color }, shape, style];
+  const box = [styles.bar, compact && styles.barCompact, big && styles.barBig, { backgroundColor: occ.color }, shape, style];
   if (!onPress) return <View style={box}>{content}</View>;
   return (
     <Pressable onPress={onPress} style={box}>
@@ -58,4 +63,6 @@ const useStyles = createStyles(() => ({
   barCompact: { height: COMPACT_BAR_HEIGHT, paddingHorizontal: 3, gap: 2 },
   text: { flex: 1, fontSize: 10.5, fontWeight: '600' },
   textCompact: { fontSize: 9.5, lineHeight: 12 },
+  barBig: { height: DESKTOP_BAR_HEIGHT, paddingHorizontal: 6, gap: 4 },
+  textBig: { fontSize: 12, lineHeight: 15 },
 }));

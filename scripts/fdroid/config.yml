@@ -1,0 +1,4 @@
+sdk_path: /opt/android-sdk
+repo_url: https://gigaserver.taila02557.ts.net/fdroid/repo
+repo_name: OpenCal
+repo_description: OpenCal builds from source.

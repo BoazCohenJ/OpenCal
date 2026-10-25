@@ -4,6 +4,8 @@ import type { Occurrence } from '../services/occurrences';
 import { createStyles } from '../theme';
 import { readableOn } from '../utils/color';
 import { eventLabel } from '../utils/format';
+import { useDesktop } from '../utils/desktop';
+import { DESKTOP_BAR_HEIGHT } from './SpanBar';
 import { EventGlyph, eventIconKey } from './Icon';
 
 export function EventPill({
@@ -21,6 +23,7 @@ export function EventPill({
   suffix?: string;
 }) {
   const styles = useStyles();
+  const big = useDesktop() && compact;
   const label = eventLabel(occ.event);
   const hasIcon = eventIconKey(occ.event.emoji) !== null;
   if (variant === 'dot') {
@@ -42,11 +45,12 @@ export function EventPill({
       style={[
         styles.pill,
         compact && styles.pillCompact,
+        big && styles.pillBig,
         { backgroundColor: occ.color, borderLeftColor: occ.color },
       ]}
     >
-      {hasIcon ? <EventGlyph value={occ.event.emoji} size={compact ? 9 : 14} color={fg} /> : null}
-      <Text numberOfLines={1} style={[styles.pillText, compact && styles.compactText, { color: fg }]}>
+      {hasIcon ? <EventGlyph value={occ.event.emoji} size={big ? 12 : compact ? 9 : 14} color={fg} /> : null}
+      <Text numberOfLines={1} style={[styles.pillText, compact && styles.compactText, big && styles.textBig, { color: fg }]}>
         {label}
       </Text>
       {suffix ? <Text style={[styles.suffix, compact && styles.compactText, { color: fg }]}>{suffix}</Text> : null}
@@ -59,6 +63,8 @@ const useStyles = createStyles((colors) => ({
   pillCompact: { gap: 3, paddingHorizontal: 4, paddingVertical: 0, height: 14, borderRadius: 4, borderLeftWidth: 0 },
   pillText: { flex: 1, fontSize: 13, fontWeight: '700' },
   suffix: { fontSize: 12, fontWeight: '700' },
+  pillBig: { height: DESKTOP_BAR_HEIGHT, paddingHorizontal: 6, gap: 4, borderRadius: 5 },
+  textBig: { fontSize: 12, lineHeight: 15 },
   compactText: { fontSize: 9.5, lineHeight: 12, fontWeight: '600' },
   dotRow: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 1 },
   dot: { width: 3, height: 10, borderRadius: 2 },

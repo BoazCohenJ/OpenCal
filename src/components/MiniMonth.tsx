@@ -14,10 +14,13 @@ interface Props {
   rangeEnd?: Date;
   /** Makes the month title a button (e.g. to open a month/year picker). */
   onPressTitle?: () => void;
+  /** Smaller cells, for the desktop sidebar. */
+  compact?: boolean;
 }
 
-export function MiniMonth({ month, onChangeMonth, onSelectDay, selected, rangeStart, rangeEnd, onPressTitle }: Props) {
+export function MiniMonth({ month, onChangeMonth, onSelectDay, selected, rangeStart, rangeEnd, onPressTitle, compact }: Props) {
   const styles = useStyles();
+  const c = compact ? compactStyles : null;
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(month), { weekStartsOn: WEEK_STARTS_ON });
     return Array.from({ length: 42 }, (_, i) => addDays(start, i));
@@ -28,24 +31,24 @@ export function MiniMonth({ month, onChangeMonth, onSelectDay, selected, rangeSt
   return (
     <View>
       <View style={styles.header}>
-        <Pressable onPress={() => onChangeMonth(addMonths(month, -1))} hitSlop={12} style={styles.nav} accessibilityLabel="Previous month">
+        <Pressable onPress={() => onChangeMonth(addMonths(month, -1))} hitSlop={12} style={[styles.nav, c?.nav]} accessibilityLabel="Previous month">
           <Icon name="chevron-left" size={18} />
         </Pressable>
         {onPressTitle ? (
           <Pressable onPress={onPressTitle} hitSlop={8} style={styles.titleButton} accessibilityLabel={`${format(month, 'MMMM yyyy')}. Choose a month`}>
-            <Text style={styles.title}>{format(month, 'MMMM yyyy')}</Text>
+            <Text style={[styles.title, c?.title]}>{format(month, 'MMMM yyyy')}</Text>
             <Icon name="chevron-down" size={16} />
           </Pressable>
         ) : (
-          <Text style={styles.title}>{format(month, 'MMMM yyyy')}</Text>
+          <Text style={[styles.title, c?.title]}>{format(month, 'MMMM yyyy')}</Text>
         )}
-        <Pressable onPress={() => onChangeMonth(addMonths(month, 1))} hitSlop={12} style={styles.nav} accessibilityLabel="Next month">
+        <Pressable onPress={() => onChangeMonth(addMonths(month, 1))} hitSlop={12} style={[styles.nav, c?.nav]} accessibilityLabel="Next month">
           <Icon name="chevron-right" size={18} />
         </Pressable>
       </View>
       <View style={styles.row}>
         {days.slice(0, 7).map((d) => (
-          <Text key={d.getDay()} style={styles.dow}>
+          <Text key={d.getDay()} style={[styles.dow, c?.dow]}>
             {format(d, 'EEEEE')}
           </Text>
         ))}
@@ -61,11 +64,12 @@ export function MiniMonth({ month, onChangeMonth, onSelectDay, selected, rangeSt
               !!rangeStart && !!rangeEnd && d > startOfDay(rangeStart) && d < startOfDay(rangeEnd);
             const isToday = isSameDay(d, today);
             return (
-              <Pressable key={dayKey(d)} onPress={() => onSelectDay(d)} style={[styles.cell, inRange && styles.inRange]}>
-                <View style={[styles.circle, isEndpoint && styles.circleSelected]}>
+              <Pressable key={dayKey(d)} onPress={() => onSelectDay(d)} style={[styles.cell, c?.cell, inRange && styles.inRange]}>
+                <View style={[styles.circle, c?.circle, isEndpoint && styles.circleSelected]}>
                   <Text
                     style={[
                       styles.dayText,
+                      c?.dayText,
                       !isSameMonth(d, month) && styles.outside,
                       isToday && styles.today,
                       isEndpoint && styles.selectedText,
@@ -82,6 +86,15 @@ export function MiniMonth({ month, onChangeMonth, onSelectDay, selected, rangeSt
     </View>
   );
 }
+
+const compactStyles = {
+  nav: { width: 26, height: 26, borderRadius: 13 },
+  title: { fontSize: 15 },
+  dow: { fontSize: 11, paddingVertical: 4 },
+  cell: { paddingVertical: 1 },
+  circle: { width: 28, height: 28, borderRadius: 14 },
+  dayText: { fontSize: 12 },
+};
 
 const useStyles = createStyles((colors) => ({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
