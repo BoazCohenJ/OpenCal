@@ -23,3 +23,12 @@ Notes from getting it to build: `--on-server` is needed so the NDK is installed,
 source must be cloned beforehand (rebuild.sh does that); use `gradle`, not `./gradlew`, because the
 scanner removes the wrapper jar; `config/categories.yml` only exists so `fdroid lint` accepts the
 `Time` category, which fdroiddata already defines.
+
+## Self-hosted repo
+
+`publish.sh` signs the APK from `unsigned/` with the repo key (`keystore.p12`, created once with
+`fdroid update --create-key`; its passwords live only in the server's `config.yml`), rebuilds the index and
+copies `repo/` to `~/caddy/www/fdroid`. Caddy serves it on the tailnet at
+`https://gigaserver.taila02557.ts.net:2293/repo`; add that URL (or scan its QR code from `index.html`) in
+F-Droid's repository settings. Back up `keystore.p12` and `config.yml`: losing the key means every user has to
+reinstall. The repo signing key is not the app's: F-Droid's own signing would replace it on the official repo.
