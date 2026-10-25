@@ -1,5 +1,5 @@
 # Build recipe for https://gitlab.com/fdroid/fdroiddata (metadata/com.boazcohen.opencal.yml).
-# Not submitted yet. Needs srclibs/hermes.yml (docs/fdroid/hermes.srclib.yml) in the same merge request.
+# Uses the existing srclibs/hermes.yml of fdroiddata (same Repo URL). See docs/fdroid/SUBMIT.md.
 #
 # Tested 2026-10-25 with scripts/fdroid (F-Droid's buildserver image + fdroidserver 2.4.2, run with
 # --on-server against the v1.5.0 tag): the build succeeds. The Hermes compiler (hermesc) is built from

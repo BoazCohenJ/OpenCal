@@ -11,7 +11,6 @@ mkdir -p ~/fdroid/metadata ~/fdroid/srclibs ~/fdroid/build ~/fdroid/tmp ~/fdroid
 cp scripts/fdroid/{Dockerfile,docker-compose.yml,config.yml,rebuild.sh} ~/fdroid/
 cp -r scripts/fdroid/config ~/fdroid/
 cp docs/fdroid/com.boazcohen.opencal.yml ~/fdroid/metadata/
-cp docs/fdroid/hermes.srclib.yml ~/fdroid/srclibs/hermes.yml
 cd ~/fdroid && docker compose --profile build build
 ```
 
