@@ -85,7 +85,7 @@ Every push to `main` runs the typecheck and lint, then publishes an over-the-air
 
 - [Expo](https://expo.dev) SDK 57, React Native, TypeScript
 - React Navigation (native stack)
-- expo-sqlite for storage, expo-notifications for reminders, expo-updates for over-the-air updates
+- expo-sqlite for storage, a small local Android module (`modules/opencal-notifications`, AlarmManager) for reminders, with no Firebase or Google Play services, expo-updates for over-the-air updates
 - expo-document-picker, expo-file-system and expo-sharing for importing and exporting files
 - rrule for recurrence, chrono-node for natural-language parsing, date-fns
 - react-native-svg + lucide icons, Fraunces display font
@@ -98,6 +98,7 @@ src/screens/            screens (calendar, editors, settings, notifications…)
 src/views/              schedule, day, week and month views
 src/components/         shared UI (pickers, sheets, toast, logo…)
 src/context/            app state (CalendarContext)
+modules/                local native modules (reminder scheduling)
 src/services/           database, occurrences/recurrence, notifications, focus windows
 src/models/             data types
 src/navigation/         route and param types

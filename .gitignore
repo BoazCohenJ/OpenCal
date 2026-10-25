@@ -47,3 +47,7 @@ promo/music/
 # sync server data and secrets
 server/data/
 server/.env
+
+# Local native modules: Gradle output
+modules/**/android/build/
+modules/**/android/.cxx/

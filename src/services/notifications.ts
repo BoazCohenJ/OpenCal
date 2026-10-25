@@ -1,6 +1,5 @@
 import { addDays, addMinutes, startOfDay } from 'date-fns';
-import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
+import * as Reminders from '../../modules/opencal-notifications';
 import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
 import type { NotificationPrefs } from '../models/NotificationPrefs';
@@ -9,51 +8,25 @@ import { eventLabel } from '../utils/format';
 import { activeFocusPeriod, expandFocusWindows, focusStateAt } from './focus';
 import { expandEvents } from './occurrences';
 
-/** iOS allows 64 pending local notifications per app; keep headroom for the test notification. */
+/** Cap on queued reminders: the app reschedules on every launch, so only the soonest need to be pending. */
 export const MAX_SCHEDULED = 60;
-
-// Android channel sound can't be changed after creation, so sound and silent reminders use separate channels.
-const CHANNEL_SOUND = 'reminders';
-const CHANNEL_SILENT = 'reminders-silent';
 
 let configured = false;
 
 async function configure(): Promise<void> {
   if (configured) return;
-  Notifications.setNotificationHandler({
-    handleNotification: async (n) => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: n.request.content.data?.silent !== true,
-      shouldSetBadge: false,
-    }),
-  });
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync(CHANNEL_SOUND, {
-      name: 'Event reminders',
-      importance: Notifications.AndroidImportance.HIGH,
-      sound: 'default',
-      vibrationPattern: [0, 250, 200, 250],
-    });
-    await Notifications.setNotificationChannelAsync(CHANNEL_SILENT, {
-      name: 'Quiet reminders',
-      description: 'Reminders during quiet hours or with sound turned off',
-      importance: Notifications.AndroidImportance.DEFAULT,
-      sound: null,
-      vibrationPattern: null,
-    });
-  }
+  await Reminders.ensureChannels();
   configured = true;
 }
 
 export type NotificationStatus = 'granted' | 'denied' | 'undetermined' | 'unsupported';
 
-export const notificationsSupported = Platform.OS !== 'web';
+export const notificationsSupported = Reminders.remindersSupported;
 
 export async function getNotificationStatus(): Promise<NotificationStatus> {
   if (!notificationsSupported) return 'unsupported';
   try {
-    const p = await Notifications.getPermissionsAsync();
+    const p = await Reminders.getPermissions();
     return p.granted ? 'granted' : p.canAskAgain ? 'undetermined' : 'denied';
   } catch {
     return 'unsupported';
@@ -64,10 +37,10 @@ export async function requestNotificationPermission(): Promise<boolean> {
   if (!notificationsSupported) return false;
   try {
     await configure();
-    const existing = await Notifications.getPermissionsAsync();
+    const existing = await Reminders.getPermissions();
     if (existing.granted) return true;
     if (!existing.canAskAgain) return false;
-    return (await Notifications.requestPermissionsAsync()).granted;
+    return (await Reminders.requestPermissions()).granted;
   } catch (error) {
     console.warn('Notification permission request failed', error);
     return false;
@@ -158,7 +131,7 @@ async function doReschedule(
     await configure();
     let status = await getNotificationStatus();
     if (pending.length === 0 || status !== 'granted') {
-      if (status === 'granted') await Notifications.cancelAllScheduledNotificationsAsync();
+      if (status === 'granted') await Reminders.cancelAllReminders();
       if (pending.length === 0 || !askPermission || status !== 'undetermined') return empty(status);
       status = (await requestNotificationPermission()) ? 'granted' : await getNotificationStatus();
       if (status !== 'granted') return empty(status);
@@ -166,36 +139,18 @@ async function doReschedule(
 
     // Usually nothing changed since the last pass (e.g. just reopening the app): keep what's queued.
     const signature = (key: unknown, silent: unknown, title: unknown, body: unknown) => `${key}|${silent === true}|${title}|${body}`;
-    const queued = await Notifications.getAllScheduledNotificationsAsync();
+    const queued = await Reminders.getScheduled();
     const wanted = new Set(pending.map((p) => signature(p.key, p.silent, p.title, p.body)));
-    const have = new Set(queued.map((n) => signature(n.content.data?.key, n.content.data?.silent, n.content.title, n.content.body)));
+    const have = new Set(queued.map((n) => signature(n.key, n.silent, n.title, n.body)));
     if (queued.length === wanted.size && have.size === wanted.size && [...have].every((s) => wanted.has(s))) {
       return { scheduled: queued.length, truncated: planned.length > MAX_SCHEDULED, next: pending[0]?.date ?? null, status };
     }
 
-    await Notifications.cancelAllScheduledNotificationsAsync();
-    let scheduled = 0;
-    for (const p of pending) {
-      try {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: p.title,
-            body: p.body,
-            sound: p.silent ? false : 'default',
-            data: { key: p.key, silent: p.silent },
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DATE,
-            date: p.date,
-            channelId: p.silent ? CHANNEL_SILENT : CHANNEL_SOUND,
-          },
-        });
-        scheduled++;
-      } catch (error) {
-        // One bad reminder (e.g. clock moved past it mid-run) shouldn't drop the rest.
-        console.warn('Failed to schedule reminder', p.key, error);
-      }
-    }
+    await Reminders.cancelAllReminders();
+    await Reminders.scheduleReminders(
+      pending.map((p) => ({ key: p.key, atMs: p.date.getTime(), title: p.title, body: p.body, silent: p.silent })),
+    );
+    const scheduled = pending.length;
     return { scheduled, truncated: planned.length > MAX_SCHEDULED, next: pending[0]?.date ?? null, status };
   } catch (error) {
     console.warn('Failed to schedule reminders', error);
@@ -207,18 +162,14 @@ async function doReschedule(
 export async function sendTestNotification(prefs: NotificationPrefs): Promise<boolean> {
   if (!(await requestNotificationPermission())) return false;
   const silent = !prefs.sound || activeFocusPeriod(prefs.focusWindows) !== null;
-  await Notifications.scheduleNotificationAsync({
-    content: {
+  await Reminders.scheduleReminders([
+    {
+      key: 'test',
+      atMs: Date.now() + 3000,
       title: 'OpenCal reminder',
       body: silent ? 'This is how reminders look (quiet right now).' : 'This is how reminders look and sound.',
-      sound: silent ? false : 'default',
-      data: { test: true, silent },
+      silent,
     },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds: 3,
-      channelId: silent ? CHANNEL_SILENT : CHANNEL_SOUND,
-    },
-  });
+  ]);
   return true;
 }

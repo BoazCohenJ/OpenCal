@@ -3,7 +3,7 @@
     "name": "OpenCal",
     "slug": "opencal",
     "scheme": "opencal",
-    "version": "1.4.2",
+    "version": "1.5.0",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -52,13 +52,6 @@
         }
       ],
       "expo-sharing",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#E2553A"
-        }
-      ],
       [
         "react-native-android-widget",
         {
