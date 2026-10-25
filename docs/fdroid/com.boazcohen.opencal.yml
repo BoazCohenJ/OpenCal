@@ -1,8 +1,18 @@
-# DRAFT recipe for https://gitlab.com/fdroid/fdroiddata (metadata/com.boazcohen.opencal.yml).
-# Not submitted yet. The build steps mirror what was run locally (clean clone, npm ci, expo-updates
-# removed, OPENCAL_VARIANT=fdroid, assembleRelease). Still unverified against a real
-# `fdroid build`: the sudo/Node setup, the NDK and CMake versions, and the scanner's verdict.
-# Run `fdroid lint`, `fdroid rewritemeta` and `fdroid build -v -l com.boazcohen.opencal` first.
+# Build recipe for https://gitlab.com/fdroid/fdroiddata (metadata/com.boazcohen.opencal.yml).
+# Not submitted yet.
+#
+# Tested 2026-10-25 with scripts/fdroid (F-Droid's buildserver image + fdroidserver 2.4.2, run with
+# --on-server against the v1.5.0 tag): `fdroid lint` passes, the build succeeds, and
+# `fdroid scanner` finds nothing in the APK.
+#
+# OPEN BLOCKER: the `scanignore` entry for node_modules/hermes-compiler/hermesc/linux64-bin/hermesc.
+# That is a prebuilt Hermes compiler binary from npm, which F-Droid will not accept. Before
+# submitting, build hermesc from the Hermes source (tag in node_modules/react-native/sdks/.hermesversion)
+# in the `sudo`/`prebuild` steps, point the React Native Gradle plugin at it with `react.hermesCommand`,
+# and delete the npm binary with `scandelete` instead.
+#
+# Also unresolved: the Temurin JDK 17 and Node tarballs are downloaded in `sudo`, which reviewers may
+# ask to replace with distro packages or srclibs.
 
 Categories:
   - Time
@@ -29,6 +39,11 @@ Builds:
       - curl -Lo node.tar.xz https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-x64.tar.xz
       - echo "69b09dba5c8dcb05c4e4273a4340db1005abeafe3927efda2bc5b249e80437ec  node.tar.xz" | sha256sum -c -
       - tar -xJf node.tar.xz --strip-components=1 -C /usr/local
+      # The React Native Gradle plugin requires a JDK 17 toolchain; Debian trixie only ships 21 and 25.
+      - curl -Lo jdk17.tar.gz https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.13%2B11/OpenJDK17U-jdk_x64_linux_hotspot_17.0.13_11.tar.gz
+      - echo "8682892fc02965930b9022c066fa164dd6f458ef4a5dc262016aa28333b30f49  jdk17.tar.gz" | sha256sum -c -
+      - mkdir -p /usr/lib/jvm/temurin-17
+      - tar -xzf jdk17.tar.gz --strip-components=1 -C /usr/lib/jvm/temurin-17
     init: export OPENCAL_VARIANT=fdroid
     output: android/app/build/outputs/apk/release/app-release.apk
     prebuild:
@@ -36,17 +51,51 @@ Builds:
       - npm ci
       # The F-Droid variant must not load remote code; JS imports resolve to a stub (metro.config.js).
       - npm uninstall expo-updates
+      # Compile every Expo module from source instead of using the prebuilt AARs in node_modules.
+      - npm pkg set --json 'expo.autolinking.android.buildFromSource=[".*"]'
       - npx expo prebuild --platform android --no-install --clean
     build:
       - export OPENCAL_VARIANT=fdroid
       - cd android
-      - ./gradlew assembleRelease -x lint
-    ndk: 27.1.12297006
+      - gradle assembleRelease -x lint
+    ndk: r27b
     scandelete:
-      - node_modules
-    # Expo's template signs release builds with its debug keystore; F-Droid re-signs the APK anyway.
+      # iOS, macOS, Windows and web leftovers that ship inside the npm packages.
+      - node_modules/react-native/React/I18n
+      - node_modules/fb-dotslash
+      - node_modules/@expo/expo-modules-macros-plugin
+      - node_modules/hermes-compiler/hermesc/win64-bin
+      - node_modules/hermes-compiler/hermesc/osx-bin
+      - node_modules/expo/template.tgz
+      - node_modules/expo-modules-core/prebuilds
+      - node_modules/expo-font/prebuilds
+      - node_modules/expo-file-system/prebuilds
+      - node_modules/expo-sqlite/ios/libsql.xcframework
+      - node_modules/expo-sqlite/web/wa-sqlite
+      # Optional SQLite extensions (libSQL, sqlite-vec) that OpenCal does not enable.
+      - node_modules/expo-sqlite/android/libsql
+      - node_modules/expo-sqlite/android/vec
+      # Prebuilt copies of the Expo modules; deleting them makes Gradle compile the sources instead.
+      - node_modules/expo-sqlite/local-maven-repo
+      - node_modules/expo-status-bar/local-maven-repo
+      - node_modules/expo-font/local-maven-repo
+      - node_modules/expo-file-system/local-maven-repo
+      - node_modules/expo-system-ui/local-maven-repo
+      - node_modules/expo-document-picker/local-maven-repo
+      - node_modules/expo-sharing/local-maven-repo
+      - node_modules/expo-splash-screen/local-maven-repo
+      - node_modules/@expo/dom-webview/local-maven-repo
+      - node_modules/expo/node_modules/expo-keep-awake/local-maven-repo
+      - node_modules/expo/node_modules/expo-asset/local-maven-repo
     scanignore:
-      - android/app/debug.keystore
+      # Gradle files that point at local directories inside node_modules.
+      - node_modules/react-native/ReactAndroid/publish.gradle
+      - node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
+      - node_modules/react-native-screens/android/build.gradle
+      - node_modules/react-native-svg/android/build.gradle
+      - node_modules/react-native-safe-area-context/android/build.gradle
+      # TEST ONLY: the Hermes compiler is a prebuilt binary and must be built from source for a real submission.
+      - node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags

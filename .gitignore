@@ -51,3 +51,5 @@ server/.env
 # Local native modules: Gradle output
 modules/**/android/build/
 modules/**/android/.cxx/
+
+# Local F-Droid build check output (scripts/fdroid)

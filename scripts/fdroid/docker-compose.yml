@@ -1,0 +1,13 @@
+# One-off F-Droid builds of OpenCal (not a running service):
+#   docker compose --profile build run --rm build
+# The build runs as `vagrant` in F-Droid's build image; sources are cloned into ./build and the
+# resulting APK lands in ./unsigned.
+services:
+  build:
+    build: .
+    image: opencal-fdroid-build
+    profiles: ["build"]
+    working_dir: /repo
+    volumes:
+      - ./:/repo
+    command: ["fdroid", "build", "--verbose", "--on-server", "--no-tarball", "com.boazcohen.opencal"]
