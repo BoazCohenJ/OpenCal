@@ -2,14 +2,16 @@ import { addDays, format, isSameDay, isSameMonth, startOfMonth, startOfWeek } fr
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { EventPill } from '../components/EventPill';
-import { COMPACT_LANE_HEIGHT, SpanBar } from '../components/SpanBar';
+import { COMPACT_LANE_HEIGHT, DESKTOP_LANE_HEIGHT, SpanBar } from '../components/SpanBar';
 import { occurrencesByDay, type Occurrence } from '../services/occurrences';
 import { createStyles, fonts } from '../theme';
 import { dayKey, WEEK_STARTS_ON } from '../utils/dates';
+import { useDesktop } from '../utils/desktop';
 import { isAllDayLike, layoutSpans } from './layout';
 
 // Vertical space above the first pill in a cell (padding, day number, margin), and the height of one pill row.
 const CELL_HEAD = 23;
+const CELL_HEAD_DESKTOP = 31;
 const DEFAULT_CAPACITY = 3;
 const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
 
@@ -24,9 +26,11 @@ export const MonthView = React.memo(function MonthView({
   onPressDay: (d: Date) => void;
 }) {
   const styles = useStyles();
+  const desktop = useDesktop();
+  const LANE = desktop ? DESKTOP_LANE_HEIGHT : COMPACT_LANE_HEIGHT;
   // As many pill rows as the cells are tall: the week rows share the height, so measure one.
   const [rowHeight, setRowHeight] = useState(0);
-  const capacity = rowHeight > 0 ? Math.max(1, Math.floor((rowHeight - CELL_HEAD) / COMPACT_LANE_HEIGHT)) : DEFAULT_CAPACITY;
+  const capacity = rowHeight > 0 ? Math.max(1, Math.floor((rowHeight - (desktop ? CELL_HEAD_DESKTOP : CELL_HEAD)) / LANE)) : DEFAULT_CAPACITY;
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(month), { weekStartsOn: WEEK_STARTS_ON });
     return Array.from({ length: 42 }, (_, i) => addDays(start, i));
@@ -63,7 +67,7 @@ export const MonthView = React.memo(function MonthView({
       <View style={styles.weekdays}>
         {days.slice(0, 7).map((d) => (
           <Text key={d.getDay()} style={[styles.weekday, isWeekend(d) && styles.weekdayWeekend]}>
-            {format(d, 'EEEEE')}
+            {format(d, desktop ? 'EEE' : 'EEEEE')}
           </Text>
         ))}
       </View>
@@ -83,25 +87,25 @@ export const MonthView = React.memo(function MonthView({
               <Pressable
                 key={dayKey(d)}
                 onPress={() => onPressDay(d)}
-                style={({ pressed }) => [styles.cell, isWeekend(d) && styles.cellWeekend, pressed && styles.cellPressed]}
+                style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [styles.cell, isWeekend(d) && styles.cellWeekend, hovered && styles.cellHover, pressed && styles.cellPressed]}
                 accessibilityLabel={`${format(d, 'EEEE, MMMM d')}, ${list.length} events`}
               >
-                <View style={[styles.dayBadge, isToday && styles.dayBadgeToday]}>
-                  <Text style={[styles.dayText, !inMonth && styles.dayTextOutside, isToday && styles.dayTextToday]}>
+                <View style={[styles.dayBadge, desktop && styles.dayBadgeDesktop, isToday && styles.dayBadgeToday]}>
+                  <Text style={[styles.dayText, desktop && styles.dayTextDesktop, !inMonth && styles.dayTextOutside, isToday && styles.dayTextToday]}>
                     {format(d, 'd')}
                   </Text>
                 </View>
                 {/* Events here are only a preview: a tap anywhere in the cell opens the day. */}
-                <View style={[styles.events, { marginTop: shownLanes * COMPACT_LANE_HEIGHT }]} pointerEvents="none">
+                <View style={[styles.events, { marginTop: shownLanes * LANE }]} pointerEvents="none">
                   {list.slice(0, shown).map((o) => (
                     <EventPill key={o.key} occ={o} compact />
                   ))}
-                  {more > 0 ? <Text style={styles.more}>+{more} more</Text> : null}
+                  {more > 0 ? <Text style={[styles.more, desktop && { fontSize: 11, lineHeight: 19 }]}>+{more} more</Text> : null}
                 </View>
               </Pressable>
             );
           })}
-          <View style={styles.spans} pointerEvents="none">
+          <View style={[styles.spans, desktop && { top: CELL_HEAD_DESKTOP }]} pointerEvents="none">
             {segments.map((seg) => (
               <SpanBar
                 key={`${seg.occ.key}@${seg.col}`}
@@ -109,7 +113,7 @@ export const MonthView = React.memo(function MonthView({
                 compact
                 fromPrev={seg.fromPrev}
                 toNext={seg.toNext}
-                style={{ position: 'absolute', top: seg.lane * COMPACT_LANE_HEIGHT, left: `${(seg.col / 7) * 100}%`, width: `${(seg.length / 7) * 100}%` }}
+                style={{ position: 'absolute', top: seg.lane * LANE, left: `${(seg.col / 7) * 100}%`, width: `${(seg.length / 7) * 100}%` }}
               />
             ))}
           </View>
@@ -128,7 +132,10 @@ const useStyles = createStyles((colors) => ({
   cell: { flex: 1, paddingHorizontal: 2, paddingTop: 2, overflow: 'hidden' },
   cellWeekend: { backgroundColor: colors.weekend },
   cellPressed: { backgroundColor: colors.primarySoft },
+  cellHover: { backgroundColor: colors.surfaceAlt },
   dayBadge: { alignSelf: 'center', width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 1 },
+  dayBadgeDesktop: { alignSelf: 'flex-start', width: 24, height: 24, borderRadius: 12, marginLeft: 4, marginTop: 2, marginBottom: 2 },
+  dayTextDesktop: { fontSize: 13 },
   dayBadgeToday: { backgroundColor: colors.primary },
   dayText: { fontSize: 12, fontFamily: fonts.display, color: colors.text },
   dayTextOutside: { color: colors.textFaint, opacity: 0.6 },

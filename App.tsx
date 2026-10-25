@@ -12,6 +12,7 @@ import React, { useEffect, useMemo } from 'react';
 import { Linking, Platform, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Logo } from './src/components/Logo';
+import { DialogHeader, dialog } from './src/components/WebDialog';
 import { SyncWatcher } from './src/components/SyncWatcher';
 import { ToastProvider } from './src/components/Toast';
 import { UpdateWatcher } from './src/components/UpdateWatcher';
@@ -36,6 +37,7 @@ import { SyncScreen } from './src/screens/SyncScreen';
 import { TemplateEditScreen } from './src/screens/TemplateEditScreen';
 import { TemplatesScreen } from './src/screens/TemplatesScreen';
 import { createStyles, fonts, ThemeProvider, useTheme } from './src/theme';
+import { useDesktop } from './src/utils/desktop';
 import { WidgetWatcher } from './src/widgets/WidgetWatcher';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -110,13 +112,27 @@ SplashScreen.setOptions({ duration: 250, fade: true });
  * Forms and settings are phone-width layouts: on a wide browser window keep each in a centred,
  * readable column. Wrapped once at module level so the screen components stay stable between renders.
  */
-function narrow<P extends object>(Screen: React.ComponentType<P>): React.ComponentType<P> {
+function narrow<P extends { navigation: { goBack: () => void } }>(Screen: React.ComponentType<P>): React.ComponentType<P> {
   if (Platform.OS !== 'web') return Screen;
-  const Narrow = (props: P) => (
-    <View style={{ flex: 1, width: '100%', maxWidth: WEB_COLUMN, alignSelf: 'center' }}>
-      <Screen {...props} />
-    </View>
-  );
+  const Narrow = (props: P) => {
+    const desktop = useDesktop();
+    const { goBack } = props.navigation;
+    // Esc steps back out of a page, as it closes the dialogs.
+    useEffect(() => {
+      if (!desktop) return;
+      const onKey = (e: KeyboardEvent) => {
+        const el = e.target as HTMLElement | null;
+        if (e.key === 'Escape' && !(el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) goBack();
+      };
+      document.addEventListener('keydown', onKey);
+      return () => document.removeEventListener('keydown', onKey);
+    }, [desktop, goBack]);
+    return (
+      <View style={{ flex: 1, width: '100%', maxWidth: WEB_COLUMN, alignSelf: 'center' }}>
+        <Screen {...props} />
+      </View>
+    );
+  };
   return Narrow;
 }
 
@@ -133,11 +149,11 @@ const narrowed = {
   ColorRulesScreen: narrow(ColorRulesScreen),
   ImportExportScreen: narrow(ImportExportScreen),
   SyncScreen: narrow(SyncScreen),
-  EventEditScreen: narrow(EventEditScreen),
-  QuickAddScreen: narrow(QuickAddScreen),
-  FocusEditScreen: narrow(FocusEditScreen),
-  StampScreen: narrow(StampScreen),
-  BirthdayEditScreen: narrow(BirthdayEditScreen),
+  EventEditScreen: dialog(narrow(EventEditScreen)),
+  QuickAddScreen: dialog(narrow(QuickAddScreen)),
+  FocusEditScreen: dialog(narrow(FocusEditScreen)),
+  StampScreen: dialog(narrow(StampScreen)),
+  BirthdayEditScreen: dialog(narrow(BirthdayEditScreen)),
 };
 
 /** Width of the centred column non-calendar screens use on web (see `narrow`). */
@@ -146,6 +162,7 @@ const WEB_COLUMN = 720;
 function RootNavigator() {
   const styles = useStyles();
   const { width } = useWindowDimensions();
+  const desktop = useDesktop();
   // Line the header buttons up with the column below them instead of the window edges.
   const headerInset = Platform.OS === 'web' ? Math.max(0, (width - WEB_COLUMN) / 2) : 0;
   const { colors } = useTheme();
@@ -199,7 +216,13 @@ function RootNavigator() {
       <Stack.Screen name="ColorRules" component={narrowed.ColorRulesScreen} options={{ title: 'Color rules' }} />
       <Stack.Screen name="ImportExport" component={narrowed.ImportExportScreen} options={{ title: 'Import & Export' }} />
       <Stack.Screen name="Sync" component={narrowed.SyncScreen} options={{ title: 'Sync' }} />
-      <Stack.Group screenOptions={{ presentation: 'modal', animation: 'slide_from_bottom' }}>
+      <Stack.Group
+        screenOptions={
+          desktop
+            ? { presentation: 'transparentModal', animation: 'fade', animationDuration: 140, header: DialogHeader, contentStyle: { backgroundColor: 'transparent' } }
+            : { presentation: 'modal', animation: 'slide_from_bottom' }
+        }
+      >
         <Stack.Screen name="EventEdit" component={narrowed.EventEditScreen} options={{ title: 'Event' }} />
         <Stack.Screen name="QuickAdd" component={narrowed.QuickAddScreen} options={{ title: 'Quick Add' }} />
         <Stack.Screen name="FocusEdit" component={narrowed.FocusEditScreen} options={{ title: 'Quiet time' }} />
@@ -249,10 +272,10 @@ function AppShell() {
     if (Platform.OS !== 'web') return;
     // Text fields draw their own focus state; drop the browser's default outline.
     const style = document.createElement('style');
-    style.textContent = 'input, textarea { outline: none; }';
+    style.textContent = `input, textarea { outline: none; } * { scrollbar-width: thin; scrollbar-color: ${colors.border} transparent; }`;
     document.head.appendChild(style);
     return () => style.remove();
-  }, []);
+  }, [colors.border]);
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ToastProvider>
