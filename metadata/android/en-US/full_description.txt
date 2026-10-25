@@ -1,0 +1,27 @@
+OpenCal is a calendar that keeps your data on your phone. No account, no ads, no tracking. If you want your events on more than one device, you can sync them through a small server you run yourself.
+
+<b>Views and widgets</b>
+Schedule, Day, Week and Month views, with swipe navigation and a header that tells you where you are. Four home-screen widgets (Schedule, Today, Week, Month) that follow the app's colors and light/dark theme.
+
+<b>Adding events quickly</b>
+• Quick Add: type "Lunch with John Fri 1pm at Cafe X" and review the parsed event before saving.
+• Stamps: save events you repeat and drop them on any empty time slot in one tap.
+• Birthdays: add a name and date of birth and see "Dana's 36th birthday" every year.
+
+<b>Repeats, reminders and time zones</b>
+• Repeating events, with pauses that skip a date range and resume on their own.
+• Reminders down to the minute, with presets and custom values. Reminders are scheduled on the device and need no Google services.
+• Quiet time and Do Not Disturb, scheduled like events: quiet delivers reminders silently, Do Not Disturb skips them.
+• Floating or fixed time: a 9:00 run can stay at 9:00 wherever you travel, while a fixed meeting keeps the same moment and its time zone.
+
+<b>Organizing</b>
+Calendars with their own default reminders, repeat, location and tags. 20 named colors, a color wheel and your own saved colors. Color rules that color every event whose title contains a word. Multi-select in Day and Week view to move or delete several events together, with Undo.
+
+<b>Your data stays yours</b>
+• Everything is stored locally on the device.
+• Back up all your data to one file and restore it on another phone.
+• Import and export standard .ics files to move events to and from other calendar apps.
+• Optional self-hosted sync: run the OpenCal server at home (one Docker command), enter its address and key in Settings, and your phones stay in step.
+• Optional AI assistant tools over MCP on the same server, so an assistant can read your schedule and add or move events, with every change undoable.
+
+OpenCal is open source (MIT). The F-Droid build contains no proprietary libraries and never loads code from the network.

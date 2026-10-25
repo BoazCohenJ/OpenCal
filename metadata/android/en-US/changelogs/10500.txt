@@ -1,0 +1,2 @@
+Reminders now use a built-in scheduler instead of Firebase, so the app has no Google dependencies.
+First release on F-Droid.

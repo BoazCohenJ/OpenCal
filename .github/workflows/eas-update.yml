@@ -13,6 +13,8 @@ on:
       # Not part of the app bundle: promo video tooling, README screenshots, logo generator.
       - 'promo/**'
       - 'docs/**'
+      # F-Droid store listing (descriptions, screenshots, changelogs).
+      - 'metadata/**'
       - 'scripts/**'
       # The self-hosted sync server runs on its own, outside the app.
       - 'server/**'
