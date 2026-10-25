@@ -1,7 +1,7 @@
 import { addDays, differenceInCalendarDays, startOfDay } from 'date-fns';
 import type { GestureResponderEvent } from 'react-native';
 import type { Occurrence } from '../services/occurrences';
-import { isMultiDay } from '../utils/dates';
+import { isMultiDay, minutesSinceMidnight } from '../utils/dates';
 
 export const HOUR_HEIGHT = 56;
 export const PX_PER_MIN = HOUR_HEIGHT / 60;
@@ -55,11 +55,20 @@ export function layoutTimed(occs: Occurrence[], day: Date, minHeight = MIN_BLOCK
   let columnEnds: number[] = [];
   let clusterEnd = -Infinity;
 
+  // The grid is drawn by clock hours, so place events by clock minutes rather than minutes elapsed
+  // since midnight: on a day with a daylight-saving change those differ by an hour after the change.
+  const clockMinutes = (ms: number) => {
+    if (ms <= dayStart) return 0;
+    if (ms >= dayEnd) return 24 * 60;
+    return minutesSinceMidnight(new Date(ms));
+  };
+
   const flush = () => {
     const columns = columnEnds.length;
     for (const { item, column } of cluster) {
-      const top = ((item.s - dayStart) / 60000) * PX_PER_MIN;
-      const trueHeight = ((item.e - item.s) / 60000) * PX_PER_MIN;
+      const startMin = clockMinutes(item.s);
+      const top = startMin * PX_PER_MIN;
+      const trueHeight = Math.max(0, clockMinutes(item.e) - startMin) * PX_PER_MIN;
       result.push({
         occ: item.occ,
         top,
