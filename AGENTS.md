@@ -40,11 +40,13 @@ Docs: https://docs.expo.dev/eas/index.md
 
 ## Releases and over-the-air updates (how this project ships)
 
-The phone runs an installed **preview** APK (`eas.json` → `preview` profile, channel `preview`, package `com.boazcohen.opencal`). Pushing to `main` updates it over the air:
+The phone runs an installed **preview** APK (`eas.json` → `preview` profile, channel `preview`, package `com.boazcohen.opencal.ota`). Pushing to `main` updates it over the air:
 
 - `.github/workflows/eas-update.yml` runs on every push to `main` (changes only to Markdown, `.claude/`, `promo/`, `docs/`, `scripts/`, `server/` or `LICENSE` are ignored, since they aren't in the app bundle): `npm ci` → `tsc --noEmit` → `expo lint` → `eas update --channel preview --environment preview --platform android`. A failing typecheck or lint blocks the update. It needs the `EXPO_TOKEN` repository secret and skips with a notice without it.
 - The app checks for updates on launch and when it returns to the foreground (`src/components/UpdateWatcher.tsx`), downloads them, and offers a **Restart** toast.
 - `--environment` is required by `eas update` for Expo SDK 55+; keep it in any manual command.
+
+**Two build variants (OTA and F-Droid).** `app.config.js` reads `OPENCAL_VARIANT`. Unset is the OTA preview build above (id `com.boazcohen.opencal.ota`). `OPENCAL_VARIANT=fdroid` is the build F-Droid compiles: clean id `com.boazcohen.opencal`, no `updates`/`runtimeVersion`, and `metro.config.js` resolves `expo-updates` to `src/stubs/expo-updates.ts` (the F-Droid recipe also runs `npm uninstall expo-updates`, so no remote-code library reaches the APK). Never add Firebase, Google Play services or any other proprietary dependency: F-Droid rejects them (reminders use the local `modules/opencal-notifications` module for this reason). Keep any new code that touches `expo-updates` working against the stub. The two ids can't update over each other, so moving a phone between them goes through Import & export.
 
 **Runtime version rule (important):** `app.json` uses `"runtimeVersion": { "policy": "appVersion" }`, so an update only reaches builds whose `version` matches. JS/asset-only changes (screens, logic, styles, images bundled by JS) ship automatically. Anything native does **not**:
 

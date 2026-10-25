@@ -31,7 +31,7 @@
         "android.permission.USE_EXACT_ALARM"
       ],
       "predictiveBackGestureEnabled": false,
-      "package": "com.boazcohen.opencal"
+      "package": "com.boazcohen.opencal.ota"
     },
     "web": {
       "favicon": "./assets/favicon.png"
