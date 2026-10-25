@@ -1,15 +1,5 @@
-# Build recipe for https://gitlab.com/fdroid/fdroiddata (metadata/com.boazcohen.opencal.yml).
-# Uses the existing srclibs/hermes.yml of fdroiddata (same Repo URL). See docs/fdroid/SUBMIT.md.
-#
-# Tested 2026-10-25 with scripts/fdroid (F-Droid's buildserver image + fdroidserver 2.4.2, run with
-# --on-server against the v1.5.0 tag): the build succeeds. The Hermes compiler (hermesc) is built from
-# the facebook/hermes source (srclib) and the npm prebuilt binaries are removed with scandelete.
-#
-# Still unresolved: the Temurin JDK 17 and Node tarballs are downloaded in `sudo`, which reviewers may
-# ask to replace with distro packages or srclibs.
-
 Categories:
-  - Time
+  - Calendar & Agenda
 License: MIT
 AuthorName: Boaz Cohen
 WebSite: https://github.com/BoazCohenJ/OpenCal
@@ -28,39 +18,40 @@ Builds:
     timeout: 7200
     sudo:
       - apt-get update
-      - apt-get install -y curl xz-utils cmake ninja-build build-essential zlib1g-dev libicu-dev
-      # React Native 0.86 needs Node >= 22.13; Debian's package is too old.
+      - apt-get install -y curl xz-utils cmake ninja-build build-essential zlib1g-dev
+        libicu-dev
       - curl -Lo node.tar.xz https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-x64.tar.xz
-      - echo "69b09dba5c8dcb05c4e4273a4340db1005abeafe3927efda2bc5b249e80437ec  node.tar.xz" | sha256sum -c -
+      - echo "69b09dba5c8dcb05c4e4273a4340db1005abeafe3927efda2bc5b249e80437ec  node.tar.xz"
+        | sha256sum -c -
       - tar -xJf node.tar.xz --strip-components=1 -C /usr/local
-      # The React Native Gradle plugin requires a JDK 17 toolchain; Debian trixie only ships 21 and 25.
-      - curl -Lo jdk17.tar.gz https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.13%2B11/OpenJDK17U-jdk_x64_linux_hotspot_17.0.13_11.tar.gz
-      - echo "8682892fc02965930b9022c066fa164dd6f458ef4a5dc262016aa28333b30f49  jdk17.tar.gz" | sha256sum -c -
+      - BASE=https://github.com/adoptium/temurin17-binaries/releases/download
+      - FILE=OpenJDK17U-jdk_x64_linux_hotspot_17.0.13_11.tar.gz
+      - curl -Lo jdk17.tar.gz $BASE/jdk-17.0.13%2B11/$FILE
+      - echo "8682892fc02965930b9022c066fa164dd6f458ef4a5dc262016aa28333b30f49  jdk17.tar.gz"
+        | sha256sum -c -
       - mkdir -p /usr/lib/jvm/temurin-17
       - tar -xzf jdk17.tar.gz --strip-components=1 -C /usr/lib/jvm/temurin-17
-    srclibs:
-      - hermes@hermes-v250829098.0.17
     init: export OPENCAL_VARIANT=fdroid
     output: android/app/build/outputs/apk/release/app-release.apk
+    srclibs:
+      - hermes@hermes-v250829098.0.17
     prebuild:
       - export OPENCAL_VARIANT=fdroid
       - npm ci
-      # The F-Droid variant must not load remote code; JS imports resolve to a stub (metro.config.js).
       - npm uninstall expo-updates
-      # Compile every Expo module from source instead of using the prebuilt AARs in node_modules.
       - npm pkg set --json 'expo.autolinking.android.buildFromSource=[".*"]'
       - npx expo prebuild --platform android --no-install --clean
-      # Build the Hermes compiler from source (the npm package only ships prebuilt binaries) and use it.
       - cmake -S $$hermes$$ -B $$hermes$$/build -G Ninja -DCMAKE_BUILD_TYPE=Release
       - cmake --build $$hermes$$/build --target hermesc -j 4
-      - sed -i 's#^ *hermesCommand = new File.*#    hermesCommand = "$$hermes$$/build/bin/hermesc"#' android/app/build.gradle
-    build:
-      - export OPENCAL_VARIANT=fdroid
-      - cd android
-      - gradle assembleRelease -x lint
-    ndk: r27b
+      - sed -i 's#^ *hermesCommand = new File.*#    hermesCommand = "$$hermes$$/build/bin/hermesc"#'
+        android/app/build.gradle
+    scanignore:
+      - node_modules/react-native/ReactAndroid/publish.gradle
+      - node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
+      - node_modules/react-native-screens/android/build.gradle
+      - node_modules/react-native-svg/android/build.gradle
+      - node_modules/react-native-safe-area-context/android/build.gradle
     scandelete:
-      # iOS, macOS, Windows and web leftovers that ship inside the npm packages.
       - node_modules/react-native/React/I18n
       - node_modules/fb-dotslash
       - node_modules/@expo/expo-modules-macros-plugin
@@ -71,10 +62,8 @@ Builds:
       - node_modules/expo-file-system/prebuilds
       - node_modules/expo-sqlite/ios/libsql.xcframework
       - node_modules/expo-sqlite/web/wa-sqlite
-      # Optional SQLite extensions (libSQL, sqlite-vec) that OpenCal does not enable.
       - node_modules/expo-sqlite/android/libsql
       - node_modules/expo-sqlite/android/vec
-      # Prebuilt copies of the Expo modules; deleting them makes Gradle compile the sources instead.
       - node_modules/expo-sqlite/local-maven-repo
       - node_modules/expo-status-bar/local-maven-repo
       - node_modules/expo-font/local-maven-repo
@@ -86,13 +75,11 @@ Builds:
       - node_modules/@expo/dom-webview/local-maven-repo
       - node_modules/expo/node_modules/expo-keep-awake/local-maven-repo
       - node_modules/expo/node_modules/expo-asset/local-maven-repo
-    scanignore:
-      # Gradle files that point at local directories inside node_modules.
-      - node_modules/react-native/ReactAndroid/publish.gradle
-      - node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
-      - node_modules/react-native-screens/android/build.gradle
-      - node_modules/react-native-svg/android/build.gradle
-      - node_modules/react-native-safe-area-context/android/build.gradle
+    build:
+      - export OPENCAL_VARIANT=fdroid
+      - cd android
+      - gradle assembleRelease -x lint
+    ndk: r27b
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
