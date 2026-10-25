@@ -114,7 +114,7 @@ interface CalendarContextValue {
   /** Result of the most recent reminder scheduling pass (null until the first one finishes). */
   reminderStatus: ScheduleResult | null;
   /** Re-runs scheduling now; with askPermission it may show the OS permission prompt. */
-  refreshReminders: (options?: { askPermission?: boolean }) => Promise<ScheduleResult>;
+  refreshReminders: (options?: { askPermission?: boolean; askAlways?: boolean }) => Promise<ScheduleResult>;
   /** Everything as a JSON backup file (see services/backup.ts). */
   createBackupFile: () => string;
   /** Merge adds and updates by id; replace wipes calendars, events, stamps and birthdays first and restores settings. */
@@ -246,7 +246,7 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
     latest.current = { events, calendarsById, notificationPrefs };
   }, [events, calendarsById, notificationPrefs]);
 
-  const refreshReminders = useCallback(async (options?: { askPermission?: boolean }) => {
+  const refreshReminders = useCallback(async (options?: { askPermission?: boolean; askAlways?: boolean }) => {
     const { events: ev, calendarsById: cals, notificationPrefs: prefs } = latest.current;
     const result = await rescheduleReminders(ev, cals, prefs, options);
     setReminderStatus(result);

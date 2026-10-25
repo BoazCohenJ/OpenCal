@@ -110,9 +110,9 @@ export function rescheduleReminders(
   events: Event[],
   calendarsById: Record<string, Calendar>,
   prefs: NotificationPrefs,
-  { askPermission = false }: { askPermission?: boolean } = {},
+  { askPermission = false, askAlways = false }: { askPermission?: boolean; askAlways?: boolean } = {},
 ): Promise<ScheduleResult> {
-  const run = queue.then(() => doReschedule(events, calendarsById, prefs, askPermission));
+  const run = queue.then(() => doReschedule(events, calendarsById, prefs, askPermission, askAlways));
   queue = run.catch(() => undefined);
   return run;
 }
@@ -122,6 +122,7 @@ async function doReschedule(
   calendarsById: Record<string, Calendar>,
   prefs: NotificationPrefs,
   askPermission: boolean,
+  askAlways: boolean,
 ): Promise<ScheduleResult> {
   const planned = planReminders(events, calendarsById, prefs);
   const pending = planned.slice(0, MAX_SCHEDULED);
@@ -132,9 +133,10 @@ async function doReschedule(
     let status = await getNotificationStatus();
     if (pending.length === 0 || status !== 'granted') {
       if (status === 'granted') await Reminders.cancelAllReminders();
-      if (pending.length === 0 || !askPermission || status !== 'undetermined') return empty(status);
+      // Background passes only ask once reminders exist; the Enable button (askAlways) asks right away.
+      if (!askPermission || (pending.length === 0 && !askAlways) || status !== 'undetermined') return empty(status);
       status = (await requestNotificationPermission()) ? 'granted' : await getNotificationStatus();
-      if (status !== 'granted') return empty(status);
+      if (status !== 'granted' || pending.length === 0) return empty(status);
     }
 
     // Usually nothing changed since the last pass (e.g. just reopening the app): keep what's queued.
