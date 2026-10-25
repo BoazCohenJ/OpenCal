@@ -1,17 +1,11 @@
 # Build recipe for https://gitlab.com/fdroid/fdroiddata (metadata/com.boazcohen.opencal.yml).
-# Not submitted yet.
+# Not submitted yet. Needs srclibs/hermes.yml (docs/fdroid/hermes.srclib.yml) in the same merge request.
 #
 # Tested 2026-10-25 with scripts/fdroid (F-Droid's buildserver image + fdroidserver 2.4.2, run with
-# --on-server against the v1.5.0 tag): `fdroid lint` passes, the build succeeds, and
-# `fdroid scanner` finds nothing in the APK.
+# --on-server against the v1.5.0 tag): the build succeeds. The Hermes compiler (hermesc) is built from
+# the facebook/hermes source (srclib) and the npm prebuilt binaries are removed with scandelete.
 #
-# OPEN BLOCKER: the `scanignore` entry for node_modules/hermes-compiler/hermesc/linux64-bin/hermesc.
-# That is a prebuilt Hermes compiler binary from npm, which F-Droid will not accept. Before
-# submitting, build hermesc from the Hermes source (tag in node_modules/react-native/sdks/.hermesversion)
-# in the `sudo`/`prebuild` steps, point the React Native Gradle plugin at it with `react.hermesCommand`,
-# and delete the npm binary with `scandelete` instead.
-#
-# Also unresolved: the Temurin JDK 17 and Node tarballs are downloaded in `sudo`, which reviewers may
+# Still unresolved: the Temurin JDK 17 and Node tarballs are downloaded in `sudo`, which reviewers may
 # ask to replace with distro packages or srclibs.
 
 Categories:
@@ -34,7 +28,7 @@ Builds:
     timeout: 7200
     sudo:
       - apt-get update
-      - apt-get install -y curl xz-utils
+      - apt-get install -y curl xz-utils cmake ninja-build build-essential zlib1g-dev libicu-dev
       # React Native 0.86 needs Node >= 22.13; Debian's package is too old.
       - curl -Lo node.tar.xz https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-x64.tar.xz
       - echo "69b09dba5c8dcb05c4e4273a4340db1005abeafe3927efda2bc5b249e80437ec  node.tar.xz" | sha256sum -c -
@@ -44,6 +38,8 @@ Builds:
       - echo "8682892fc02965930b9022c066fa164dd6f458ef4a5dc262016aa28333b30f49  jdk17.tar.gz" | sha256sum -c -
       - mkdir -p /usr/lib/jvm/temurin-17
       - tar -xzf jdk17.tar.gz --strip-components=1 -C /usr/lib/jvm/temurin-17
+    srclibs:
+      - hermes@hermes-v250829098.0.17
     init: export OPENCAL_VARIANT=fdroid
     output: android/app/build/outputs/apk/release/app-release.apk
     prebuild:
@@ -54,6 +50,10 @@ Builds:
       # Compile every Expo module from source instead of using the prebuilt AARs in node_modules.
       - npm pkg set --json 'expo.autolinking.android.buildFromSource=[".*"]'
       - npx expo prebuild --platform android --no-install --clean
+      # Build the Hermes compiler from source (the npm package only ships prebuilt binaries) and use it.
+      - cmake -S $$hermes$$ -B $$hermes$$/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - cmake --build $$hermes$$/build --target hermesc -j 4
+      - sed -i 's#^ *hermesCommand = new File.*#    hermesCommand = "$$hermes$$/build/bin/hermesc"#' android/app/build.gradle
     build:
       - export OPENCAL_VARIANT=fdroid
       - cd android
@@ -64,8 +64,7 @@ Builds:
       - node_modules/react-native/React/I18n
       - node_modules/fb-dotslash
       - node_modules/@expo/expo-modules-macros-plugin
-      - node_modules/hermes-compiler/hermesc/win64-bin
-      - node_modules/hermes-compiler/hermesc/osx-bin
+      - node_modules/hermes-compiler/hermesc
       - node_modules/expo/template.tgz
       - node_modules/expo-modules-core/prebuilds
       - node_modules/expo-font/prebuilds
@@ -94,8 +93,6 @@ Builds:
       - node_modules/react-native-screens/android/build.gradle
       - node_modules/react-native-svg/android/build.gradle
       - node_modules/react-native-safe-area-context/android/build.gradle
-      # TEST ONLY: the Hermes compiler is a prebuilt binary and must be built from source for a real submission.
-      - node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags

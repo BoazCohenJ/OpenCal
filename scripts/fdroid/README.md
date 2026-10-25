@@ -7,10 +7,11 @@ recipe can be tested before it goes to fdroiddata. It runs on the home server in
 Set up once on the server:
 
 ```bash
-mkdir -p ~/fdroid/metadata ~/fdroid/build ~/fdroid/tmp ~/fdroid/unsigned
+mkdir -p ~/fdroid/metadata ~/fdroid/srclibs ~/fdroid/build ~/fdroid/tmp ~/fdroid/unsigned
 cp scripts/fdroid/{Dockerfile,docker-compose.yml,config.yml,rebuild.sh} ~/fdroid/
 cp -r scripts/fdroid/config ~/fdroid/
 cp docs/fdroid/com.boazcohen.opencal.yml ~/fdroid/metadata/
+cp docs/fdroid/hermes.srclib.yml ~/fdroid/srclibs/hermes.yml
 cd ~/fdroid && docker compose --profile build build
 ```
 
