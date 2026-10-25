@@ -32,7 +32,8 @@
       ],
       "predictiveBackGestureEnabled": false,
       "package": "com.boazcohen.opencal.ota",
-      "versionCode": 10500
+      "versionCode": 10500,
+      "blockedPermissions": ["android.permission.SYSTEM_ALERT_WINDOW"]
     },
     "web": {
       "favicon": "./assets/favicon.png"
