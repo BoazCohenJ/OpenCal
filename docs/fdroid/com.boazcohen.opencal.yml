@@ -1,0 +1,55 @@
+# DRAFT recipe for https://gitlab.com/fdroid/fdroiddata (metadata/com.boazcohen.opencal.yml).
+# Not submitted yet. The build steps mirror what was run locally (clean clone, npm ci, expo-updates
+# removed, OPENCAL_VARIANT=fdroid, assembleRelease). Still unverified against a real
+# `fdroid build`: the sudo/Node setup, the NDK and CMake versions, and the scanner's verdict.
+# Run `fdroid lint`, `fdroid rewritemeta` and `fdroid build -v -l com.boazcohen.opencal` first.
+
+Categories:
+  - Time
+License: MIT
+AuthorName: Boaz Cohen
+WebSite: https://github.com/BoazCohenJ/OpenCal
+SourceCode: https://github.com/BoazCohenJ/OpenCal
+IssueTracker: https://github.com/BoazCohenJ/OpenCal/issues
+
+AutoName: OpenCal
+
+RepoType: git
+Repo: https://github.com/BoazCohenJ/OpenCal.git
+
+Builds:
+  - versionName: 1.5.0
+    versionCode: 10500
+    commit: v1.5.0
+    timeout: 7200
+    sudo:
+      - apt-get update
+      - apt-get install -y curl xz-utils
+      # React Native 0.86 needs Node >= 22.13; Debian's package is too old.
+      - curl -Lo node.tar.xz https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-x64.tar.xz
+      - echo "69b09dba5c8dcb05c4e4273a4340db1005abeafe3927efda2bc5b249e80437ec  node.tar.xz" | sha256sum -c -
+      - tar -xJf node.tar.xz --strip-components=1 -C /usr/local
+    init: export OPENCAL_VARIANT=fdroid
+    output: android/app/build/outputs/apk/release/app-release.apk
+    prebuild:
+      - export OPENCAL_VARIANT=fdroid
+      - npm ci
+      # The F-Droid variant must not load remote code; JS imports resolve to a stub (metro.config.js).
+      - npm uninstall expo-updates
+      - npx expo prebuild --platform android --no-install --clean
+    build:
+      - export OPENCAL_VARIANT=fdroid
+      - cd android
+      - ./gradlew assembleRelease -x lint
+    ndk: 27.1.12297006
+    scandelete:
+      - node_modules
+    # Expo's template signs release builds with its debug keystore; F-Droid re-signs the APK anyway.
+    scanignore:
+      - android/app/debug.keystore
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+UpdateCheckData: app.json|"versionCode":\s*(\d+)|app.json|"version":\s*"([\d.]+)"
+CurrentVersion: 1.5.0
+CurrentVersionCode: 10500
