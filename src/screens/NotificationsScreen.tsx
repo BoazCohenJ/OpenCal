@@ -87,7 +87,7 @@ export function NotificationsScreen({ navigation }: ScreenProps<'Notifications'>
         truncated={reminderStatus?.truncated ?? false}
         horizonDays={prefs.horizonDays}
         focus={activeFocus ? { kind: activeFocus.kind, until: activeFocus.end } : null}
-        onEnable={() => void refreshReminders({ askPermission: true })}
+        onEnable={() => void refreshReminders({ askPermission: true, askAlways: true })}
       />
 
       <Section>
