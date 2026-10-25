@@ -125,7 +125,7 @@ const useStyles = createStyles((colors) => ({
   newKey: { fontSize: 11, fontWeight: '700', color: colors.onPrimary, opacity: 0.7 },
   mini: { marginBottom: spacing.md },
   heading: { fontSize: 11, fontWeight: '700', color: colors.textMuted, letterSpacing: 1.4, marginTop: spacing.sm, marginBottom: 4, paddingLeft: 8 },
-  list: { flexGrow: 0, maxHeight: 260 },
+  list: { flex: 1, minHeight: 90 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 8, borderRadius: radius.sm },
   rowHover: { backgroundColor: colors.surfaceAlt },
   box: { width: 18, height: 18, borderRadius: 5, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
