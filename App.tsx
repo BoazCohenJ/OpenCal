@@ -9,7 +9,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo } from 'react';
-import { Linking, Platform, Text, View } from 'react-native';
+import { Linking, Platform, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Logo } from './src/components/Logo';
 import { SyncWatcher } from './src/components/SyncWatcher';
@@ -106,8 +106,48 @@ const linking: LinkingOptions<RootStackParamList> = {
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 SplashScreen.setOptions({ duration: 250, fade: true });
 
+/**
+ * Forms and settings are phone-width layouts: on a wide browser window keep each in a centred,
+ * readable column. Wrapped once at module level so the screen components stay stable between renders.
+ */
+function narrow<P extends object>(Screen: React.ComponentType<P>): React.ComponentType<P> {
+  if (Platform.OS !== 'web') return Screen;
+  const Narrow = (props: P) => (
+    <View style={{ flex: 1, width: '100%', maxWidth: WEB_COLUMN, alignSelf: 'center' }}>
+      <Screen {...props} />
+    </View>
+  );
+  return Narrow;
+}
+
+const narrowed = {
+  SettingsScreen: narrow(SettingsScreen),
+  NotificationsScreen: narrow(NotificationsScreen),
+  CalendarsScreen: narrow(CalendarsScreen),
+  CalendarEditScreen: narrow(CalendarEditScreen),
+  CalendarDeleteScreen: narrow(CalendarDeleteScreen),
+  TemplatesScreen: narrow(TemplatesScreen),
+  TemplateEditScreen: narrow(TemplateEditScreen),
+  HiddenEventsListScreen: narrow(HiddenEventsListScreen),
+  BirthdaysScreen: narrow(BirthdaysScreen),
+  ColorRulesScreen: narrow(ColorRulesScreen),
+  ImportExportScreen: narrow(ImportExportScreen),
+  SyncScreen: narrow(SyncScreen),
+  EventEditScreen: narrow(EventEditScreen),
+  QuickAddScreen: narrow(QuickAddScreen),
+  FocusEditScreen: narrow(FocusEditScreen),
+  StampScreen: narrow(StampScreen),
+  BirthdayEditScreen: narrow(BirthdayEditScreen),
+};
+
+/** Width of the centred column non-calendar screens use on web (see `narrow`). */
+const WEB_COLUMN = 720;
+
 function RootNavigator() {
   const styles = useStyles();
+  const { width } = useWindowDimensions();
+  // Line the header buttons up with the column below them instead of the window edges.
+  const headerInset = Platform.OS === 'web' ? Math.max(0, (width - WEB_COLUMN) / 2) : 0;
   const { colors } = useTheme();
   const { ready, error } = useCalendarContext();
   const [fontsLoaded, fontError] = useFonts({ Fraunces_500Medium_Italic, Fraunces_600SemiBold, Fraunces_800ExtraBold });
@@ -140,29 +180,31 @@ function RootNavigator() {
         headerStyle: { backgroundColor: colors.bg },
         contentStyle: { backgroundColor: colors.bg },
         headerBackButtonDisplayMode: 'minimal',
+        headerLeftContainerStyle: { paddingLeft: headerInset },
+        headerRightContainerStyle: { paddingRight: headerInset },
         animation: 'slide_from_right',
         animationDuration: 280,
       }}
     >
       <Stack.Screen name="Calendar" component={CalendarScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
-      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
-      <Stack.Screen name="Calendars" component={CalendarsScreen} options={{ title: 'Calendars' }} />
-      <Stack.Screen name="CalendarEdit" component={CalendarEditScreen} options={{ title: 'Calendar' }} />
-      <Stack.Screen name="CalendarDelete" component={CalendarDeleteScreen} options={{ title: 'Delete calendar' }} />
-      <Stack.Screen name="Templates" component={TemplatesScreen} options={{ title: 'Stamps' }} />
-      <Stack.Screen name="TemplateEdit" component={TemplateEditScreen} options={{ title: 'Stamp' }} />
-      <Stack.Screen name="HiddenEvents" component={HiddenEventsListScreen} options={{ title: 'Event List' }} />
-      <Stack.Screen name="Birthdays" component={BirthdaysScreen} options={{ title: 'Birthdays' }} />
-      <Stack.Screen name="ColorRules" component={ColorRulesScreen} options={{ title: 'Color rules' }} />
-      <Stack.Screen name="ImportExport" component={ImportExportScreen} options={{ title: 'Import & Export' }} />
-      <Stack.Screen name="Sync" component={SyncScreen} options={{ title: 'Sync' }} />
+      <Stack.Screen name="Settings" component={narrowed.SettingsScreen} options={{ title: 'Settings' }} />
+      <Stack.Screen name="Notifications" component={narrowed.NotificationsScreen} options={{ title: 'Notifications' }} />
+      <Stack.Screen name="Calendars" component={narrowed.CalendarsScreen} options={{ title: 'Calendars' }} />
+      <Stack.Screen name="CalendarEdit" component={narrowed.CalendarEditScreen} options={{ title: 'Calendar' }} />
+      <Stack.Screen name="CalendarDelete" component={narrowed.CalendarDeleteScreen} options={{ title: 'Delete calendar' }} />
+      <Stack.Screen name="Templates" component={narrowed.TemplatesScreen} options={{ title: 'Stamps' }} />
+      <Stack.Screen name="TemplateEdit" component={narrowed.TemplateEditScreen} options={{ title: 'Stamp' }} />
+      <Stack.Screen name="HiddenEvents" component={narrowed.HiddenEventsListScreen} options={{ title: 'Event List' }} />
+      <Stack.Screen name="Birthdays" component={narrowed.BirthdaysScreen} options={{ title: 'Birthdays' }} />
+      <Stack.Screen name="ColorRules" component={narrowed.ColorRulesScreen} options={{ title: 'Color rules' }} />
+      <Stack.Screen name="ImportExport" component={narrowed.ImportExportScreen} options={{ title: 'Import & Export' }} />
+      <Stack.Screen name="Sync" component={narrowed.SyncScreen} options={{ title: 'Sync' }} />
       <Stack.Group screenOptions={{ presentation: 'modal', animation: 'slide_from_bottom' }}>
-        <Stack.Screen name="EventEdit" component={EventEditScreen} options={{ title: 'Event' }} />
-        <Stack.Screen name="QuickAdd" component={QuickAddScreen} options={{ title: 'Quick Add' }} />
-        <Stack.Screen name="FocusEdit" component={FocusEditScreen} options={{ title: 'Quiet time' }} />
-        <Stack.Screen name="Stamp" component={StampScreen} options={{ title: 'Add from Stamp' }} />
-        <Stack.Screen name="BirthdayEdit" component={BirthdayEditScreen} options={{ title: 'Birthday' }} />
+        <Stack.Screen name="EventEdit" component={narrowed.EventEditScreen} options={{ title: 'Event' }} />
+        <Stack.Screen name="QuickAdd" component={narrowed.QuickAddScreen} options={{ title: 'Quick Add' }} />
+        <Stack.Screen name="FocusEdit" component={narrowed.FocusEditScreen} options={{ title: 'Quiet time' }} />
+        <Stack.Screen name="Stamp" component={narrowed.StampScreen} options={{ title: 'Add from Stamp' }} />
+        <Stack.Screen name="BirthdayEdit" component={narrowed.BirthdayEditScreen} options={{ title: 'Birthday' }} />
       </Stack.Group>
     </Stack.Navigator>
   );
@@ -203,6 +245,14 @@ function AppShell() {
       },
     };
   }, [colors, scheme]);
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    // Text fields draw their own focus state; drop the browser's default outline.
+    const style = document.createElement('style');
+    style.textContent = 'input, textarea { outline: none; }';
+    document.head.appendChild(style);
+    return () => style.remove();
+  }, []);
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ToastProvider>

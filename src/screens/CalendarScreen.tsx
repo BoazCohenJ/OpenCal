@@ -16,7 +16,7 @@ import {
   startOfWeek,
 } from 'date-fns';
 import React, { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EventGlyph, Icon } from '../components/Icon';
 import { MonthYearSheet } from '../components/MonthYearPicker';
@@ -781,8 +781,11 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
   );
 }
 
+/** On a desktop browser the phone layout is kept to a sensible width instead of stretching edge to edge. */
+const isWeb = Platform.OS === 'web';
+
 const useStyles = createStyles((colors) => ({
-  container: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: colors.bg, ...(isWeb && { width: '100%', maxWidth: 1280, alignSelf: 'center' }) },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.md, paddingBottom: spacing.md },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, marginBottom: -spacing.md },
   eyebrowButton: { flexShrink: 1 },
@@ -802,7 +805,7 @@ const useStyles = createStyles((colors) => ({
   },
   viewButtonText: { fontSize: 14, fontWeight: '700', color: colors.text },
   hiddenDot: { position: 'absolute', top: 2, right: 4, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.primary, borderWidth: 2, borderColor: colors.bg },
-  title: { flexShrink: 1, fontFamily: fonts.displayBold, fontSize: 42, lineHeight: 50, color: colors.text, letterSpacing: -1.2 },
+  title: { flexShrink: 1, fontFamily: fonts.displayBold, fontSize: isWeb ? 34 : 42, lineHeight: isWeb ? 42 : 50, color: colors.text, letterSpacing: -1.2 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   navPill: {
     flexDirection: 'row',
@@ -829,6 +832,7 @@ const useStyles = createStyles((colors) => ({
   },
   bottomBar: { paddingHorizontal: spacing.md, paddingTop: 10, backgroundColor: colors.surface },
   dock: {
+    ...(isWeb && { width: '100%', maxWidth: 560, alignSelf: 'center' }),
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
