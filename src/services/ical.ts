@@ -374,7 +374,11 @@ export function parseICS(text: string, allDayTime: number): ICSImport | null {
       }
 
       // Which clock this event's dates are on (for EXDATE and RECURRENCE-ID days).
-      const eventShape = { isAllDay: start.allDay, floating: !start.allDay && start.floating, timeZone: start.timeZone };
+      // A repeating series written in UTC would drift an hour against the clock whenever daylight
+      // saving changes, so it follows the phone's zone instead (same clock time all year).
+      const repeats = !!one('RRULE') && !recurrenceId;
+      const zone = repeats && start.timeZone === 'UTC' ? deviceTimeZone() ?? 'UTC' : start.timeZone;
+      const eventShape = { isAllDay: start.allDay, floating: !start.allDay && start.floating, timeZone: zone };
       const skippedDays = new Set<string>();
       for (const ex of all('EXDATE')) {
         for (const v of splitList(ex.value)) {
@@ -383,7 +387,7 @@ export function parseICS(text: string, allDayTime: number): ICSImport | null {
         }
       }
       const rrule = one('RRULE')?.value.trim();
-      const normalized = rrule ? normalizeRule(rrule, start.timeZone) : undefined;
+      const normalized = rrule ? normalizeRule(rrule, zone) : undefined;
       const rule = normalized && !recurrenceId && createRule(normalized, start.date) ? normalized : undefined;
       const color = (one('X-OPENCAL-COLOR') ?? one('COLOR'))?.value.trim();
       const baseId = uid.endsWith(UID_SUFFIX) ? uid.slice(0, -UID_SUFFIX.length) : `ics-${uid}`;
@@ -397,7 +401,7 @@ export function parseICS(text: string, allDayTime: number): ICSImport | null {
         endDate: end.toISOString(),
         isAllDay: start.allDay,
         floating: eventShape.floating,
-        timeZone: start.allDay || start.floating ? undefined : start.timeZone,
+        timeZone: start.allDay || start.floating ? undefined : zone,
         calendarId: '',
         color: color && HEX.test(color) ? color.toUpperCase() : undefined,
         recurrenceRule: rule,
