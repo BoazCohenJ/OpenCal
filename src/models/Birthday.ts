@@ -2,6 +2,6 @@
 export interface Birthday {
   id: string;
   name: string;
-  /** Date of birth as `yyyy-MM-dd`. */
+  /** Date of birth as `yyyy-MM-dd`, or `--MM-dd` when the year is unknown or not wanted. */
   birthDate: string;
 }

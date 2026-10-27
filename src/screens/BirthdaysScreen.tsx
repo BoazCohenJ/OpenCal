@@ -5,10 +5,9 @@ import { EventGlyph } from '../components/Icon';
 import { Button, Divider, EmptyState, HeaderButton, Row, Section } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
-import { BIRTHDAY_COLOR, BIRTHDAYS_CALENDAR_ID, expandBirthdays } from '../services/birthdays';
+import { BIRTHDAY_COLOR, BIRTHDAYS_CALENDAR_ID, expandBirthdays, hasNoYear, parseBirthDate } from '../services/birthdays';
 import { createStyles, spacing } from '../theme';
 import { deepText, softBg } from '../utils/color';
-import { parseDayKey } from '../utils/dates';
 
 export function BirthdaysScreen({ navigation }: ScreenProps<'Birthdays'>) {
   const styles = useStyles();
@@ -32,7 +31,7 @@ export function BirthdaysScreen({ navigation }: ScreenProps<'Birthdays'>) {
         <EmptyState
           icon="cake"
           title="Never miss a birthday"
-          subtitle="Add a name and date of birth, and every year the calendar shows it as “Dana's 30th birthday”."
+          subtitle="Add a name and date of birth, and every year the calendar shows it as “Dana's 30th birthday”. The year is optional."
         >
           <Button title="Add a birthday" onPress={() => navigation.navigate('BirthdayEdit')} />
         </EmptyState>
@@ -47,7 +46,7 @@ export function BirthdaysScreen({ navigation }: ScreenProps<'Birthdays'>) {
         footer={`${visibleCalendarIds.includes(BIRTHDAYS_CALENDAR_ID) ? 'Shown' : 'Hidden'} on the calendar. Show or hide birthdays with the Birthdays chip on the main screen.`}
       >
         {upcoming.map(({ birthday: b, next }, i) => {
-          const birth = parseDayKey(b.birthDate);
+          const birth = parseBirthDate(b.birthDate);
           const days = next ? differenceInCalendarDays(next, today) : null;
           const when = !next ? '' : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `In ${days} days`;
           return (
@@ -55,7 +54,11 @@ export function BirthdaysScreen({ navigation }: ScreenProps<'Birthdays'>) {
               {i > 0 ? <Divider /> : null}
               <Row
                 label={b.name}
-                subtitle={`Born ${format(birth, 'MMM d, yyyy')}${next ? ` · turns ${next.getFullYear() - birth.getFullYear()} on ${format(next, 'MMM d')}` : ''}`}
+                subtitle={
+                  hasNoYear(b.birthDate)
+                    ? `${format(birth, 'MMMM d')} every year`
+                    : `Born ${format(birth, 'MMM d, yyyy')}${next ? ` · turns ${next.getFullYear() - birth.getFullYear()} on ${format(next, 'MMM d')}` : ''}`
+                }
                 value={when}
                 left={
                   <View style={[styles.glyph, { backgroundColor: softBg(BIRTHDAY_COLOR) }]}>
