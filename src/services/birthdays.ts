@@ -35,22 +35,37 @@ function birthdayIn(birth: Date, year: number): Date {
   return d.getMonth() === birth.getMonth() ? d : new Date(year, birth.getMonth() + 1, 0);
 }
 
+/** Stored form of a birthday without a year (`--MM-dd`, as in iCalendar/ISO 8601). */
+export const YEARLESS_PREFIX = '--';
+
+/** True when the stored date has no birth year. */
+export const hasNoYear = (birthDate: string): boolean => birthDate.startsWith(YEARLESS_PREFIX);
+
+/** Stored `birthDate` → a Date; yearless dates land in leap year 2000 so Feb 29 stays valid. */
+export function parseBirthDate(birthDate: string): Date {
+  return hasNoYear(birthDate) ? parseDayKey(`2000-${birthDate.slice(YEARLESS_PREFIX.length)}`) : parseDayKey(birthDate);
+}
+
+/** A picked date → its stored form, dropping the year when `withYear` is false. */
+export const toBirthDate = (key: string, withYear: boolean): string => (withYear ? key : `${YEARLESS_PREFIX}${key.slice(5)}`);
+
 /** All-day occurrences for every birthday (from the 1st onwards) on a day overlapping [rangeStart, rangeEnd). */
 export function expandBirthdays(birthdays: Birthday[], rangeStart: Date, rangeEnd: Date): Occurrence[] {
   const out: Occurrence[] = [];
   for (const b of birthdays) {
-    const birth = parseDayKey(b.birthDate);
+    const noYear = hasNoYear(b.birthDate);
+    const birth = parseBirthDate(b.birthDate);
     if (Number.isNaN(birth.getTime())) continue;
     for (let year = rangeStart.getFullYear(); year <= rangeEnd.getFullYear(); year++) {
       const age = year - birth.getFullYear();
-      if (age < 1) continue;
+      if (!noYear && age < 1) continue;
       const start = birthdayIn(birth, year);
       if (start < startOfDay(rangeStart) || start >= rangeEnd) continue;
       const end = addDays(start, 1);
       end.setMilliseconds(-1);
       const event: Event = {
         id: `${EVENT_ID_PREFIX}${b.id}`,
-        title: `${b.name}'s ${ordinal(age)} birthday`,
+        title: noYear ? `${b.name}'s birthday` : `${b.name}'s ${ordinal(age)} birthday`,
         startDate: start.toISOString(),
         endDate: end.toISOString(),
         isAllDay: true,

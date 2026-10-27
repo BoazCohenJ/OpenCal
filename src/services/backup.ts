@@ -131,7 +131,7 @@ function readBirthday(o: Obj): Birthday | null {
   const id = str(o.id);
   const name = str(o.name);
   const birthDate = str(o.birthDate);
-  return id && name && birthDate && DAY_KEY.test(birthDate) ? { id, name, birthDate } : null;
+  return id && name && birthDate && (DAY_KEY.test(birthDate) || /^--\d{2}-\d{2}$/.test(birthDate)) ? { id, name, birthDate } : null;
 }
 
 function readSettings(v: unknown): Partial<BackupSettings> {
