@@ -179,27 +179,11 @@ export async function testConnection(config: SyncConfig): Promise<string> {
 }
 
 /**
- * Sets up the server and syncs for the first time. A device with nothing of its own yet (no
- * events, stamps or birthdays) drops its starter calendars when the server already has calendars,
- * so connecting a new phone doesn't add a second "Personal" and "Work" everywhere.
+ * Sets up the server and merges all local data, including empty custom calendars.
  */
 export async function connect(config: SyncConfig): Promise<SyncResult> {
-  const serverId = await testConnection(config);
-  const fresh =
-    !db.loadEvents().length && !db.loadTemplates().length && !db.getSetting<unknown[]>('birthdays', []).length;
+  await testConnection(config);
   setSyncConfig(config);
-  if (fresh) {
-    const response = await post(config, '/api/sync', { serverId, cursor: 0, changes: EMPTY });
-    const incoming = onlySynced(response.changes as ChangeSet);
-    if (incoming.calendars.length) {
-      const starters = db.loadCalendars().filter((c) => !incoming.calendars.some((x) => x.record.id === c.id));
-      db.applyChanges(incoming);
-      starters.forEach((c) => db.deleteCalendarWithPlan(c.id, {}, null));
-      // What came in is everything up to the server's cursor; anything here still goes up next.
-      db.setSetting(STATE_KEY, { ...INITIAL_STATE, serverId: response.serverId, cursor: response.cursor } satisfies SyncState);
-      dataChanged();
-    }
-  }
   return syncNow(config);
 }
 

@@ -1,9 +1,9 @@
-import { addDays, addMinutes, startOfDay } from 'date-fns';
+import { addDays, addMinutes } from 'date-fns';
 import * as Reminders from '../../modules/opencal-notifications';
 import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
 import type { NotificationPrefs } from '../models/NotificationPrefs';
-import { formatRange } from '../utils/dates';
+import { atMinutes, formatRange } from '../utils/dates';
 import { eventLabel } from '../utils/format';
 import { activeFocusPeriod, expandFocusWindows, focusStateAt } from './focus';
 import { expandEvents } from './occurrences';
@@ -74,7 +74,7 @@ export function planReminders(
   const searchEnd = addMinutes(horizonEnd, maxLead + 24 * 60);
   for (const occ of expandEvents(candidates, calendarsById, now, searchEnd)) {
     // All-day reminders count back from a configurable time of day instead of midnight.
-    const anchor = occ.event.isAllDay ? addMinutes(startOfDay(occ.start), prefs.allDayTime) : occ.start;
+    const anchor = occ.event.isAllDay ? atMinutes(occ.start, prefs.allDayTime) : occ.start;
     for (const minutes of new Set(occ.event.reminders)) {
       const date = new Date(anchor.getTime() - minutes * 60000);
       const key = `${occ.event.id}@${date.getTime()}`;

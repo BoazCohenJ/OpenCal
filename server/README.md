@@ -61,7 +61,11 @@ events, which reach your phone on its next sync.
 
 - Tools: `list_calendars`, `find_events` (repeats expanded), `get_event`, `create_event`,
   `update_event`, `delete_event` (with "only this one" / "this and following" for repeating
-  events, like the app), `recent_changes` and `undo`.
+  events, like the app), `create_calendar`, `update_calendar` (rename, recolor, defaults),
+  `delete_calendar` (move or delete its events), `recent_changes` and `undo`.
+- Arguments are validated against each tool's schema: unknown or misspelled fields are rejected
+  with the allowed ones (a few common aliases like `newName` are accepted), and numbers, booleans
+  and lists sent as text are converted.
 - `find_series_copies` and `fold_into_series` repair repeating events that an import broke apart
   (Google exports renamed occurrences as overrides, which arrive as one-off copies).
 - Every change the tools make is logged with what it replaced, so it can be undone.
@@ -92,3 +96,5 @@ npm install
 npm run typecheck
 OPENCAL_API_KEY=dev-key-0123456789 npm start
 ```
+
+Browser clients may sync across origins using the bearer key. The server answers API preflights and does not use cookies or credentialed CORS. On timestamp ties, the server selects the version returned to clients.

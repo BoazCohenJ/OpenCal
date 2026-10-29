@@ -411,7 +411,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     (o: Occurrence) => {
       const birthdayId = birthdayIdOf(o.event);
       if (birthdayId) navigation.navigate('BirthdayEdit', { birthdayId });
-      else navigation.navigate('EventEdit', { eventId: o.event.id });
+      else navigation.navigate('EventEdit', { eventId: o.event.id, occurrenceStart: o.start.toISOString() });
     },
     [navigation],
   );
@@ -497,27 +497,30 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     (plain: Event[], repeating: RepeatItem[], choices: RepeatDeleteChoice[]) => {
       const originals: Event[] = [...plain];
       const deleteIds = plain.map((e) => e.id);
-      const updated: Event[] = [];
+      const updates = new Map<string, Event>();
       let occurrencesRemoved = 0;
       let seriesEnded = 0;
-      repeating.forEach(({ event, day }, i) => {
-        const choice = choices[i];
+      [...repeating.map((item, i) => ({ ...item, choice: choices[i] }))]
+        .sort((a, b) => b.day.getTime() - a.day.getTime())
+        .forEach(({ event: original, day, choice }) => {
+        const event = updates.get(original.id) ?? original;
         if (!choice || choice === 'keep' || !event.recurrenceRule) return;
-        originals.push(event);
+        originals.push(original);
         const firstDay = parseDayKey(occurrenceDayKey(event, parseTimestamp(event.startDate)));
         if (choice === 'all' || (choice === 'following' && day <= firstDay)) {
           deleteIds.push(event.id);
         } else if (choice === 'this') {
           const k = dayKey(day);
-          updated.push({ ...event, skippedDates: [...new Set([...(event.skippedDates ?? []), k])].sort() });
+          updates.set(event.id, { ...event, skippedDates: [...new Set([...(event.skippedDates ?? []), k])].sort() });
           occurrencesRemoved++;
         } else {
-          updated.push({ ...event, recurrenceRule: endRuleBefore(event.recurrenceRule, day) });
+          updates.set(event.id, { ...event, recurrenceRule: endRuleBefore(event.recurrenceRule, day) });
           seriesEnded++;
         }
       });
       if (!originals.length) return;
       if (deleteIds.length) deleteEvents(deleteIds);
+      const updated = [...updates.values()].filter((e) => !deleteIds.includes(e.id));
       if (updated.length) saveEvents(updated);
       const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
       const parts = [
@@ -525,7 +528,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
         occurrencesRemoved ? plural(occurrencesRemoved, 'occurrence') : '',
         seriesEnded ? `${seriesEnded === 1 ? 'a series' : `${seriesEnded} series`} from the selected day on` : '',
       ].filter(Boolean);
-      showToast({ icon: 'check', message: `Deleted ${parts.join(', ')}`, actionLabel: 'Undo', onAction: () => saveEvents(originals) });
+      showToast({ icon: 'check', message: `Deleted ${parts.join(', ')}`, actionLabel: 'Undo', onAction: () => saveEvents([...new Map(originals.map((e) => [e.id, e])).values()]) });
     },
     [deleteEvents, saveEvents, showToast],
   );

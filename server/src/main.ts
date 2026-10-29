@@ -80,6 +80,15 @@ function send(res: ServerResponse, status: number, body: unknown): void {
 
 async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const path = new URL(req.url ?? '/', 'http://x').pathname;
+  const origin = req.headers.origin;
+  // Bearer auth still protects data; no cookies or browser credentials are accepted.
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+  }
+  if (req.method === 'OPTIONS' && path.startsWith('/api/')) { res.writeHead(204).end(); return; }
 
   if (req.method === 'GET' && path === '/api/health') {
     return send(res, 200, { ok: true, app: 'opencal', version: VERSION, serverId: store.serverId });

@@ -1,4 +1,4 @@
-import { addMinutes, differenceInCalendarDays, differenceInCalendarMonths, differenceInCalendarWeeks, differenceInCalendarYears, format, isSameDay, isSameYear, startOfDay } from 'date-fns';
+import { differenceInCalendarDays, differenceInCalendarMonths, differenceInCalendarWeeks, differenceInCalendarYears, format, isSameDay, isSameYear, startOfDay } from 'date-fns';
 import type { PauseWindow } from '../models/PauseWindow';
 
 export const WEEK_STARTS_ON = 0 as const;
@@ -81,7 +81,11 @@ export function nextRoundedHour(from: Date = new Date()): Date {
 
 export const minutesSinceMidnight = (d: Date): number => d.getHours() * 60 + d.getMinutes();
 
-export const atMinutes = (day: Date, minutes: number): Date => addMinutes(startOfDay(day), minutes);
+export const atMinutes = (day: Date, minutes: number): Date => {
+  const date = startOfDay(day);
+  date.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+  return date;
+};
 
 /** True when the range covers more than one calendar day (an end exactly at midnight does not count). */
 export const isMultiDay = (start: Date, end: Date): boolean =>

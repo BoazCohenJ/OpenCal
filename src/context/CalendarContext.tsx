@@ -174,14 +174,6 @@ function loadInitialData(): { data: InitialData; error: null } | { data: null; e
       db.saveEvents(zoneless.map((e) => withStoredTimes(e, false)));
       events = db.loadEvents();
     }
-    // Repeating events imported with UTC times were pinned to UTC, so they slid an hour against the
-    // clock whenever daylight saving changed. Put them on the phone's zone, as imports now do.
-    const phoneZone = deviceTimeZone();
-    const pinnedToUtc = phoneZone && phoneZone !== 'UTC' ? events.filter((e) => e.recurrenceRule && !isFloating(e) && e.timeZone === 'UTC') : [];
-    if (pinnedToUtc.length && phoneZone) {
-      db.saveEvents(pinnedToUtc.map((e) => ({ ...e, timeZone: phoneZone })));
-      events = db.loadEvents();
-    }
     return {
       error: null,
       data: {

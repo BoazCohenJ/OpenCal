@@ -57,7 +57,7 @@ export const links = {
   quickAdd: () => 'opencal://quick-add',
   occurrence: (o: Occurrence) => {
     const birthdayId = birthdayIdOf(o.event);
-    return birthdayId ? `opencal://birthday/${encodeURIComponent(birthdayId)}` : `opencal://event/${encodeURIComponent(o.event.id)}`;
+    return birthdayId ? `opencal://birthday/${encodeURIComponent(birthdayId)}` : `opencal://event/${encodeURIComponent(o.event.id)}?occurrenceStart=${encodeURIComponent(o.start.toISOString())}`;
   },
 };
 

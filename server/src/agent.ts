@@ -1,13 +1,13 @@
 import { addDays, addMinutes, differenceInCalendarDays, endOfDay, format, startOfDay } from 'date-fns';
 import type { Calendar } from '../../src/models/Calendar.ts';
 import type { Event } from '../../src/models/Event.ts';
-import { occurrenceDayKey, withStoredTimes } from '../../src/services/eventTimes.ts';
+import { eventClock, occurrenceDayKey, withStoredTimes } from '../../src/services/eventTimes.ts';
 import { expandEvent, expandEvents, type Occurrence } from '../../src/services/occurrences.ts';
 import { normalizeHex } from '../../src/utils/color.ts';
 import { dayKey, deviceTimeZone, parseDayKey, parseTimestamp } from '../../src/utils/dates.ts';
 import { newId } from '../../src/utils/id.ts';
 import { NAMED_PALETTE } from '../../src/utils/palette.ts';
-import { createRule, describeRRule, endRuleBefore } from '../../src/utils/recurrence.ts';
+import { createRule, createRuleAt, describeRRule, endRuleBefore } from '../../src/utils/recurrence.ts';
 import type { Change, Store, Write } from './store.ts';
 
 /*
@@ -45,7 +45,15 @@ export interface EventFields {
   tags?: string[];
 }
 
-const putEvent = (event: Event): Write => ({ kind: 'event', id: event.id, record: event });
+export interface CalendarFields {
+  name?: string;
+  /** Palette name or hex. */
+  color?: string | null;
+  /** New-event defaults; `null` clears them all, omitted fields stay as they are. */
+  defaults?: { reminders?: number[]; location?: string | null; tags?: string[]; repeat?: string | null } | null;
+}
+
+const putEvent =(event: Event): Write => ({ kind: 'event', id: event.id, record: event });
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_ONLY = /^(\d{1,2}):(\d{2})$/;
@@ -171,6 +179,7 @@ export class CalendarAgent {
       calendarId: calendar.id,
       pauseWindows: [],
       skippedDates: [],
+      recurrenceRule: calendar.defaults?.recurrenceRule,
       reminders: calendar.defaults?.reminders ?? (allDay ? [] : [10]),
       location: calendar.defaults?.location,
       tags: [...(calendar.defaults?.tags ?? [])],
@@ -213,10 +222,15 @@ export class CalendarAgent {
       } else {
         // The series ends the day before; a copy carries on from this occurrence with the changes.
         writes.push(putEvent({ ...series, recurrenceRule: endRuleBefore(series.recurrenceRule!, parseDayKey(day)) }));
+        const clock = eventClock(series);
+        const rule = createRuleAt(series.recurrenceRule!, clock.toWall(parseTimestamp(series.startDate)))!;
+        const remaining = rule.origOptions.count == null ? undefined : rule.origOptions.count -
+          rule.between(rule.options.dtstart, new Date(clock.toWall(occ.start).getTime() - 1), true).length;
+        const continuation = series.recurrenceRule!.split(';').filter((p) => !/^COUNT=/i.test(p)).join(';');
         const rest: Event = {
           ...series,
           id: newId(),
-          recurrenceRule: series.recurrenceRule!.split(';').filter((p) => !/^COUNT=/i.test(p)).join(';'),
+          recurrenceRule: remaining == null ? continuation : `${continuation};COUNT=${Math.max(1, remaining)}`,
           skippedDates: (series.skippedDates ?? []).filter((d) => d > day),
           startDate: occ.start.toISOString(),
           endDate: occ.end.toISOString(),
@@ -254,6 +268,92 @@ export class CalendarAgent {
       }
     }
     const changeId = this.store.write([write], 'agent', summary);
+    return { changeId, deleted: summary };
+  }
+
+  // ---------- Calendars ----------
+
+  private checkCalendarName(name: string, exceptId?: string): string {
+    const clean = name.trim();
+    if (!clean) fail('The calendar name can’t be empty.');
+    const simple = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+    const clash = this.calendars().find((c) => c.id !== exceptId && simple(c.name) === simple(clean));
+    if (clash) fail(`A calendar called "${clash.name}" already exists (${clash.id}); pick a different name.`);
+    return clean;
+  }
+
+  private calendarDefaults(input: CalendarFields['defaults'], current: Calendar['defaults']): Calendar['defaults'] {
+    if (input === undefined) return current;
+    if (input === null) return undefined;
+    const d = { ...current };
+    if (input.reminders !== undefined) {
+      if (!input.reminders.every((m) => Number.isInteger(m) && m >= 0)) fail('Default reminders are whole minutes before the start.');
+      d.reminders = [...new Set(input.reminders)].sort((a, b) => a - b);
+    }
+    if (input.location !== undefined) d.location = input.location?.trim() || undefined;
+    if (input.tags !== undefined) d.tags = input.tags.map((t) => t.trim()).filter(Boolean);
+    if (input.repeat !== undefined) {
+      const rule = input.repeat?.trim().replace(/^RRULE:/i, '');
+      if (!rule || /^none$/i.test(rule)) d.recurrenceRule = undefined;
+      else if (!/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)/i.test(rule)) fail(`"${input.repeat}" isn't a repeat rule. Use an RRULE body like FREQ=WEEKLY;BYDAY=MO.`);
+      else d.recurrenceRule = rule.toUpperCase();
+    }
+    const clean = Object.fromEntries(Object.entries(d).filter(([, v]) => v !== undefined));
+    return Object.keys(clean).length ? clean : undefined;
+  }
+
+  createCalendar(fields: CalendarFields & { name: string }) {
+    const name = this.checkCalendarName(fields.name ?? '');
+    const all = this.calendars();
+    const calendar: Calendar = {
+      id: newId(),
+      name,
+      color: fields.color ? parseColor(fields.color) : NAMED_PALETTE[all.length % NAMED_PALETTE.length]!.hex,
+      sortOrder: Math.max(-1, ...all.map((c) => c.sortOrder)) + 1,
+      pauseWindows: [],
+      defaults: this.calendarDefaults(fields.defaults, undefined),
+    };
+    const changeId = this.store.write([{ kind: 'calendar', id: calendar.id, record: calendar }], 'agent', `Created calendar "${name}"`);
+    return { changeId, created: { name, id: calendar.id, color: colorName(calendar.color) } };
+  }
+
+  updateCalendar(input: CalendarFields & { calendar: string }) {
+    const current = this.calendar(input.calendar);
+    const { calendar: _c, ...fields } = input;
+    if (!Object.values(fields).some((v) => v !== undefined)) fail('Nothing to change. Give name, color and/or defaults.');
+    const next: Calendar = { ...current };
+    if (fields.name !== undefined) next.name = this.checkCalendarName(fields.name, current.id);
+    if (fields.color !== undefined && fields.color !== null) next.color = parseColor(fields.color);
+    if (fields.defaults !== undefined) next.defaults = this.calendarDefaults(fields.defaults, current.defaults);
+    const what = next.name !== current.name ? `Renamed calendar "${current.name}" to "${next.name}"` : `Changed calendar "${current.name}"`;
+    const changeId = this.store.write([{ kind: 'calendar', id: next.id, record: next }], 'agent', what);
+    return {
+      changeId,
+      updated: { name: next.name, id: next.id, color: colorName(next.color), defaults: next.defaults },
+    };
+  }
+
+  /** Deleting a calendar needs to say what happens to its events: move them, or delete them too. */
+  deleteCalendar(input: { calendar: string; moveEventsTo?: string; deleteEvents?: boolean }) {
+    const cal = this.calendar(input.calendar);
+    const events = this.store.list<Event>('event').filter((e) => e.calendarId === cal.id);
+    const writes: Write[] = [];
+    let summary = `Deleted calendar "${cal.name}"`;
+    if (events.length) {
+      if (input.moveEventsTo) {
+        const target = this.calendar(input.moveEventsTo);
+        if (target.id === cal.id) fail('moveEventsTo is the calendar being deleted.');
+        for (const e of events) writes.push(putEvent({ ...e, calendarId: target.id }));
+        summary += ` (${events.length} events moved to "${target.name}")`;
+      } else if (input.deleteEvents === true) {
+        for (const e of events) writes.push({ kind: 'event', id: e.id, record: null });
+        summary += ` and its ${events.length} events`;
+      } else {
+        fail(`"${cal.name}" has ${events.length} events. Pass moveEventsTo (another calendar's name) to keep them, or deleteEvents: true to delete them too.`);
+      }
+    }
+    writes.push({ kind: 'calendar', id: cal.id, record: null });
+    const changeId = this.store.write(writes, 'agent', summary);
     return { changeId, deleted: summary };
   }
 

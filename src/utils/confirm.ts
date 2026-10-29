@@ -1,6 +1,34 @@
-import { Alert, Platform } from 'react-native';
-
-type WebGlobals = { confirm?: (msg: string) => boolean; alert?: (msg: string) => void };
+export interface AppPrompt {
+  id: number;
+  title: string;
+  message?: string;
+  confirmLabel: string;
+  destructive: boolean;
+  cancelable: boolean;
+  resolve: (confirmed: boolean) => void;
+}
+let sequence = 0;
+let queue: AppPrompt[] = [];
+const listeners = new Set<() => void>();
+const changed = () => listeners.forEach((listener) => listener());
+export const getPrompt = (): AppPrompt | null => queue[0] ?? null;
+export function subscribePrompts(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
+}
+export function answerPrompt(id: number, confirmed: boolean): void {
+  if (queue[0]?.id !== id) return;
+  const prompt = queue[0];
+  queue = queue.slice(1);
+  changed();
+  prompt.resolve(confirmed);
+}
+function enqueue(title: string, message: string | undefined, confirmLabel: string, destructive: boolean, cancelable: boolean): Promise<boolean> {
+  return new Promise((resolve) => {
+    queue = [...queue, { id: ++sequence, title, message, confirmLabel, destructive, cancelable, resolve }];
+    changed();
+  });
+}
 
 export function confirmAsync(
   title: string,
@@ -8,27 +36,9 @@ export function confirmAsync(
   confirmLabel = 'OK',
   destructive = false,
 ): Promise<boolean> {
-  if (Platform.OS === 'web') {
-    const g = globalThis as WebGlobals;
-    return Promise.resolve(g.confirm ? g.confirm(`${title}\n\n${message}`) : true);
-  }
-  return new Promise((resolve) => {
-    Alert.alert(
-      title,
-      message,
-      [
-        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-        { text: confirmLabel, style: destructive ? 'destructive' : 'default', onPress: () => resolve(true) },
-      ],
-      { cancelable: true, onDismiss: () => resolve(false) },
-    );
-  });
+  return enqueue(title, message, confirmLabel, destructive, true);
 }
 
 export function notify(title: string, message?: string): void {
-  if (Platform.OS === 'web') {
-    (globalThis as WebGlobals).alert?.(message ? `${title}\n\n${message}` : title);
-    return;
-  }
-  Alert.alert(title, message);
+  void enqueue(title, message, 'Got it', false, false);
 }
