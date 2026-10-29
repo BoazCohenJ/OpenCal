@@ -7,6 +7,10 @@ import { IconButtonTile, IconPicker } from '../components/IconPicker';
 import { PauseWindowsEditor } from '../components/PauseWindowsEditor';
 import { RecurrenceEditor } from '../components/RecurrenceEditor';
 import { ReminderEditor } from '../components/ReminderEditor';
+import { RepeatDeleteSheet, type RepeatDeleteChoice } from '../components/RepeatDeleteSheet';
+import { occurrenceDayKey } from '../services/eventTimes';
+import { nextOccurrence } from '../services/occurrences';
+import { endRuleBefore } from '../utils/recurrence';
 import { CalendarSelector, TagEditor } from '../components/Selectors';
 import { Button, Divider, Field, HeaderButton, Section, SwitchRow, TextField } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
@@ -84,6 +88,13 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
     return calendarsById[initial.calendarId] ? initial : { ...initial, calendarId: calendars[0]?.id ?? '' };
   });
   const [showEmoji, setShowEmoji] = useState(false);
+  const [deletingRepeat, setDeletingRepeat] = useState(false);
+  const removed = useRef(false);
+  const confirmingRemoval = useRef(false);
+  const selectedStart = route.params?.occurrenceStart
+    ? parseTimestamp(route.params.occurrenceStart)
+    : existing ? nextOccurrence(existing, calendarsById[existing.calendarId], new Date())?.start ?? parseTimestamp(existing.startDate) : startOfDay(new Date());
+  const selectedDay = existing ? parseDayKey(occurrenceDayKey(existing, selectedStart)) : startOfDay(new Date());
   const fromQuickAdd = route.params?.fromQuickAdd ?? false;
   // Fields the user (or the Quick Add text) set explicitly; calendar defaults never overwrite these.
   const [touched, setTouched] = useState<Set<InheritedField>>(
@@ -190,15 +201,32 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
   }, [navigation, existing, fromQuickAdd]);
 
   const remove = async () => {
-    if (!existing) return;
+    if (!existing || removed.current || confirmingRemoval.current) return;
+    if (existing.recurrenceRule) { setDeletingRepeat(true); return; }
+    confirmingRemoval.current = true;
     const ok = await confirmAsync(
       'Delete event?',
-      existing.recurrenceRule ? 'This deletes every occurrence of this repeating event.' : 'This cannot be undone.',
+      'This cannot be undone.',
       'Delete',
       true,
     );
+    confirmingRemoval.current = false;
     if (!ok) return;
+    if (removed.current) return;
+    removed.current = true;
     deleteEvent(existing.id);
+    navigation.goBack();
+  };
+
+  const removeRepeat = (choice: RepeatDeleteChoice) => {
+    if (!existing?.recurrenceRule || removed.current || choice === 'keep') return;
+    removed.current = true;
+    setDeletingRepeat(false);
+    const day = occurrenceDayKey(existing, selectedStart);
+    const first = occurrenceDayKey(existing, parseTimestamp(existing.startDate));
+    if (choice === 'all' || (choice === 'following' && day <= first)) deleteEvent(existing.id);
+    else if (choice === 'this') saveEvent({ ...existing, skippedDates: [...new Set([...(existing.skippedDates ?? []), day])].sort() });
+    else saveEvent({ ...existing, recurrenceRule: endRuleBefore(existing.recurrenceRule, parseDayKey(day)) });
     navigation.goBack();
   };
 
@@ -211,6 +239,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <RepeatDeleteSheet item={deletingRepeat && existing ? { event: existing, day: selectedDay } : null} color={eventColor} position={1} total={1} onChoose={removeRepeat} onCancel={() => setDeletingRepeat(false)} />
       <View style={styles.titleCard}>
         <IconButtonTile value={form.emoji} color={eventColor} onPress={() => {
             animateNextLayout();

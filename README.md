@@ -57,6 +57,8 @@ https://github.com/user-attachments/assets/96c68291-76bc-4ca8-a030-11c235435344
 
 Import preserves explicit UTC schedules and additional RDATE dates. Sub-daily recurrence rules (hourly, minutely and secondly) are skipped and counted in the import summary. First sync merges local calendars, including empty custom calendars.
 
+Deleting a repeating event offers only the selected occurrence, that occurrence and following ones, or the entire series. Confirmations and notices use OpenCal's themed sheets, including dark mode, on Android and web.
+
 ## Install on Android
 
 1. Open the [latest release](https://github.com/BoazCohenJ/OpenCal/releases/latest) on your phone and download the `.apk`.

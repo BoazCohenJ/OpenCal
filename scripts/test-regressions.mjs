@@ -166,4 +166,34 @@ const foldedGrid = atMinutes(new Date(2026,10,1),540);
 assert.equal(foldedGrid.getHours(),9);
 const combined = parseICS('BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:combined\r\nDTSTART:20261101T090000\r\nRRULE:FREQ=DAILY;COUNT=3\r\nRDATE:20261102T090000,20261105T090000\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n',540);
 assert.equal(combined.events.length,2);
-console.log('All regression assertions passed');
+// Prompt dismissal is explicit; a repeated tap must not answer the next queued prompt.
+const prompts = await mod('src/utils/confirm.ts');
+const confirmOne = prompts.confirmAsync('Delete?', 'Fixture', 'Delete', true);
+const firstPrompt = prompts.getPrompt();
+prompts.notify('Notice', 'Second queued prompt');
+prompts.answerPrompt(firstPrompt.id, false);
+assert.equal(await confirmOne, false);
+const notice = prompts.getPrompt();
+prompts.answerPrompt(firstPrompt.id, true);
+assert.equal(prompts.getPrompt().id, notice.id);
+prompts.answerPrompt(notice.id, true);
+assert.equal(prompts.getPrompt(), null);
+
+// Execute the editor's actual deletion handler for each scope and repeated presses.
+const editorSource = readFileSync(`${root}/src/screens/EventEditScreen.tsx`, 'utf8').replace(/\r\n/g, '\n');
+const deletionStart = editorSource.indexOf('  const removeRepeat =');
+const deletionEnd = editorSource.indexOf('  const saveAsStamp', deletionStart);
+const deletionJs = ts.transpileModule(editorSource.slice(deletionStart, deletionEnd), {compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+for (const choice of ['this','following','all']) {
+  let savedEvent; let deletedId; let closes=0;
+  vm.runInNewContext(`${deletionJs}\nremoveRepeat(choice); removeRepeat(choice);`, {
+    choice, existing:recurring, selectedStart:parseTimestamp('2026-11-03T09:00:00Z'), removed:{current:false},
+    setDeletingRepeat:()=>{}, occurrenceDayKey, parseTimestamp, parseDayKey, endRuleBefore,
+    saveEvent:(e)=>{savedEvent=e;}, deleteEvent:(id)=>{deletedId=id;}, navigation:{goBack:()=>{closes++;}},
+  });
+  assert.equal(closes,1);
+  if(choice==='this') assert.deepEqual([...savedEvent.skippedDates],['2026-11-03']);
+  if(choice==='following') assert.match(savedEvent.recurrenceRule,/UNTIL=20261102T235959Z/);
+  if(choice==='all') assert.equal(deletedId,recurring.id);
+}
+console.log('All regression assertions passed, including themed prompt queue and editor deletion scopes');

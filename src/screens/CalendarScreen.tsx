@@ -411,7 +411,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     (o: Occurrence) => {
       const birthdayId = birthdayIdOf(o.event);
       if (birthdayId) navigation.navigate('BirthdayEdit', { birthdayId });
-      else navigation.navigate('EventEdit', { eventId: o.event.id });
+      else navigation.navigate('EventEdit', { eventId: o.event.id, occurrenceStart: o.start.toISOString() });
     },
     [navigation],
   );

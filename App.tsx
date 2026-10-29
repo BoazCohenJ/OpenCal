@@ -15,6 +15,7 @@ import { Logo } from './src/components/Logo';
 import { DialogHeader, dialog } from './src/components/WebDialog';
 import { SyncWatcher } from './src/components/SyncWatcher';
 import { ToastProvider } from './src/components/Toast';
+import { PromptHost } from './src/components/PromptHost';
 import { UpdateWatcher } from './src/components/UpdateWatcher';
 import { CalendarProvider, useCalendarContext } from './src/context/CalendarContext';
 import type { RootStackParamList } from './src/navigation/types';
@@ -278,6 +279,7 @@ function AppShell() {
         <UpdateWatcher />
         <SyncWatcher />
         <WidgetWatcher />
+        <PromptHost />
       </ToastProvider>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
     </View>

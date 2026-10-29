@@ -7,7 +7,7 @@ export type EventDraft = Partial<Omit<Event, 'id'>>;
 export type RootStackParamList = {
   /** Set by widget links (opencal://calendar?mode=day&date=2026-10-11) to open a view at a date. */
   Calendar: { mode?: string; date?: string } | undefined;
-  EventEdit: { eventId?: string; draft?: EventDraft; fromQuickAdd?: boolean } | undefined;
+  EventEdit: { eventId?: string; occurrenceStart?: string; draft?: EventDraft; fromQuickAdd?: boolean } | undefined;
   QuickAdd: undefined;
   Stamp: { templateId?: string; start?: string } | undefined;
   Settings: undefined;
