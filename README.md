@@ -78,13 +78,21 @@ npm run typecheck      # typecheck (includes the Node stack allowance)
 npx expo lint           # lint
 ```
 
-Build an installable Android APK in the cloud with [EAS](https://docs.expo.dev/eas/):
-
 Calendar, sync and import regressions can be checked without opening the app using `npm run test:regressions` (requires Node 24+).
 
+Build an installable Android APK in the cloud with [EAS](https://docs.expo.dev/eas/). Release builds remove unused code and resources with R8 and resource shrinking:
+
 ```bash
+# Universal APK: supports ARM and x86 devices, including emulators.
 npx eas-cli@latest build -p android --profile preview
+
+# Smaller APK for ARM64 devices only; uses the same app ID and preview updates.
+npx eas-cli@latest build -p android --profile preview-arm64
 ```
+
+The two profiles have the same version and signing credentials. Use the universal APK for devices without ARM64 support. The production AAB and F-Droid builds retain support for all default architectures. These build changes require installing a new APK; they cannot reduce an already installed app through an over-the-air update.
+
+`.easignore` excludes generated native folders, local validation builds, QA reports, server files and promo tooling from cloud build uploads. App assets and local native modules remain included.
 
 Every push to `main` runs the typecheck and lint, then publishes an over-the-air update to installed preview builds (`.github/workflows/eas-update.yml`). The release rules (when a version bump and a new build are required) are documented in [AGENTS.md](AGENTS.md).
 

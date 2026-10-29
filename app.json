@@ -3,7 +3,7 @@
     "name": "OpenCal",
     "slug": "opencal",
     "scheme": "opencal",
-    "version": "1.5.0",
+    "version": "1.5.1",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -32,13 +32,22 @@
       ],
       "predictiveBackGestureEnabled": false,
       "package": "com.boazcohen.opencal.ota",
-      "versionCode": 10500,
+      "versionCode": 10501,
       "blockedPermissions": ["android.permission.SYSTEM_ALERT_WINDOW"]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ],
       "expo-font",
       [
         "expo-splash-screen",

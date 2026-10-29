@@ -1,0 +1,2 @@
+Smaller Android release builds by removing unused code and resources.
+An ARM64 APK build option is available alongside the universal APK.
