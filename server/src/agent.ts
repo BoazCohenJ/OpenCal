@@ -1,13 +1,13 @@
 import { addDays, addMinutes, differenceInCalendarDays, endOfDay, format, startOfDay } from 'date-fns';
 import type { Calendar } from '../../src/models/Calendar.ts';
 import type { Event } from '../../src/models/Event.ts';
-import { occurrenceDayKey, withStoredTimes } from '../../src/services/eventTimes.ts';
+import { eventClock, occurrenceDayKey, withStoredTimes } from '../../src/services/eventTimes.ts';
 import { expandEvent, expandEvents, type Occurrence } from '../../src/services/occurrences.ts';
 import { normalizeHex } from '../../src/utils/color.ts';
 import { dayKey, deviceTimeZone, parseDayKey, parseTimestamp } from '../../src/utils/dates.ts';
 import { newId } from '../../src/utils/id.ts';
 import { NAMED_PALETTE } from '../../src/utils/palette.ts';
-import { createRule, describeRRule, endRuleBefore } from '../../src/utils/recurrence.ts';
+import { createRule, createRuleAt, describeRRule, endRuleBefore } from '../../src/utils/recurrence.ts';
 import type { Change, Store, Write } from './store.ts';
 
 /*
@@ -179,6 +179,7 @@ export class CalendarAgent {
       calendarId: calendar.id,
       pauseWindows: [],
       skippedDates: [],
+      recurrenceRule: calendar.defaults?.recurrenceRule,
       reminders: calendar.defaults?.reminders ?? (allDay ? [] : [10]),
       location: calendar.defaults?.location,
       tags: [...(calendar.defaults?.tags ?? [])],
@@ -221,10 +222,15 @@ export class CalendarAgent {
       } else {
         // The series ends the day before; a copy carries on from this occurrence with the changes.
         writes.push(putEvent({ ...series, recurrenceRule: endRuleBefore(series.recurrenceRule!, parseDayKey(day)) }));
+        const clock = eventClock(series);
+        const rule = createRuleAt(series.recurrenceRule!, clock.toWall(parseTimestamp(series.startDate)))!;
+        const remaining = rule.origOptions.count == null ? undefined : rule.origOptions.count -
+          rule.between(rule.options.dtstart, new Date(clock.toWall(occ.start).getTime() - 1), true).length;
+        const continuation = series.recurrenceRule!.split(';').filter((p) => !/^COUNT=/i.test(p)).join(';');
         const rest: Event = {
           ...series,
           id: newId(),
-          recurrenceRule: series.recurrenceRule!.split(';').filter((p) => !/^COUNT=/i.test(p)).join(';'),
+          recurrenceRule: remaining == null ? continuation : `${continuation};COUNT=${Math.max(1, remaining)}`,
           skippedDates: (series.skippedDates ?? []).filter((d) => d > day),
           startDate: occ.start.toISOString(),
           endDate: occ.end.toISOString(),

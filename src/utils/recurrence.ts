@@ -85,6 +85,8 @@ export const createRule = (rule: string, start: Date): RRule | null => createRul
 export function createRuleAt(rule: string, wallStart: Date): RRule | null {
   try {
     const options = RRule.parseString(rule.replace(/^RRULE:/i, ''));
+    // Sub-daily rules are outside the editor contract and can exhaust the synchronous renderer.
+    if (options.freq == null || options.freq > RRule.DAILY) return null;
     return new RRule({ ...options, dtstart: wallStart });
   } catch (error) {
     console.warn('Invalid recurrence rule', rule, error);

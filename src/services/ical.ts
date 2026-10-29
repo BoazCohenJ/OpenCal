@@ -1,11 +1,11 @@
-import { addDays, format, startOfDay } from 'date-fns';
+import { addDays, differenceInCalendarDays, format, startOfDay } from 'date-fns';
 import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
 import { deviceTimeZone, parseTimestamp } from '../utils/dates';
 import { createRule, createRuleAt, fromFloatingUTC, toFloatingUTC } from '../utils/recurrence';
 import { fromZoneWallClock, isValidTimeZone, toZoneWallClock, wallDayKey, wallFromDayKey, zoneOffset } from '../utils/timeZones';
 import { isFloating, occurrenceDayKey } from './eventTimes';
-import { isDayInPauseWindows } from './occurrences';
+import { expandEvent, isDayInPauseWindows } from './occurrences';
 
 /*
  * iCalendar (RFC 5545) import and export, so events can move to and from Google Calendar, Apple
@@ -374,10 +374,7 @@ export function parseICS(text: string, allDayTime: number): ICSImport | null {
       }
 
       // Which clock this event's dates are on (for EXDATE and RECURRENCE-ID days).
-      // A repeating series written in UTC would drift an hour against the clock whenever daylight
-      // saving changes, so it follows the phone's zone instead (same clock time all year).
-      const repeats = !!one('RRULE') && !recurrenceId;
-      const zone = repeats && start.timeZone === 'UTC' ? deviceTimeZone() ?? 'UTC' : start.timeZone;
+      const zone = start.timeZone;
       const eventShape = { isAllDay: start.allDay, floating: !start.allDay && start.floating, timeZone: zone };
       const skippedDays = new Set<string>();
       for (const ex of all('EXDATE')) {
@@ -389,6 +386,7 @@ export function parseICS(text: string, allDayTime: number): ICSImport | null {
       const rrule = one('RRULE')?.value.trim();
       const normalized = rrule ? normalizeRule(rrule, zone) : undefined;
       const rule = normalized && !recurrenceId && createRule(normalized, start.date) ? normalized : undefined;
+      if (normalized && !recurrenceId && !rule) { result.skipped++; continue; }
       const color = (one('X-OPENCAL-COLOR') ?? one('COLOR'))?.value.trim();
       const baseId = uid.endsWith(UID_SUFFIX) ? uid.slice(0, -UID_SUFFIX.length) : `ics-${uid}`;
 
@@ -411,6 +409,19 @@ export function parseICS(text: string, allDayTime: number): ICSImport | null {
         emoji: one('X-OPENCAL-ICON') ? unescapeText(one('X-OPENCAL-ICON')!.value).trim() || undefined : undefined,
         tags: [...new Set(all('CATEGORIES').flatMap((p) => splitList(p.value).map(unescapeText)))],
       };
+      for (const prop of all('RDATE')) {
+        for (const value of splitList(prop.value)) {
+          const extra = parseDate(value, prop.params);
+          if (!extra) { result.skipped++; continue; }
+          const key = occurrenceDayKey(event, extra.date);
+          if (skippedDays.has(key) || extra.date.getTime() === start.date.getTime()) continue;
+          if (event.recurrenceRule && expandEvent(event, undefined, extra.date, new Date(extra.date.getTime() + 1)).some((o) => o.start.getTime() === extra.date.getTime())) continue;
+          const extraEnd = start.allDay
+            ? new Date(addDays(startOfDay(extra.date), differenceInCalendarDays(end, start.date) + 1).getTime() - 1)
+            : new Date(extra.date.getTime() + end.getTime() - start.date.getTime());
+          result.events.push({ ...event, id: `${baseId}-rdate-${value}`, startDate: extra.date.toISOString(), endDate: extraEnd.toISOString(), recurrenceRule: undefined, skippedDates: [] });
+        }
+      }
       if (recurrenceId) overrides.push({ uid: baseId, recurrenceId, event: cancelled ? null : event });
       else {
         // Two distinct events sharing a UID: keep both rather than letting the second overwrite the first.

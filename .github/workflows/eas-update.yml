@@ -63,7 +63,7 @@ jobs:
       - name: Typecheck and lint
         if: steps.gate.outputs.ready == 'true'
         run: |
-          npx tsc --noEmit
+          npm run typecheck
           npx expo lint
 
       - name: Publish update

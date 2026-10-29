@@ -1,3 +1,4 @@
+import { syncEqual } from './syncEqual';
 import * as SQLite from 'expo-sqlite';
 import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
@@ -533,14 +534,14 @@ export function applyChanges(changes: ChangeSet): number {
     }
 
     for (const { record, updatedAt } of changes.calendars) {
-      if (updatedAt <= localStamp('calendar', record.id)) continue;
+      if (updatedAt < localStamp('calendar', record.id) || (updatedAt === localStamp('calendar', record.id) && syncEqual(record, loadCalendars().find((r) => r.id === record.id)))) continue;
       writeCalendar(record, updatedAt);
       applied++;
     }
     const fallbackCalendar = (): string | undefined =>
       db.getFirstSync<Row>('SELECT id FROM calendars ORDER BY sortOrder, name LIMIT 1')?.id;
     for (const { record, updatedAt } of changes.events) {
-      if (updatedAt <= localStamp('event', record.id)) continue;
+      if (updatedAt < localStamp('event', record.id) || (updatedAt === localStamp('event', record.id) && syncEqual(record, loadEvents([record.id]).find((r) => r.id === record.id)))) continue;
       if (calendarExists(record.calendarId)) writeEvent(record, updatedAt);
       else {
         const calendarId = fallbackCalendar();
@@ -550,14 +551,14 @@ export function applyChanges(changes: ChangeSet): number {
       applied++;
     }
     for (const { record, updatedAt } of changes.templates) {
-      if (updatedAt <= localStamp('template', record.id)) continue;
+      if (updatedAt < localStamp('template', record.id) || (updatedAt === localStamp('template', record.id) && syncEqual(record, loadTemplates().find((r) => r.id === record.id)))) continue;
       // A stamp without its calendar just has none, like after its calendar is deleted here.
       writeTemplate(calendarExists(record.calendarId) ? record : { ...record, calendarId: '' }, updatedAt);
       applied++;
     }
     for (const { key, value, updatedAt } of changes.settings) {
       const local = db.getFirstSync<Row>('SELECT updatedAt FROM app_settings WHERE key = ?', [key]);
-      if (local && updatedAt <= local.updatedAt) continue;
+      if (local && (updatedAt < local.updatedAt || (updatedAt === local.updatedAt && syncEqual(value, getSetting(key, null))))) continue;
       setSetting(key, value, updatedAt);
       applied++;
     }
@@ -568,7 +569,7 @@ export function applyChanges(changes: ChangeSet): number {
     for (const { kind, id, deletedAt } of deletions) {
       if (!TABLES[kind]) continue;
       const row = db.getFirstSync<Row>(`SELECT updatedAt FROM ${TABLES[kind]} WHERE id = ?`, [id]);
-      if (row && row.updatedAt >= deletedAt) continue;
+      if (row && row.updatedAt > deletedAt) continue;
       if (row && kind === 'calendar' && db.getFirstSync('SELECT 1 FROM events WHERE calendarId = ?', [id])) {
         db.runSync('UPDATE calendars SET updatedAt = ? WHERE id = ?', [stampNow(), id]);
         continue;

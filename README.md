@@ -55,6 +55,8 @@ https://github.com/user-attachments/assets/96c68291-76bc-4ca8-a030-11c235435344
 - **AI agent tools (optional):** the same server offers calendar tools over MCP, so an assistant like Hermes, Claude or ChatGPT can read your schedule and add, move or delete events ("only this one" for repeats included), with every change undoable. Forward it a message and the events appear on your phone.
 - **Private by design:** everything is stored locally (SQLite on device, localStorage on web), and only ever leaves the phone for your own sync server.
 
+Import preserves explicit UTC schedules and additional RDATE dates. Sub-daily recurrence rules (hourly, minutely and secondly) are skipped and counted in the import summary. First sync merges local calendars, including empty custom calendars.
+
 ## Install on Android
 
 1. Open the [latest release](https://github.com/BoazCohenJ/OpenCal/releases/latest) on your phone and download the `.apk`.
@@ -70,11 +72,13 @@ Requirements: Node 22+ and npm.
 ```bash
 npm install
 npx expo start          # press "w" for web, or scan the QR code with Expo Go
-npx tsc --noEmit        # typecheck
+npm run typecheck      # typecheck (includes the Node stack allowance)
 npx expo lint           # lint
 ```
 
 Build an installable Android APK in the cloud with [EAS](https://docs.expo.dev/eas/):
+
+Calendar, sync and import regressions can be checked without opening the app using `npm run test:regressions` (requires Node 24+).
 
 ```bash
 npx eas-cli@latest build -p android --profile preview

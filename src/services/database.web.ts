@@ -1,3 +1,4 @@
+import { syncEqual } from './syncEqual';
 import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
 import type { ChangeSet, Deletion, SettingChange, Stamped, SyncKind } from '../models/Sync';
@@ -153,6 +154,7 @@ export function loadEvents(ids?: string[]): Event[] {
 }
 
 function writeEvents(events: Event[], at = stampNow()): void {
+  events = [...new Map(events.map((e) => [e.id, e])).values()];
   const ids = new Set(events.map((e) => e.id));
   write(storageKeys.events, [...loadEvents().filter((item) => !ids.has(item.id)), ...events]);
   stamp('event', [...ids], at);
@@ -300,13 +302,13 @@ export function applyChanges(changes: ChangeSet): number {
   const templateIds = new Set(loadTemplates().map((t) => t.id));
 
   for (const { record, updatedAt } of changes.calendars) {
-    if (updatedAt <= localStamp('calendar', calendarIds.has(record.id), record.id)) continue;
+    if (updatedAt < localStamp('calendar', calendarIds.has(record.id), record.id) || (updatedAt === localStamp('calendar', calendarIds.has(record.id), record.id) && syncEqual(record, loadCalendars().find((r) => r.id === record.id)))) continue;
     writeCalendar(record, updatedAt);
     calendarIds.add(record.id);
     applied++;
   }
   for (const { record, updatedAt } of changes.events) {
-    if (updatedAt <= localStamp('event', eventIds.has(record.id), record.id)) continue;
+    if (updatedAt < localStamp('event', eventIds.has(record.id), record.id) || (updatedAt === localStamp('event', eventIds.has(record.id), record.id) && syncEqual(record, loadEvents([record.id]).find((r) => r.id === record.id)))) continue;
     if (calendarIds.has(record.calendarId)) {
       writeEvents([record], updatedAt);
     } else {
@@ -318,7 +320,7 @@ export function applyChanges(changes: ChangeSet): number {
     applied++;
   }
   for (const { record, updatedAt } of changes.templates) {
-    if (updatedAt <= localStamp('template', templateIds.has(record.id), record.id)) continue;
+    if (updatedAt < localStamp('template', templateIds.has(record.id), record.id) || (updatedAt === localStamp('template', templateIds.has(record.id), record.id) && syncEqual(record, loadTemplates().find((r) => r.id === record.id)))) continue;
     // A stamp without its calendar just has none, like after its calendar is deleted here.
     writeTemplate(calendarIds.has(record.calendarId) ? record : { ...record, calendarId: '' }, updatedAt);
     templateIds.add(record.id);
@@ -326,7 +328,7 @@ export function applyChanges(changes: ChangeSet): number {
   }
   const settingStamps = readSettingStamps();
   for (const { key, value, updatedAt } of changes.settings) {
-    if (key in settingStamps && updatedAt <= settingStamps[key]) continue;
+    if (key in settingStamps && (updatedAt < settingStamps[key]! || (updatedAt === settingStamps[key] && syncEqual(value, getSetting(key, null))))) continue;
     setSetting(key, value, updatedAt);
     applied++;
   }
@@ -338,7 +340,7 @@ export function applyChanges(changes: ChangeSet): number {
     const ids = kind === 'event' ? eventIds : kind === 'template' ? templateIds : kind === 'calendar' ? calendarIds : null;
     if (!ids) continue;
     const exists = ids.has(id);
-    if (exists && (readStamps()[kind][id] ?? 0) >= deletedAt) continue;
+    if (exists && (readStamps()[kind][id] ?? 0) > deletedAt) continue;
     if (exists && kind === 'calendar' && loadEvents().some((e) => e.calendarId === id)) {
       stamp('calendar', [id], stampNow());
       continue;

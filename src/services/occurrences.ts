@@ -1,4 +1,4 @@
-import { addDays, startOfDay } from 'date-fns';
+import { addDays, differenceInCalendarDays, endOfDay, startOfDay } from 'date-fns';
 import type { RRule } from 'rrule';
 import type { Calendar } from '../models/Calendar';
 import type { ColorRule } from '../models/ColorRule';
@@ -102,7 +102,7 @@ function repeatsInYear(p: Prepared, rule: RRule, year: number): number[] {
   let list = p.years.get(year);
   if (!list) {
     const from = Date.UTC(year, 0, 1);
-    const walls = fastForwardRule(rule, from).between(new Date(from), new Date(Date.UTC(year + 1, 0, 1) - 1), true);
+    const walls = fastForwardRule(rule, from).between(new Date(from), new Date(Date.UTC(year + 1, 0, 1) - 1), true, (_, i) => i < 10000);
     list = [];
     for (const wall of walls) {
       const k = wallDayKey(wall);
@@ -147,7 +147,9 @@ function expandPrepared(
     key: `${event.id}@${s}`,
     event,
     start: new Date(s),
-    end: new Date(s + p.duration),
+    end: event.isAllDay
+      ? endOfDay(addDays(new Date(s), differenceInCalendarDays(new Date(p.end), new Date(p.start))))
+      : new Date(s + p.duration),
     color: p.color,
   });
   if (!p.rule) return overlapsMs(p.start, p.end, rs, re) ? [make(p.start)] : [];
@@ -159,7 +161,8 @@ function expandPrepared(
   const last = p.clock.toWall(new Date(re)).getUTCFullYear();
   for (let year = first; year <= last; year++) {
     for (const s of repeatsInYear(p, p.rule, year)) {
-      if (overlapsMs(s, s + p.duration, rs, re)) out.push(make(s));
+      const occurrence = make(s);
+      if (overlapsMs(s, occurrence.end.getTime(), rs, re)) out.push(occurrence);
     }
   }
   return out;

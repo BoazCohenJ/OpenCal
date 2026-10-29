@@ -9,5 +9,7 @@ git clone -q --branch "${1:-v1.5.0}" https://github.com/BoazCohenJ/OpenCal.git b
   git clone -q --depth 1 --branch hermes-v250829098.0.17 https://github.com/facebook/hermes.git build/srclib/hermes || exit 1
 }
 docker compose --profile build run --rm build > build.log 2>&1
-echo "exit=$?" >> build.log
+build_status=$?
+echo "exit=$build_status" >> build.log
 tail -1 build.log
+exit "$build_status"

@@ -96,3 +96,5 @@ npm install
 npm run typecheck
 OPENCAL_API_KEY=dev-key-0123456789 npm start
 ```
+
+Browser clients may sync across origins using the bearer key. The server answers API preflights and does not use cookies or credentialed CORS. On timestamp ties, the server selects the version returned to clients.
