@@ -11,6 +11,8 @@ const INSTRUCTIONS = `OpenCal calendar tools. Changes show up on the user's phon
 - Call list_calendars first: it gives the calendar names, today's date and the time zone.
 - Times without an offset are read in that time zone. Use 2026-10-12T14:00 for timed events, 2026-10-12 for all-day ones, or just 14:00 to keep an event's date.
 - Repeating events: find_events gives each occurrence an occurrenceDate. To change or delete one day only, pass occurrenceDate with scope "this"; "following" for that day and after; "all" for the whole series.
+- Calendars: create_calendar, update_calendar (rename, recolor, defaults), delete_calendar (say what happens to its events).
+- Unknown or misspelled fields are rejected with the list of allowed ones; fix the call and retry.
 - Every change returns a changeId; undo puts it back. Check recent_changes if unsure what was done.`;
 
 const str = (description: string) => ({ type: 'string', description });
@@ -36,6 +38,20 @@ const FIELDS = {
     description: 'Event color: a palette name from list_calendars (e.g. Cherry, Teal) or a hex like #EF4444. null uses the calendar color.',
   },
   tags: { type: 'array', items: { type: 'string' } },
+};
+
+const CALENDAR_FIELDS = {
+  color: str('Calendar color: a palette name from list_calendars or a hex like #EF4444.'),
+  defaults: {
+    type: ['object', 'null'],
+    description: 'What new events in this calendar start with. Omitted fields stay as they are; null clears all defaults.',
+    properties: {
+      reminders: { type: 'array', items: { type: 'integer', minimum: 0 }, description: 'Minutes before the start.' },
+      location: { type: ['string', 'null'] },
+      tags: { type: 'array', items: { type: 'string' } },
+      repeat: { type: ['string', 'null'], description: 'Default RRULE body; "none" clears it.' },
+    },
+  },
 };
 
 const OCCURRENCE = {
@@ -98,6 +114,36 @@ const TOOLS = [
     annotations: { destructiveHint: true },
   },
   {
+    name: 'create_calendar',
+    description: 'Adds a calendar. The color defaults to the next palette color.',
+    inputSchema: { type: 'object', properties: { name: str('Calendar name.'), ...CALENDAR_FIELDS }, required: ['name'] },
+  },
+  {
+    name: 'update_calendar',
+    description:
+      'Changes a calendar: rename it (name), recolor it (color) or change what new events in it start with (defaults). Only the fields given change. Events keep their calendar.',
+    inputSchema: {
+      type: 'object',
+      properties: { calendar: str('Current calendar name or id (from list_calendars).'), name: str('New name.'), ...CALENDAR_FIELDS },
+      required: ['calendar'],
+    },
+  },
+  {
+    name: 'delete_calendar',
+    description:
+      'Deletes a calendar. If it has events, say what happens to them: moveEventsTo another calendar, or deleteEvents: true to delete them too. Undoable.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        calendar: str('Calendar name or id.'),
+        moveEventsTo: str('Calendar to move its events to.'),
+        deleteEvents: { type: 'boolean', description: 'Delete its events too.' },
+      },
+      required: ['calendar'],
+    },
+    annotations: { destructiveHint: true },
+  },
+  {
     name: 'find_series_copies',
     description:
       'Finds one-off events that are really one day of a repeating series (typical after importing from Google: a renamed occurrence arrives as a skipped day plus a separate event, so lessons stop showing as repeating). For each series: how many copies differ only in title, the suggested title, and the copies that differ in more (often real one-day changes).',
@@ -153,7 +199,79 @@ const TOOLS = [
 
 type Args = Record<string, any>;
 
-function callTool(agent: CalendarAgent, name: string, a: Args): unknown {
+/** Names agents tend to use for a field, mapped to the real one, per tool. */
+const ALIASES: Record<string, Record<string, string>> = {
+  update_calendar: { newName: 'name', new_name: 'name', title: 'name', calendarName: 'calendar', calendarId: 'calendar' },
+  create_calendar: { title: 'name', calendarName: 'name' },
+  delete_calendar: { calendarName: 'calendar', calendarId: 'calendar', moveTo: 'moveEventsTo' },
+  create_event: { name: 'title', summary: 'title', calendarId: 'calendar', startDate: 'start', endDate: 'end', notes: 'description', rrule: 'repeat', recurrence: 'repeat' },
+  update_event: { name: 'title', summary: 'title', id: 'eventId', calendarId: 'calendar', startDate: 'start', endDate: 'end', notes: 'description', rrule: 'repeat', recurrence: 'repeat' },
+  delete_event: { id: 'eventId' },
+  get_event: { id: 'eventId' },
+};
+
+/** Parses a value an agent may have sent as the wrong JSON type (numbers and booleans as text, lists as one value). */
+function coerce(value: unknown, schema: Args, path: string): unknown {
+  const types: string[] = Array.isArray(schema.type) ? schema.type : [schema.type];
+  if (value === null) {
+    if (types.includes('null')) return null;
+    throw new AgentError(`${path} can't be null.`);
+  }
+  if (types.includes('integer') && typeof value === 'string' && /^\s*-?\d+\s*$/.test(value)) value = Number(value);
+  if (types.includes('boolean') && typeof value === 'string' && /^(true|false)$/i.test(value.trim())) value = value.trim().toLowerCase() === 'true';
+  if (types.includes('array') && !Array.isArray(value)) {
+    if (typeof value === 'string' && value.trim().startsWith('[')) {
+      try {
+        value = JSON.parse(value);
+      } catch {
+        /* reported below */
+      }
+    } else if (value !== undefined && !types.includes('string') && !types.includes('object')) value = [value];
+  }
+  if (types.includes('object') && typeof value === 'string' && value.trim().startsWith('{')) {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      /* reported below */
+    }
+  }
+  const actual = Array.isArray(value) ? 'array' : typeof value;
+  const ok = types.some((t) => (t === 'integer' ? Number.isInteger(value) : t === 'number' ? typeof value === 'number' : t === actual));
+  if (!ok) throw new AgentError(`${path} must be ${types.join(' or ')}, got ${actual === 'string' ? JSON.stringify(value) : actual}.`);
+  if (schema.minimum !== undefined && typeof value === 'number' && value < schema.minimum) throw new AgentError(`${path} must be at least ${schema.minimum}.`);
+  if (schema.enum && !schema.enum.includes(value)) throw new AgentError(`${path} must be one of: ${schema.enum.join(', ')}.`);
+  if (Array.isArray(value) && schema.items) value = value.map((v, i) => coerce(v, schema.items, `${path}[${i}]`));
+  if (value && typeof value === 'object' && !Array.isArray(value) && schema.properties) value = checkObject(value as Args, schema, path);
+  return value;
+}
+
+/** Unknown fields are errors (a silently ignored "newName" is how a rename goes missing). */
+function checkObject(args: Args, schema: Args, path: string, aliases: Record<string, string> = {}): Args {
+  const props: Record<string, Args> = schema.properties ?? {};
+  const out: Args = {};
+  for (const [rawKey, value] of Object.entries(args)) {
+    const key = props[rawKey] ? rawKey : (aliases[rawKey] ?? rawKey);
+    if (!props[key]) {
+      const near = Object.keys(props).find((p) => p.toLowerCase() === rawKey.toLowerCase());
+      throw new AgentError(
+        `Unknown field "${rawKey}"${path ? ` in ${path}` : ''}.${near ? ` Did you mean "${near}"?` : ''} Allowed: ${Object.keys(props).join(', ') || 'none'}.`,
+      );
+    }
+    if (value === undefined) continue;
+    if (key in out) throw new AgentError(`"${key}" was given twice (as ${rawKey} too).`);
+    out[key] = coerce(value, props[key]!, path ? `${path}.${key}` : key);
+  }
+  for (const req of schema.required ?? []) {
+    if (out[req] === undefined) throw new AgentError(`Missing required field "${req}".`);
+  }
+  return out;
+}
+
+function callTool(agent: CalendarAgent, name: string, raw: Args): unknown {
+  const tool = TOOLS.find((t) => t.name === name);
+  if (!tool) throw new AgentError(`Unknown tool ${name}. Tools: ${TOOLS.map((t) => t.name).join(', ')}`);
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) throw new AgentError('Tool arguments must be an object.');
+  const a = checkObject(raw, tool.inputSchema, '', ALIASES[name]);
   switch (name) {
     case 'list_calendars':
       return agent.listCalendars();
@@ -167,6 +285,12 @@ function callTool(agent: CalendarAgent, name: string, a: Args): unknown {
       return agent.updateEvent(a as Parameters<CalendarAgent['updateEvent']>[0]);
     case 'delete_event':
       return agent.deleteEvent(a as Parameters<CalendarAgent['deleteEvent']>[0]);
+    case 'create_calendar':
+      return agent.createCalendar(a as Parameters<CalendarAgent['createCalendar']>[0]);
+    case 'update_calendar':
+      return agent.updateCalendar(a as Parameters<CalendarAgent['updateCalendar']>[0]);
+    case 'delete_calendar':
+      return agent.deleteCalendar(a as Parameters<CalendarAgent['deleteCalendar']>[0]);
     case 'find_series_copies':
       return agent.findSeriesCopies(a);
     case 'fold_into_series':
