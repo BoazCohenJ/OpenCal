@@ -18,15 +18,18 @@ const LIST_OF: Record<SyncKind, 'calendars' | 'events' | 'templates'> = {
 
 type Row = Record<string, unknown>;
 
-export interface Write {
-  kind: SyncKind;
-  id: string;
-  /** The new version, or null to delete. */
-  record: { id: string } | null;
-}
+/** A record (calendar, event, template), or a synced setting whose `id` is its key and `record` its value. */
+export type Write =
+  | {
+      kind: SyncKind;
+      id: string;
+      /** The new version, or null to delete. */
+      record: { id: string } | null;
+    }
+  | { kind: 'setting'; id: string; record: unknown };
 
 export interface LoggedItem {
-  kind: SyncKind;
+  kind: SyncKind | 'setting';
   id: string;
   before: unknown;
   after: unknown;
@@ -200,11 +203,25 @@ export class Store {
        ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt,
          deleted = excluded.deleted, seq = excluded.seq`,
     );
+    const getSetting = this.db.prepare('SELECT updatedAt, value FROM settings WHERE key = ?');
+    const putSetting = this.db.prepare(
+      `INSERT INTO settings (key, value, updatedAt, seq) VALUES (?, ?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updatedAt = excluded.updatedAt, seq = excluded.seq`,
+    );
     let seq = this.cursor;
     const logged: LoggedItem[] = [];
     this.db.exec('BEGIN');
     try {
-      for (const { kind, id, record } of items) {
+      for (const item of items) {
+        if (item.kind === 'setting') {
+          const row = getSetting.get(item.id) as Row | undefined;
+          const before = row ? JSON.parse(row.value as string) : null;
+          const updatedAt = Math.max(Date.now(), ((row?.updatedAt as number | undefined) ?? 0) + 1);
+          putSetting.run(item.id, JSON.stringify(item.record ?? null), updatedAt, ++seq);
+          logged.push({ kind: 'setting', id: item.id, before, after: item.record ?? null });
+          continue;
+        }
+        const { kind, id, record } = item;
         const row = getStamp.get(kind, id) as Row | undefined;
         const before = row && !row.deleted ? JSON.parse(row.data as string) : null;
         const updatedAt = Math.max(Date.now(), ((row?.updatedAt as number | undefined) ?? 0) + 1);

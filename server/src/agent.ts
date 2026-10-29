@@ -53,6 +53,15 @@ export interface CalendarFields {
   defaults?: { reminders?: number[]; location?: string | null; tags?: string[]; repeat?: string | null } | null;
 }
 
+export interface Birthday {
+  id: string;
+  name: string;
+  /** `yyyy-MM-dd`, or `--MM-dd` when the year is unknown. */
+  birthDate: string;
+}
+
+const BIRTHDAYS_KEY = 'birthdays';
+
 const putEvent =(event: Event): Write => ({ kind: 'event', id: event.id, record: event });
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -357,6 +366,96 @@ export class CalendarAgent {
     return { changeId, deleted: summary };
   }
 
+  // ---------- Birthdays ----------
+  // Birthdays are a synced list in the app's settings (not events): the app shows each one every
+  // year as an all-day "Name's Nth birthday" on the Birthdays calendar.
+
+  private birthdays(): Birthday[] {
+    const list = this.store.setting<unknown>(BIRTHDAYS_KEY, []);
+    return Array.isArray(list) ? (list as Birthday[]) : [];
+  }
+
+  private putBirthdays(list: Birthday[]): Write {
+    return { kind: 'setting', id: BIRTHDAYS_KEY, record: list };
+  }
+
+  /** `1990-04-12` or `--04-12` (also accepts `04-12` / `0000-04-12` for no year). */
+  private birthDate(input: string): string {
+    const s = input.trim();
+    const m = /^(?:(\d{4})-|--|)(\d{2})-(\d{2})$/.exec(s);
+    if (!m) return fail(`"${input}" isn't a birth date. Use 1990-04-12, or --04-12 when the year is unknown.`);
+    const [, year, mm, dd] = m;
+    const known = !!year && year !== '0000';
+    const d = new Date(Date.UTC(known ? Number(year) : 2000, Number(mm) - 1, Number(dd)));
+    if (d.getUTCMonth() !== Number(mm) - 1 || d.getUTCDate() !== Number(dd)) fail(`"${input}" isn't a real date.`);
+    return known ? `${year}-${mm}-${dd}` : `--${mm}-${dd}`;
+  }
+
+  private describeBirthday(b: Birthday) {
+    const yearless = b.birthDate.startsWith('--');
+    const month = Number(yearless ? b.birthDate.slice(2, 4) : b.birthDate.slice(5, 7));
+    const day = Number(yearless ? b.birthDate.slice(5, 7) : b.birthDate.slice(8, 10));
+    const now = new Date();
+    // Feb 29 is celebrated on Feb 28 in common years, like the app does.
+    const on = (year: number) => new Date(year, month - 1, Math.min(day, new Date(year, month, 0).getDate()));
+    let next = on(now.getFullYear());
+    if (next < startOfDay(now)) next = on(now.getFullYear() + 1);
+    return {
+      birthdayId: b.id,
+      name: b.name,
+      birthDate: b.birthDate,
+      next: dayKey(next),
+      turning: yearless ? undefined : next.getFullYear() - Number(b.birthDate.slice(0, 4)),
+    };
+  }
+
+  private birthday(id: string): Birthday {
+    return this.birthdays().find((b) => b.id === id) ?? fail(`No birthday with id ${id}. Use list_birthdays.`);
+  }
+
+  listBirthdays(input: { query?: string }) {
+    const q = input.query?.trim().toLowerCase();
+    const list = this.birthdays().filter((b) => !q || b.name.toLowerCase().includes(q));
+    return { total: list.length, birthdays: list.map((b) => this.describeBirthday(b)).sort((a, b) => a.next.localeCompare(b.next)) };
+  }
+
+  addBirthdays(input: { items: { name: string; birthDate: string }[] }) {
+    if (!input.items?.length) fail('Give items: [{ name, birthDate }].');
+    const list = this.birthdays();
+    const added: Birthday[] = [];
+    for (const item of input.items) {
+      const name = item.name?.trim() || fail('Each birthday needs a name.');
+      const birthDate = this.birthDate(item.birthDate ?? '');
+      if ([...list, ...added].some((b) => b.name.toLowerCase() === name.toLowerCase() && b.birthDate === birthDate)) {
+        fail(`${name} (${birthDate}) is already in the birthdays.`);
+      }
+      added.push({ id: newId(), name, birthDate });
+    }
+    const summary = added.length === 1 ? `Added birthday: ${added[0]!.name}` : `Added ${added.length} birthdays`;
+    const changeId = this.store.write([this.putBirthdays([...list, ...added])], 'agent', summary);
+    return { changeId, added: added.map((b) => this.describeBirthday(b)) };
+  }
+
+  updateBirthday(input: { birthdayId: string; name?: string; birthDate?: string }) {
+    const current = this.birthday(input.birthdayId);
+    if (input.name === undefined && input.birthDate === undefined) fail('Nothing to change. Give name and/or birthDate.');
+    const next: Birthday = {
+      ...current,
+      name: input.name !== undefined ? input.name.trim() || fail('The name can’t be empty.') : current.name,
+      birthDate: input.birthDate !== undefined ? this.birthDate(input.birthDate) : current.birthDate,
+    };
+    const list = this.birthdays().map((b) => (b.id === next.id ? next : b));
+    const changeId = this.store.write([this.putBirthdays(list)], 'agent', `Changed birthday: ${current.name}`);
+    return { changeId, updated: this.describeBirthday(next) };
+  }
+
+  deleteBirthday(input: { birthdayId: string }) {
+    const current = this.birthday(input.birthdayId);
+    const list = this.birthdays().filter((b) => b.id !== current.id);
+    const changeId = this.store.write([this.putBirthdays(list)], 'agent', `Deleted birthday: ${current.name}`);
+    return { changeId, deleted: current.name };
+  }
+
   // ---------- Series copies (import repair) ----------
 
   /**
@@ -491,9 +590,13 @@ export class CalendarAgent {
     const writes: Write[] = [];
     const conflicts: string[] = [];
     for (const item of change.items) {
-      const current = this.store.get<{ id: string }>(item.kind, item.id) ?? null;
+      const current = item.kind === 'setting' ? this.store.setting<unknown>(item.id, null) : (this.store.get<{ id: string }>(item.kind, item.id) ?? null);
       if (JSON.stringify(current) !== JSON.stringify(item.after)) conflicts.push(item.id);
-      writes.push({ kind: item.kind, id: item.id, record: item.before as { id: string } | null });
+      writes.push(
+        item.kind === 'setting'
+          ? { kind: 'setting', id: item.id, record: item.before ?? [] }
+          : { kind: item.kind, id: item.id, record: item.before as { id: string } | null },
+      );
     }
     if (conflicts.length && !force) {
       fail(`Changed again since change ${changeId} (on a phone or by another change): ${conflicts.join(', ')}. Pass force: true to undo anyway.`);

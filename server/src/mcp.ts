@@ -13,6 +13,7 @@ const INSTRUCTIONS = `OpenCal calendar tools. Changes show up on the user's phon
 - Repeating events: find_events gives each occurrence an occurrenceDate. To change or delete one day only, pass occurrenceDate with scope "this"; "following" for that day and after; "all" for the whole series.
 - Calendars: create_calendar, update_calendar (rename, recolor, defaults), delete_calendar (say what happens to its events).
 - Unknown or misspelled fields are rejected with the list of allowed ones; fix the call and retry.
+- Birthdays are separate from events (the app shows each one every year, with the age): list_birthdays, add_birthdays (several at once; birthDate 1990-04-12, or --04-12 without a year), update_birthday, delete_birthday. To turn birthday-like events into real birthdays: add_birthdays, then delete_event (whole series) for the originals.
 - Every change returns a changeId; undo puts it back. Check recent_changes if unsure what was done.`;
 
 const str = (description: string) => ({ type: 'string', description });
@@ -144,6 +145,47 @@ const TOOLS = [
     annotations: { destructiveHint: true },
   },
   {
+    name: 'list_birthdays',
+    description: 'Lists the birthdays (name, birth date, next date, age they turn), soonest first. Optionally filter by name.',
+    inputSchema: { type: 'object', properties: { query: str('Only names containing this text.') } },
+    annotations: { readOnlyHint: true },
+  },
+  {
+    name: 'add_birthdays',
+    description:
+      'Adds one or more birthdays as ONE undoable change. They show every year as an all-day "Name\'s Nth birthday" on the Birthdays calendar. Use --MM-dd when the year is unknown.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          minItems: 1,
+          items: {
+            type: 'object',
+            properties: { name: str('Person\'s name, e.g. Mom.'), birthDate: str('1990-04-12, or --04-12 when the year is unknown.') },
+            required: ['name', 'birthDate'],
+          },
+        },
+      },
+      required: ['items'],
+    },
+  },
+  {
+    name: 'update_birthday',
+    description: 'Changes a birthday\'s name and/or birth date. Only the fields given change.',
+    inputSchema: {
+      type: 'object',
+      properties: { birthdayId: str('From list_birthdays.'), name: str('New name.'), birthDate: str('1990-04-12, or --04-12 when the year is unknown.') },
+      required: ['birthdayId'],
+    },
+  },
+  {
+    name: 'delete_birthday',
+    description: 'Deletes a birthday. Undoable.',
+    inputSchema: { type: 'object', properties: { birthdayId: str('From list_birthdays.') }, required: ['birthdayId'] },
+    annotations: { destructiveHint: true },
+  },
+  {
     name: 'find_series_copies',
     description:
       'Finds one-off events that are really one day of a repeating series (typical after importing from Google: a renamed occurrence arrives as a skipped day plus a separate event, so lessons stop showing as repeating). For each series: how many copies differ only in title, the suggested title, and the copies that differ in more (often real one-day changes).',
@@ -207,6 +249,8 @@ const ALIASES: Record<string, Record<string, string>> = {
   create_event: { name: 'title', summary: 'title', calendarId: 'calendar', startDate: 'start', endDate: 'end', notes: 'description', rrule: 'repeat', recurrence: 'repeat' },
   update_event: { name: 'title', summary: 'title', id: 'eventId', calendarId: 'calendar', startDate: 'start', endDate: 'end', notes: 'description', rrule: 'repeat', recurrence: 'repeat' },
   delete_event: { id: 'eventId' },
+  update_birthday: { id: 'birthdayId', date: 'birthDate', birthday: 'birthDate' },
+  delete_birthday: { id: 'birthdayId' },
   get_event: { id: 'eventId' },
 };
 
@@ -291,6 +335,14 @@ function callTool(agent: CalendarAgent, name: string, raw: Args): unknown {
       return agent.updateCalendar(a as Parameters<CalendarAgent['updateCalendar']>[0]);
     case 'delete_calendar':
       return agent.deleteCalendar(a as Parameters<CalendarAgent['deleteCalendar']>[0]);
+    case 'list_birthdays':
+      return agent.listBirthdays(a);
+    case 'add_birthdays':
+      return agent.addBirthdays(a as Parameters<CalendarAgent['addBirthdays']>[0]);
+    case 'update_birthday':
+      return agent.updateBirthday(a as Parameters<CalendarAgent['updateBirthday']>[0]);
+    case 'delete_birthday':
+      return agent.deleteBirthday(a as Parameters<CalendarAgent['deleteBirthday']>[0]);
     case 'find_series_copies':
       return agent.findSeriesCopies(a);
     case 'fold_into_series':
