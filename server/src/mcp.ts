@@ -11,6 +11,7 @@ const INSTRUCTIONS = `OpenCal calendar tools. Changes show up on the user's phon
 - Call list_calendars first: it gives the calendar names, today's date and the time zone.
 - Times without an offset are read in that time zone. Use 2026-10-12T14:00 for timed events, 2026-10-12 for all-day ones, or just 14:00 to keep an event's date.
 - Repeating events: find_events gives each occurrence an occurrenceDate. To change or delete one day only, pass occurrenceDate with scope "this"; "following" for that day and after; "all" for the whole series.
+- Event icons: pass icon to create_event / update_event, using a key from the icons list in list_calendars (gym, cake, doctor...) or an emoji; null removes it.
 - Calendars: create_calendar, update_calendar (rename, recolor, defaults), delete_calendar (say what happens to its events).
 - Unknown or misspelled fields are rejected with the list of allowed ones; fix the call and retry.
 - Birthdays are separate from events (the app shows each one every year, with the age): list_birthdays, add_birthdays (several at once; birthDate 1990-04-12, or --04-12 without a year), update_birthday, delete_birthday. To turn birthday-like events into real birthdays: add_birthdays, then delete_event (whole series) for the originals.
@@ -39,6 +40,10 @@ const FIELDS = {
     description: 'Event color: a palette name from list_calendars (e.g. Cherry, Teal) or a hex like #EF4444. null uses the calendar color.',
   },
   tags: { type: 'array', items: { type: 'string' } },
+  icon: {
+    type: ['string', 'null'],
+    description: 'Event icon: a key from the icons list in list_calendars (e.g. gym, cake, doctor, travel) or an emoji. null or "" removes it.',
+  },
 };
 
 const CALENDAR_FIELDS = {
@@ -246,8 +251,8 @@ const ALIASES: Record<string, Record<string, string>> = {
   update_calendar: { newName: 'name', new_name: 'name', title: 'name', calendarName: 'calendar', calendarId: 'calendar' },
   create_calendar: { title: 'name', calendarName: 'name' },
   delete_calendar: { calendarName: 'calendar', calendarId: 'calendar', moveTo: 'moveEventsTo' },
-  create_event: { name: 'title', summary: 'title', calendarId: 'calendar', startDate: 'start', endDate: 'end', notes: 'description', rrule: 'repeat', recurrence: 'repeat' },
-  update_event: { name: 'title', summary: 'title', id: 'eventId', calendarId: 'calendar', startDate: 'start', endDate: 'end', notes: 'description', rrule: 'repeat', recurrence: 'repeat' },
+  create_event: { name: 'title', summary: 'title', calendarId: 'calendar', startDate: 'start', endDate: 'end', notes: 'description', rrule: 'repeat', recurrence: 'repeat', emoji: 'icon' },
+  update_event: { name: 'title', summary: 'title', id: 'eventId', calendarId: 'calendar', startDate: 'start', endDate: 'end', notes: 'description', rrule: 'repeat', recurrence: 'repeat', emoji: 'icon' },
   delete_event: { id: 'eventId' },
   update_birthday: { id: 'birthdayId', date: 'birthDate', birthday: 'birthDate' },
   delete_birthday: { id: 'birthdayId' },

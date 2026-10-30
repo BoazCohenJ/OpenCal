@@ -62,7 +62,8 @@ events, which reach your phone on its next sync.
 - Tools: `list_calendars`, `find_events` (repeats expanded), `get_event`, `create_event`,
   `update_event`, `delete_event` (with "only this one" / "this and following" for repeating
   events, like the app), `create_calendar`, `update_calendar` (rename, recolor, defaults),
-  `delete_calendar` (move or delete its events), `recent_changes` and `undo`.
+  `delete_calendar` (move or delete its events), `recent_changes` and `undo`. Events take an
+  `icon` (one of the app's icon keys, listed by `list_calendars`, or an emoji).
 - Arguments are validated against each tool's schema: unknown or misspelled fields are rejected
   with the allowed ones (a few common aliases like `newName` are accepted), and numbers, booleans
   and lists sent as text are converted.

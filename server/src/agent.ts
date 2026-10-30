@@ -5,6 +5,7 @@ import { eventClock, occurrenceDayKey, withStoredTimes } from '../../src/service
 import { expandEvent, expandEvents, type Occurrence } from '../../src/services/occurrences.ts';
 import { normalizeHex } from '../../src/utils/color.ts';
 import { dayKey, deviceTimeZone, parseDayKey, parseTimestamp } from '../../src/utils/dates.ts';
+import { EVENT_ICON_KEYS } from '../../src/utils/eventIconKeys.ts';
 import { newId } from '../../src/utils/id.ts';
 import { NAMED_PALETTE } from '../../src/utils/palette.ts';
 import { createRule, createRuleAt, describeRRule, endRuleBefore } from '../../src/utils/recurrence.ts';
@@ -43,6 +44,8 @@ export interface EventFields {
   reminders?: number[];
   color?: string | null;
   tags?: string[];
+  /** An icon key (`gym`, `cake`; see list_calendars), an emoji, or null / "" to clear it. */
+  icon?: string | null;
 }
 
 export interface CalendarFields {
@@ -119,6 +122,7 @@ export class CalendarAgent {
         defaults: c.defaults && Object.keys(c.defaults).length ? c.defaults : undefined,
       })),
       colors: NAMED_PALETTE.map((c) => c.name),
+      icons: EVENT_ICON_KEYS,
     };
   }
 
@@ -169,6 +173,7 @@ export class CalendarAgent {
       reminders: e.reminders,
       color: e.color ? colorName(e.color) : undefined,
       tags: e.tags.length ? e.tags : undefined,
+      icon: iconName(e.emoji),
     };
   }
 
@@ -637,6 +642,7 @@ export class CalendarAgent {
       e.reminders = [...new Set(fields.reminders)].sort((a, b) => a - b);
     }
     if (fields.color !== undefined) e.color = fields.color === null || fields.color === '' ? undefined : parseColor(fields.color);
+    if (fields.icon !== undefined) e.emoji = parseIcon(fields.icon);
 
     // Times: the current span, moved and resized by start / end / duration / all-day.
     const oldStart = parseTimestamp(e.startDate);
@@ -740,6 +746,23 @@ export class CalendarAgent {
     };
   }
 }
+
+/**
+ * What goes in an event's `emoji` field: `icon:<key>` for one of the app's icons (the `icon:` prefix
+ * is optional), or the text itself for a short emoji, which the app also shows. null / "" clears it.
+ */
+function parseIcon(input: string | null): string | undefined {
+  const s = input?.trim();
+  if (!s || /^none$/i.test(s)) return undefined;
+  const key = s.toLowerCase().replace(/^icon:/, '');
+  if ((EVENT_ICON_KEYS as readonly string[]).includes(key)) return `icon:${key}`;
+  // Anything with no letters or digits and a few characters long is taken as an emoji.
+  if ([...s].length <= 8 && !/[\p{L}\p{N}]/u.test(s)) return s;
+  return fail(`"${input}" isn't an icon. Use one of: ${EVENT_ICON_KEYS.join(', ')}, or an emoji; null or "" removes it.`);
+}
+
+/** The icon key (or emoji) in an event's `emoji` field. */
+const iconName = (value?: string): string | undefined => value?.replace(/^icon:/, '') || undefined;
 
 /** A palette name (`Cherry`) or hex; returns `#RRGGBB`. */
 function parseColor(input: string): string {

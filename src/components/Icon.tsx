@@ -70,6 +70,7 @@ import {
 import React from 'react';
 import { Text } from 'react-native';
 import { useTheme } from '../theme';
+import type { EVENT_ICON_KEYS } from '../utils/eventIconKeys';
 
 /** Interface icons. */
 const UI_ICONS = {
@@ -150,7 +151,7 @@ export const EVENT_ICONS = {
   night: Moon,
   star: Star,
   event: CalendarDays,
-} satisfies Record<string, LucideIcon>;
+} satisfies Record<(typeof EVENT_ICON_KEYS)[number], LucideIcon>;
 
 export type IconName = keyof typeof UI_ICONS;
 export type EventIconKey = keyof typeof EVENT_ICONS;
