@@ -71,6 +71,10 @@ App icon, Android adaptive/monochrome icons, notification icon, splash image and
 
 `fingerprint` was deliberately not used: Windows checkouts convert line endings (CRLF) while CI checks out LF, which can make fingerprints differ between builds and updates so updates would never apply.
 
+## Keeping the F-Droid variant clean
+
+Never add Firebase, Google services or remote code loading to the app, and keep anything that touches `expo-updates` working against `src/stubs/expo-updates.ts`. `scripts/fdroid/` rebuilds the F-Droid recipe in F-Droid's own build image and `docs/fdroid/` holds the recipe, so check that a build still passes after changing dependencies, Gradle or the build config.
+
 ## Rules
 
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
