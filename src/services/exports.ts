@@ -37,3 +37,11 @@ export const shareICS = (
   color?: string,
 ): Promise<boolean> =>
   share(`${fileSlug(name)}-${today()}.ics`, toICS(events, calendarsById, { name, color, allDayTime }), 'text/calendar');
+
+/**
+ * Sends one event as an invitation file (title.ics) through the share sheet: WhatsApp, Gmail and the
+ * like. Any calendar app can add it; OpenCal opens it filled in, and its UID makes a later copy
+ * update the same event.
+ */
+export const shareEvent = (event: Event, calendarsById: Record<string, Calendar>, allDayTime: number): Promise<boolean> =>
+  share(`${fileSlug(event.title)}.ics`, toICS([event], calendarsById, { name: event.title, allDayTime, method: 'PUBLISH' }), 'text/calendar');

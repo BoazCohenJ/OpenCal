@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useToast } from '../components/Toast';
 import { Button, Chip, Divider, Field, Row, Section, TextField } from '../components/ui';
@@ -7,8 +7,9 @@ import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
 import { parseBackup, type Backup } from '../services/backup';
 import { shareBackup, shareICS } from '../services/exports';
-import { pickTextFile } from '../services/fileTransfer';
-import { parseICS, type ICSImport } from '../services/ical';
+import { pickTextFile, type PickedFile } from '../services/fileTransfer';
+import type { ICSImport } from '../services/ical';
+import { parseInvite } from '../services/invite';
 import { createStyles, PALETTE, spacing } from '../theme';
 import { confirmAsync, notify } from '../utils/confirm';
 
@@ -19,7 +20,7 @@ type Pending =
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const NEW_CALENDAR = '__new__';
 
-export function ImportExportScreen({ navigation }: ScreenProps<'ImportExport'>) {
+export function ImportExportScreen({ navigation, route }: ScreenProps<'ImportExport'>) {
   const styles = useStyles();
   const showToast = useToast();
   const {
@@ -49,28 +50,41 @@ export function ImportExportScreen({ navigation }: ScreenProps<'ImportExport'>) 
     void shareICS(only?.name ?? 'OpenCal', chosenEvents, calendarsById, notificationPrefs.allDayTime, only?.color);
   };
 
+  const load = (file: PickedFile) => {
+    const backup = parseBackup(file.text);
+    if (backup) {
+      setPending({ kind: 'backup', fileName: file.name, backup });
+      return;
+    }
+    const data = parseInvite(file.text, notificationPrefs.allDayTime);
+    if (data) {
+      if (!data.events.length) {
+        notify('No events found', `“${file.name}” doesn't contain any events.`);
+        return;
+      }
+      setPending({ kind: 'ics', fileName: file.name, data });
+      setTarget(NEW_CALENDAR);
+      setNewName(data.calendarName ?? file.name.replace(/\.[^.]+$/, ''));
+      return;
+    }
+    notify('Unsupported file', `“${file.name}” isn't an OpenCal backup (.json), a calendar file (.ics) or an invitation email (.eml).`);
+  };
+
+  // A file another app opened with OpenCal (see InviteWatcher).
+  const incoming = route.params?.incoming;
+  useEffect(() => {
+    if (!incoming) return;
+    const id = setTimeout(() => load(incoming));
+    return () => clearTimeout(id);
+    // Only when a new file arrives, not when the settings `load` reads change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incoming]);
+
   const choose = async () => {
     setBusy(true);
     try {
       const file = await pickTextFile();
-      if (!file) return;
-      const backup = parseBackup(file.text);
-      if (backup) {
-        setPending({ kind: 'backup', fileName: file.name, backup });
-        return;
-      }
-      const data = parseICS(file.text, notificationPrefs.allDayTime);
-      if (data) {
-        if (!data.events.length) {
-          notify('No events found', `“${file.name}” doesn't contain any events.`);
-          return;
-        }
-        setPending({ kind: 'ics', fileName: file.name, data });
-        setTarget(NEW_CALENDAR);
-        setNewName(data.calendarName ?? file.name.replace(/\.[^.]+$/, ''));
-        return;
-      }
-      notify('Unsupported file', `“${file.name}” isn't an OpenCal backup (.json) or a calendar file (.ics).`);
+      if (file) load(file);
     } catch (e) {
       notify('Import failed', e instanceof Error ? e.message : String(e));
     } finally {
@@ -196,7 +210,7 @@ export function ImportExportScreen({ navigation }: ScreenProps<'ImportExport'>) 
         </View>
       </Section>
 
-      <Section title="Import" footer="Pick an OpenCal backup (.json) or a calendar file (.ics) exported from any calendar app. You'll see what's in it before anything changes.">
+      <Section title="Import" footer="Pick an OpenCal backup (.json), a calendar file (.ics) exported from any calendar app, or an invitation email (.eml). You'll see what's in it before anything changes.">
         <View style={styles.action}>
           <Button variant="secondary" title={busy ? 'Opening…' : 'Choose a file…'} disabled={busy} onPress={() => void choose()} />
         </View>

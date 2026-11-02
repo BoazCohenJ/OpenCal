@@ -1,0 +1,1 @@
+Event sharing: Share event sends an event as an .ics invite to any app. Share an invite, an .ics file or a message to OpenCal (or open it with OpenCal) and the event opens filled in, ready to save; messages go through Quick Add. Opening an updated invite updates the same event.

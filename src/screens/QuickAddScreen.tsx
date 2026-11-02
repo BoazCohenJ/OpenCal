@@ -12,11 +12,12 @@ import { formatRange, nextRoundedHour } from '../utils/dates';
 
 const EXAMPLES = ['Lunch with John Fri 1pm at Cafe X', 'Dentist next Tuesday 9:30am', 'Team offsite Oct 12 - Oct 14', 'Call mom tomorrow 7pm'];
 
-export function QuickAddScreen({ navigation }: ScreenProps<'QuickAdd'>) {
+export function QuickAddScreen({ navigation, route }: ScreenProps<'QuickAdd'>) {
   const styles = useStyles();
   const { colors } = useTheme();
   const { calendars } = useCalendarContext();
-  const [text, setText] = useState('');
+  const sharedText = route.params?.sharedText;
+  const [text, setText] = useState(sharedText ?? '');
   const [calendarId, setCalendarId] = useState(calendars[0]?.id ?? '');
   const parsed = useMemo(() => parseEventText(text), [text]);
   const hasInput = text.trim().length > 0;
@@ -38,6 +39,8 @@ export function QuickAddScreen({ navigation }: ScreenProps<'QuickAdd'>) {
         endDate: end.toISOString(),
         isAllDay: parsed.isAllDay,
         calendarId,
+        // The whole message someone shared, so nothing in it is lost once the title is trimmed.
+        description: sharedText,
       },
     });
   };

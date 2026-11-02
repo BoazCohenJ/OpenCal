@@ -196,4 +196,39 @@ for (const choice of ['this','following','all']) {
   if(choice==='following') assert.match(savedEvent.recurrenceRule,/UNTIL=20261102T235959Z/);
   if(choice==='all') assert.equal(deletedId,recurring.id);
 }
+// Invitations by email: the calendar part of a Google invite (quoted-printable, emoji title), an
+// invite.ics attachment in base64, and a "share event" email that only has schema.org markup.
+const { parseInvite } = await mod('src/services/invite.ts');
+const inviteIcs = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nDTSTART;TZID=Asia/Jerusalem:20261105T081500\r\nDTEND;TZID=Asia/Jerusalem:20261105T090000\r\nUID:abc123@google.com\r\nSUMMARY:English 🇬🇧\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
+const qp = inviteIcs.replace(/=/g, '=3D').replace('English 🇬🇧', 'English =F0=9F=87=AC=F0=9F=87=A7');
+const inviteMail = ['MIME-Version: 1.0', 'Subject: Invitation', 'Content-Type: multipart/mixed; boundary="outer"', '', '--outer',
+  'Content-Type: multipart/alternative; boundary="inner"', '', '--inner', 'Content-Type: text/plain; charset="UTF-8"', '', 'You are invited', '--inner',
+  'Content-Type: text/calendar; charset="UTF-8"; method=REQUEST', 'Content-Transfer-Encoding: quoted-printable', '', qp, '--inner--', '--outer--', ''].join('\r\n');
+const invited = parseInvite(inviteMail, 540).events;
+assert.equal(invited.length, 1);
+assert.equal(invited[0].title, 'English 🇬🇧');
+assert.equal(invited[0].startDate, '2026-11-05T06:15:00.000Z');
+assert.equal(invited[0].id, 'ics-abc123@google.com');
+const attached = ['MIME-Version: 1.0', 'Content-Type: multipart/mixed; boundary=b', '', '--b', 'Content-Type: application/ics; name="invite.ics"',
+  'Content-Disposition: attachment; filename="invite.ics"', 'Content-Transfer-Encoding: base64', '', Buffer.from(inviteIcs).toString('base64').replace(/.{76}/g, '$&\r\n'), '--b--'].join('\r\n');
+assert.equal(parseInvite(attached, 540).events[0].title, 'English 🇬🇧');
+const shareHtml = '<span itemscope itemtype="http://schema.org/EmailMessage"><p itemprop="description">See you there</p></span><span itemprop="object" itemscope itemtype="http://schema.org/Event"><span itemprop="publisher" itemscope itemtype="http://schema.org/Organization"><meta itemprop="name" content="Google Calendar"/></span><meta itemprop="eventId/googleCalendar" content="344bvph3"/><span itemprop="name">Picnic &amp; games</span><time itemprop="startDate" datetime="20261114"></time><time itemprop="endDate" datetime="20261115"></time></span>';
+const shareMail = ['MIME-Version: 1.0', 'Content-Type: multipart/alternative; boundary="s"', '', '--s', 'Content-Type: text/html; charset="UTF-8"',
+  'Content-Transfer-Encoding: quoted-printable', '', shareHtml.replace(/=/g, '=3D'), '--s--'].join('\r\n');
+const shared = parseInvite(shareMail, 540).events[0];
+assert.equal(shared.title, 'Picnic & games');
+assert.equal(shared.isAllDay, true);
+assert.equal(shared.id, 'ics-344bvph3@google.com');
+assert.equal(shared.description, 'See you there');
+assert.equal(new Date(shared.startDate).getDate(), 14);
+assert.equal(new Date(shared.endDate).getDate(), 14);
+assert.equal(parseInvite('MIME-Version: 1.0\r\nContent-Type: text/plain\r\n\r\nHello', 540), null);
+assert.equal(parseInvite(inviteIcs, 540).events.length, 1);
+// Share event → the receiver opens the file: a PUBLISH invite that comes back as the same event.
+const sharedOut = { id: 'evt-share', title: 'Dinner, at 8', startDate: '2026-11-20T18:00:00.000Z', endDate: '2026-11-20T20:00:00.000Z', isAllDay: false, floating: false, timeZone: 'Asia/Jerusalem', calendarId: 'c1', pauseWindows: [], reminders: [], tags: [] };
+const sharedIcs = toICS([sharedOut], {}, { name: sharedOut.title, allDayTime: 540, method: 'PUBLISH' });
+assert.match(sharedIcs, /\r\nMETHOD:PUBLISH\r\n/);
+const received = parseInvite(sharedIcs, 540).events;
+assert.deepEqual(received.map((e) => [e.id, e.title, e.startDate, e.endDate, e.timeZone]), [['evt-share', 'Dinner, at 8', sharedOut.startDate, sharedOut.endDate, 'Asia/Jerusalem']]);
+
 console.log('All regression assertions passed, including themed prompt queue and editor deletion scopes');

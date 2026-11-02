@@ -9,6 +9,7 @@ import { RecurrenceEditor } from '../components/RecurrenceEditor';
 import { ReminderEditor } from '../components/ReminderEditor';
 import { RepeatDeleteSheet, type RepeatDeleteChoice } from '../components/RepeatDeleteSheet';
 import { occurrenceDayKey } from '../services/eventTimes';
+import { shareEvent } from '../services/exports';
 import { nextOccurrence } from '../services/occurrences';
 import { endRuleBefore } from '../utils/recurrence';
 import { CalendarSelector, TagEditor } from '../components/Selectors';
@@ -32,7 +33,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
   const existing = route.params?.eventId ? events.find((e) => e.id === route.params?.eventId) : undefined;
   const [form, setForm] = useState<Event>(() => {
     const built = existing ?? buildNewEvent(route.params?.draft, calendars[0]?.id ?? '', calendarsById, notificationPrefs, defaultEventMinutes);
-    const initial = { ...built, floating: built.floating ?? floatingByDefault };
+    const initial = { ...built, id: existing?.id ?? route.params?.importId ?? built.id, floating: built.floating ?? floatingByDefault };
     return calendarsById[initial.calendarId] ? initial : { ...initial, calendarId: calendars[0]?.id ?? '' };
   });
   const [showEmoji, setShowEmoji] = useState(false);
@@ -44,6 +45,8 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
     : existing ? nextOccurrence(existing, calendarsById[existing.calendarId], new Date())?.start ?? parseTimestamp(existing.startDate) : startOfDay(new Date());
   const selectedDay = existing ? parseDayKey(occurrenceDayKey(existing, selectedStart)) : startOfDay(new Date());
   const fromQuickAdd = route.params?.fromQuickAdd ?? false;
+  // An invitation opened again: saving replaces the event added from it before.
+  const updatingInvite = !!route.params?.importId && events.some((e) => e.id === route.params?.importId);
   // Fields the user (or the Quick Add text) set explicitly; calendar defaults never overwrite these.
   const [touched, setTouched] = useState<Set<InheritedField>>(
     () => new Set(existing ? INHERITED : INHERITED.filter((f) => route.params?.draft?.[f] !== undefined)),
@@ -137,7 +140,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: existing ? 'Edit Event' : 'New Event',
+      title: existing ? 'Edit Event' : updatingInvite ? 'Update Event' : 'New Event',
       headerLeft: () =>
         fromQuickAdd ? (
           <HeaderButton title="‹ Edit text" onPress={() => navigation.goBack()} />
@@ -146,7 +149,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
         ),
       headerRight: () => <HeaderButton title="Save" bold onPress={() => saveRef.current()} />,
     });
-  }, [navigation, existing, fromQuickAdd]);
+  }, [navigation, existing, fromQuickAdd, updatingInvite]);
 
   const remove = async () => {
     if (!existing || removed.current || confirmingRemoval.current) return;
@@ -176,6 +179,12 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
     else if (choice === 'this') saveEvent({ ...existing, skippedDates: [...new Set([...(existing.skippedDates ?? []), day])].sort() });
     else saveEvent({ ...existing, recurrenceRule: endRuleBefore(existing.recurrenceRule, parseDayKey(day)) });
     navigation.goBack();
+  };
+
+  // Shares what's on screen, unsaved changes included.
+  const shareOut = () => {
+    const event = normalized();
+    if (event) void shareEvent(event, calendarsById, notificationPrefs.allDayTime);
   };
 
   const saveAsStamp = () => {
@@ -309,6 +318,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
       </Section>
 
       <View style={styles.actions}>
+        {existing ? <Button variant="secondary" title="Share event" onPress={shareOut} /> : null}
         <Button variant="secondary" title="Save as stamp" onPress={saveAsStamp} />
         {existing ? <Button variant="danger" title="Delete event" onPress={remove} /> : null}
       </View>

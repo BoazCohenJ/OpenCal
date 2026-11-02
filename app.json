@@ -3,7 +3,7 @@
     "name": "OpenCal",
     "slug": "opencal",
     "scheme": "opencal",
-    "version": "1.5.1",
+    "version": "1.6.0",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -32,8 +32,34 @@
       ],
       "predictiveBackGestureEnabled": false,
       "package": "com.boazcohen.opencal.ota",
-      "versionCode": 10501,
-      "blockedPermissions": ["android.permission.SYSTEM_ALERT_WINDOW"]
+      "versionCode": 10600,
+      "blockedPermissions": ["android.permission.SYSTEM_ALERT_WINDOW"],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": ["DEFAULT", "BROWSABLE"],
+          "data": [
+            { "scheme": "content", "mimeType": "text/calendar" },
+            { "scheme": "content", "mimeType": "text/x-vcalendar" },
+            { "scheme": "content", "mimeType": "application/ics" },
+            { "scheme": "content", "mimeType": "message/rfc822" },
+            { "scheme": "file", "mimeType": "text/calendar" },
+            { "scheme": "file", "mimeType": "application/ics" },
+            { "scheme": "file", "mimeType": "message/rfc822" }
+          ]
+        },
+        {
+          "action": "SEND",
+          "category": ["DEFAULT"],
+          "data": [
+            { "mimeType": "text/calendar" },
+            { "mimeType": "text/x-vcalendar" },
+            { "mimeType": "application/ics" },
+            { "mimeType": "message/rfc822" },
+            { "mimeType": "text/plain" }
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

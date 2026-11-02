@@ -52,6 +52,7 @@ https://github.com/user-attachments/assets/96c68291-76bc-4ca8-a030-11c235435344
 - **Icons instead of emoji** for events and stamps, **dark mode** (System / Light / Dark), smooth animations.
 - **Made for the browser too:** in a wide browser window the web app switches to a desktop layout, with a sidebar (mini month, calendar toggles), a toolbar with Today, arrows and a Day/Week/Month/Schedule switch, editors as dialogs over the calendar (Esc closes), and keyboard shortcuts (T today, arrows to move, D/W/M/S views, C new event, Q quick add). Narrow windows keep the phone layout.
 - **Import & export:** back up everything (calendars, events, stamps, birthdays, settings) to one file and restore or merge it on another phone, or move events to and from Google Calendar, Apple Calendar and Outlook with standard .ics files (a whole calendar, or any filtered set of events).
+- **Event sharing:** Share event sends any event as an .ics invite (WhatsApp, Gmail, anything in the share sheet) that every calendar app can add. In the other direction, share an invite.ics, a calendar file, an invitation email or a message to OpenCal (or tap an invite.ics in Gmail and open it with OpenCal) and the event opens filled in, ready to save to the calendar you pick; a plain message goes through Quick Add, which finds the date and time in it. Opening an updated invite updates the same event. Import & export also reads invitation emails (.eml), including Google Calendar's "share event" emails, which have no .ics attached.
 - **Self-hosted sync (optional):** run the small [OpenCal server](server/README.md) at home (one Docker command, great with Tailscale), enter its address and key in Settings → Sync, and every phone connected to it stays in step: calendars, events, stamps, birthdays and color rules. Changes sync when the app opens, when you return to it and a few seconds after each edit; the latest change wins. Theme, notifications and hidden calendars stay per device.
 - **AI agent tools (optional):** the same server offers calendar tools over MCP, so an assistant like Hermes, Claude or ChatGPT can read your schedule and add, move or delete events ("only this one" for repeats included), with every change undoable. Forward it a message and the events appear on your phone.
 - **Private by design:** everything is stored locally (SQLite on device, localStorage on web), and only ever leaves the phone for your own sync server.
@@ -105,7 +106,7 @@ Every push to `main` runs the typecheck and lint, then publishes an over-the-air
 
 - [Expo](https://expo.dev) SDK 57, React Native, TypeScript
 - React Navigation (native stack)
-- expo-sqlite for storage, a small local Android module (`modules/opencal-notifications`, AlarmManager) for reminders, with no Firebase or Google Play services, expo-updates for over-the-air updates
+- expo-sqlite for storage, small local Android modules for reminders (`modules/opencal-notifications`, AlarmManager) and for receiving shares (`modules/opencal-share`), with no Firebase or Google Play services, expo-updates for over-the-air updates
 - expo-document-picker, expo-file-system and expo-sharing for importing and exporting files
 - rrule for recurrence, chrono-node for natural-language parsing, date-fns
 - react-native-svg + lucide icons, Fraunces display font
@@ -118,7 +119,7 @@ src/screens/            screens (calendar, editors, settings, notifications…)
 src/views/              schedule, day, week and month views
 src/components/         shared UI (pickers, sheets, toast, logo…)
 src/context/            app state (CalendarContext)
-modules/                local native modules (reminder scheduling)
+modules/                local native modules (reminder scheduling, receiving shares)
 src/services/           database, occurrences/recurrence, notifications, focus windows
 src/models/             data types
 src/navigation/         route and param types

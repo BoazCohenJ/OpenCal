@@ -4,7 +4,7 @@ import {
   Fraunces_800ExtraBold,
   useFonts,
 } from '@expo-google-fonts/fraunces';
-import { DarkTheme, DefaultTheme, NavigationContainer, type LinkingOptions, type Theme } from '@react-navigation/native';
+import { createNavigationContainerRef, DarkTheme, DefaultTheme, NavigationContainer, type LinkingOptions, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator, type NativeStackHeaderProps } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -13,12 +13,14 @@ import { Linking, Platform, Text, useWindowDimensions, View } from 'react-native
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Logo } from './src/components/Logo';
 import { DialogHeader, dialog } from './src/components/WebDialog';
+import { InviteWatcher } from './src/components/InviteWatcher';
 import { SyncWatcher } from './src/components/SyncWatcher';
 import { ToastProvider } from './src/components/Toast';
 import { PromptHost } from './src/components/PromptHost';
 import { UpdateWatcher } from './src/components/UpdateWatcher';
 import { CalendarProvider, useCalendarContext } from './src/context/CalendarContext';
 import type { RootStackParamList } from './src/navigation/types';
+import { deliverFile, isFileLink } from './src/services/incomingFiles';
 import { BirthdayEditScreen } from './src/screens/BirthdayEditScreen';
 import { BirthdaysScreen } from './src/screens/BirthdaysScreen';
 import { ColorRulesScreen } from './src/screens/ColorRulesScreen';
@@ -42,6 +44,7 @@ import { useDesktop } from './src/utils/desktop';
 import { WidgetWatcher } from './src/widgets/WidgetWatcher';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 /** How long the first screen waits for the link the app was opened with (a widget's view and date). */
 const LINK_WAIT_MS = 600;
@@ -56,7 +59,16 @@ let linkLate = false;
  * 150 ms wait, and then a widget opened the default view instead of the one it links to.
  */
 function getInitialURL(): Promise<string | null> {
-  launchLink ??= Linking.getInitialURL().catch(() => null);
+  // A file opened with OpenCal isn't a screen link: hand it to InviteWatcher instead.
+  launchLink ??= Linking.getInitialURL()
+    .catch(() => null)
+    .then((url) => {
+      if (url && isFileLink(url)) {
+        deliverFile(url);
+        return null;
+      }
+      return url;
+    });
   const link = launchLink;
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
@@ -73,7 +85,7 @@ function getInitialURL(): Promise<string | null> {
 
 /** Links that arrive while the app is open, plus a launch link that came too late for getInitialURL. */
 function subscribe(listener: (url: string) => void): () => void {
-  const sub = Linking.addEventListener('url', ({ url }) => listener(url));
+  const sub = Linking.addEventListener('url', ({ url }) => (isFileLink(url) ? deliverFile(url) : listener(url)));
   let open = true;
   void launchLink?.then((url) => {
     if (!open || !linkLate || !url) return;
@@ -273,12 +285,13 @@ function AppShell() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ToastProvider>
-        <NavigationContainer theme={navigationTheme} linking={Platform.OS === 'web' ? undefined : linking}>
+        <NavigationContainer ref={navigationRef} theme={navigationTheme} linking={Platform.OS === 'web' ? undefined : linking}>
           <RootNavigator />
         </NavigationContainer>
         <UpdateWatcher />
         <SyncWatcher />
         <WidgetWatcher />
+        <InviteWatcher navigation={navigationRef} />
         <PromptHost />
       </ToastProvider>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />

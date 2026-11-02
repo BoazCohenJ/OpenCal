@@ -152,11 +152,14 @@ function eventLines(event: Event, calendar: Calendar | undefined, allDayTime: nu
   return lines;
 }
 
-/** An .ics file with `events`. `name`/`color` label the calendar in apps that show them. */
+/**
+ * An .ics file with `events`. `name`/`color` label the calendar in apps that show them. `method:
+ * 'PUBLISH'` marks it as events sent to someone, so mail apps offer to add them to a calendar.
+ */
 export function toICS(
   events: Event[],
   calendarsById: Record<string, Calendar>,
-  options: { name: string; color?: string; allDayTime: number },
+  options: { name: string; color?: string; allDayTime: number; method?: 'PUBLISH' },
 ): string {
   const now = new Date();
   const tz = deviceTimeZone();
@@ -165,6 +168,7 @@ export function toICS(
     'VERSION:2.0',
     'PRODID:-//OpenCal//OpenCal//EN',
     'CALSCALE:GREGORIAN',
+    ...(options.method ? [`METHOD:${options.method}`] : []),
     `X-WR-CALNAME:${escapeText(options.name)}`,
     ...(options.color ? [`X-APPLE-CALENDAR-COLOR:${options.color}`] : []),
   ];
