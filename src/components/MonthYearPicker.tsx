@@ -1,7 +1,9 @@
 import { format } from 'date-fns';
-import React, { useMemo } from 'react';
-import { FlatList, Pressable, Text, View } from 'react-native';
-import { createStyles, fonts, radius } from '../theme';
+import React, { useEffect, useMemo, useState } from 'react';
+import { FlatList, Modal, Pressable, PressableStateCallbackType, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { createStyles, fonts, radius, shadow, spacing, useTheme } from '../theme';
+import { useDesktop } from '../utils/desktop';
+import { Icon } from './Icon';
 import { Sheet } from './Sheet';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i);
@@ -90,25 +92,158 @@ export function MonthYearGrid({
   );
 }
 
-/** Bottom sheet for jumping to any month. "Today" goes back to the current month. */
+/**
+ * Bottom sheet for jumping to any month. "Today" goes back to the current month. On desktop it is
+ * a dropdown under `anchor` instead (see MonthYearMenu).
+ */
 export function MonthYearSheet({
   visible,
   onClose,
   value,
   onSelect,
+  anchor,
 }: {
   visible: boolean;
   onClose: () => void;
   value: Date;
   onSelect: (month: Date) => void;
+  /** Window position of the dropdown's top-left corner on desktop. */
+  anchor?: { x: number; y: number } | null;
 }) {
+  const desktop = useDesktop();
   const thisYear = new Date().getFullYear();
+  if (desktop) return <MonthYearMenu visible={visible} onClose={onClose} value={value} onSelect={onSelect} anchor={anchor} />;
   return (
     <Sheet visible={visible} onClose={onClose} title="Go to month" actionLabel="Today" onAction={() => onSelect(new Date())}>
       <MonthYearGrid value={value} onSelect={onSelect} minYear={thisYear - 100} maxYear={thisYear + 50} />
     </Sheet>
   );
 }
+
+type Hover = PressableStateCallbackType & { hovered?: boolean };
+
+/**
+ * Desktop dropdown: one year at a time with arrows to step it, and a compact month grid. ← → (or
+ * Page Up/Down) step the year, Escape closes.
+ */
+function MonthYearMenu({
+  visible,
+  onClose,
+  value,
+  onSelect,
+  anchor,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  value: Date;
+  onSelect: (month: Date) => void;
+  anchor?: { x: number; y: number } | null;
+}) {
+  const styles = useMenuStyles();
+  const { colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const [year, setYear] = useState(value.getFullYear());
+  // Reopening starts on the shown month's year again.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) setYear(value.getFullYear());
+  }
+
+  useEffect(() => {
+    if (!visible || typeof document === 'undefined') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') setYear((y) => y - 1);
+      else if (e.key === 'ArrowRight' || e.key === 'PageDown') setYear((y) => y + 1);
+      else return;
+      e.preventDefault();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [visible, onClose]);
+
+  const now = new Date();
+  const left = Math.max(spacing.lg, Math.min(anchor?.x ?? spacing.lg, width - MENU_WIDTH - spacing.lg));
+  const top = anchor?.y ?? 64;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
+      <View style={[styles.menu, { left, top }]} accessibilityRole="menu">
+        <View style={styles.header}>
+          <Pressable onPress={() => setYear(year - 1)} style={({ hovered }: Hover) => [styles.arrow, hovered && styles.hover]} accessibilityLabel="Previous year">
+            <Icon name="chevron-left" size={18} color={colors.textMuted} strokeWidth={2.5} />
+          </Pressable>
+          <Text style={[styles.year, year === now.getFullYear() && styles.yearCurrent]}>{year}</Text>
+          <Pressable onPress={() => setYear(year + 1)} style={({ hovered }: Hover) => [styles.arrow, hovered && styles.hover]} accessibilityLabel="Next year">
+            <Icon name="chevron-right" size={18} color={colors.textMuted} strokeWidth={2.5} />
+          </Pressable>
+        </View>
+        <View style={styles.grid}>
+          {MONTHS.map((m) => {
+            const selected = year === value.getFullYear() && m === value.getMonth();
+            const current = year === now.getFullYear() && m === now.getMonth();
+            return (
+              <Pressable
+                key={m}
+                onPress={() => onSelect(new Date(year, m, 1))}
+                accessibilityRole="menuitem"
+                accessibilityState={{ selected }}
+                accessibilityLabel={format(new Date(year, m, 1), 'MMMM yyyy')}
+                style={({ hovered }: Hover) => [styles.cell, hovered && !selected && styles.hover, selected && styles.cellSelected]}
+              >
+                <Text style={[styles.cellText, current && styles.cellTextCurrent, selected && styles.cellTextSelected]}>{MONTH_LABELS[m]}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Pressable onPress={() => onSelect(new Date())} style={({ hovered }: Hover) => [styles.today, hovered && styles.hover]}>
+          <Text style={styles.todayText}>Today</Text>
+        </Pressable>
+      </View>
+    </Modal>
+  );
+}
+
+const MENU_WIDTH = 300;
+
+const useMenuStyles = createStyles((colors) => ({
+  menu: {
+    position: 'absolute',
+    width: MENU_WIDTH,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    ...shadow,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.25,
+  },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
+  arrow: { width: 32, height: 32, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
+  year: { fontFamily: fonts.displayBold, fontSize: 20, color: colors.text, letterSpacing: -0.4 },
+  yearCurrent: { color: colors.primary },
+  hover: { backgroundColor: colors.surfaceAlt },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: spacing.xs },
+  cell: { width: '33.333%', height: 38, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
+  cellSelected: { backgroundColor: colors.primary },
+  cellText: { fontSize: 14, fontWeight: '600', color: colors.text },
+  cellTextCurrent: { color: colors.primary, fontWeight: '800' },
+  cellTextSelected: { color: colors.onPrimary, fontWeight: '800' },
+  today: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    height: 40,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.hairline,
+  },
+  todayText: { fontSize: 14, fontWeight: '600', color: colors.primary },
+}));
 
 const useStyles = createStyles((colors) => ({
   // A year and a peek of the next, so it's clear the list scrolls.

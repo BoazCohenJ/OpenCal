@@ -170,6 +170,17 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
   const [selectionActive, setSelectionActive] = useState(false);
   const [slot, setSlot] = useState<Date | null>(null);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  // On desktop the month picker drops down from the toolbar title.
+  const monthTitleRef = useRef<View>(null);
+  const [monthAnchor, setMonthAnchor] = useState<{ x: number; y: number } | null>(null);
+  const openMonthPicker = () => {
+    const title = monthTitleRef.current;
+    if (!desktop || !title) return setMonthPickerOpen(true);
+    title.measureInWindow((x, y, _w, h) => {
+      setMonthAnchor({ x: x - spacing.md, y: y + h + spacing.sm });
+      setMonthPickerOpen(true);
+    });
+  };
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
   // Bulk delete waiting on answers for its repeating events (one sheet per event).
   const [repeatQueue, setRepeatQueue] = useState<{ plain: Event[]; repeating: RepeatItem[]; choices: RepeatDeleteChoice[] } | null>(
@@ -684,7 +695,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
             <IconButton icon="chevron-left" onPress={() => step(-1)} accessibilityLabel="Previous" />
             <IconButton icon="chevron-right" onPress={() => step(1)} accessibilityLabel="Next" />
           </View>
-          <Pressable onPress={() => setMonthPickerOpen(true)} accessibilityLabel={`${desktopTitle}. Choose a month`} style={styles.toolbarTitleButton}>
+          <Pressable ref={monthTitleRef} onPress={openMonthPicker} accessibilityLabel={`${desktopTitle}. Choose a month`} style={styles.toolbarTitleButton}>
             <Text style={styles.toolbarTitle} numberOfLines={1}>
               {desktopTitle}
             </Text>
@@ -832,7 +843,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
         onManageCalendars={() => navigation.navigate('Calendars')}
       />
 
-      <MonthYearSheet visible={monthPickerOpen} onClose={() => setMonthPickerOpen(false)} value={cursor} onSelect={jumpToMonth} />
+      <MonthYearSheet visible={monthPickerOpen} onClose={() => setMonthPickerOpen(false)} value={cursor} onSelect={jumpToMonth} anchor={monthAnchor} />
 
       <Sheet visible={!!slot} onClose={() => setSlot(null)} title={slot ? format(slot, 'EEE, MMM d · h:mm a') : ''} actionLabel="Close">
         <View style={styles.slotSheet}>
