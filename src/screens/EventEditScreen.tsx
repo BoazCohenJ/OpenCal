@@ -1,4 +1,4 @@
-import { addDays, addHours, differenceInCalendarDays, endOfDay, format, setHours, startOfDay } from 'date-fns';
+import { addDays, differenceInCalendarDays, endOfDay, format, setHours, startOfDay } from 'date-fns';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ColorPicker } from '../components/ColorPicker';
@@ -14,76 +14,24 @@ import { endRuleBefore } from '../utils/recurrence';
 import { CalendarSelector, TagEditor } from '../components/Selectors';
 import { Button, Divider, Field, HeaderButton, Section, SwitchRow, TextField } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
-import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
-import type { NotificationPrefs } from '../models/NotificationPrefs';
-import type { EventDraft, ScreenProps } from '../navigation/types';
+import type { ScreenProps } from '../navigation/types';
+import { buildNewEvent, defaultRemindersFor, INHERITED, inheritedValues, type InheritedField } from '../services/newEvent';
 import { templateFromEvent } from '../services/templates';
 import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { confirmAsync, notify } from '../utils/confirm';
-import { deviceTimeZone, formatPauseWindow, nextRoundedHour, parseDayKey, parseTimestamp } from '../utils/dates';
+import { deviceTimeZone, formatPauseWindow, parseDayKey, parseTimestamp } from '../utils/dates';
 import { newId } from '../utils/id';
 import { animateNextLayout } from '../utils/motion';
-
-/** Fields a calendar can pre-fill. Once the user edits one, switching calendars leaves it alone. */
-type InheritedField = 'reminders' | 'recurrenceRule' | 'location' | 'tags';
-const INHERITED: InheritedField[] = ['reminders', 'recurrenceRule', 'location', 'tags'];
-
-function defaultRemindersFor(calendar: Calendar | undefined, allDay: boolean, prefs: NotificationPrefs): number[] {
-  return [...(calendar?.defaults?.reminders ?? (allDay ? prefs.defaultAllDayReminders : prefs.defaultReminders))];
-}
-
-/** What a new event in `calendar` starts with for each inherited field. */
-function inheritedValues(calendar: Calendar | undefined, allDay: boolean, prefs: NotificationPrefs): Pick<Event, InheritedField> {
-  return {
-    reminders: defaultRemindersFor(calendar, allDay, prefs),
-    recurrenceRule: calendar?.defaults?.recurrenceRule,
-    location: calendar?.defaults?.location,
-    tags: [...(calendar?.defaults?.tags ?? [])],
-  };
-}
-
-function buildInitial(
-  existing: Event | undefined,
-  draft: EventDraft | undefined,
-  defaultCalendarId: string,
-  calendarsById: Record<string, Calendar>,
-  prefs: NotificationPrefs,
-): Event {
-  if (existing) return existing;
-  const start = draft?.startDate ? parseTimestamp(draft.startDate) : nextRoundedHour();
-  const merged: Event = {
-    id: newId(),
-    title: '',
-    startDate: start.toISOString(),
-    endDate: addHours(start, 1).toISOString(),
-    isAllDay: false,
-    calendarId: defaultCalendarId,
-    pauseWindows: [],
-    reminders: [],
-    tags: [],
-  };
-  if (draft) {
-    for (const [k, v] of Object.entries(draft)) {
-      if (v !== undefined) (merged as unknown as Record<string, unknown>)[k] = v;
-    }
-  }
-  const calendar = calendarsById[merged.calendarId] ?? calendarsById[defaultCalendarId];
-  const inherited = inheritedValues(calendar, merged.isAllDay, prefs);
-  for (const field of INHERITED) {
-    if (draft?.[field] === undefined) (merged as unknown as Record<string, unknown>)[field] = inherited[field];
-  }
-  return merged;
-}
 
 export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const { calendars, calendarsById, events, saveEvent, deleteEvent, saveTemplate, allTags, notificationPrefs, floatingByDefault } =
+  const { calendars, calendarsById, events, saveEvent, deleteEvent, saveTemplate, allTags, notificationPrefs, floatingByDefault, defaultEventMinutes } =
     useCalendarContext();
   const existing = route.params?.eventId ? events.find((e) => e.id === route.params?.eventId) : undefined;
   const [form, setForm] = useState<Event>(() => {
-    const built = buildInitial(existing, route.params?.draft, calendars[0]?.id ?? '', calendarsById, notificationPrefs);
+    const built = existing ?? buildNewEvent(route.params?.draft, calendars[0]?.id ?? '', calendarsById, notificationPrefs, defaultEventMinutes);
     const initial = { ...built, floating: built.floating ?? floatingByDefault };
     return calendarsById[initial.calendarId] ? initial : { ...initial, calendarId: calendars[0]?.id ?? '' };
   });

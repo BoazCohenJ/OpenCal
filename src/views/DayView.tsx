@@ -8,6 +8,7 @@ import { createStyles } from '../theme';
 import { readableOn } from '../utils/color';
 import { atMinutes, dayKey, formatTime, minutesSinceMidnight } from '../utils/dates';
 import { eventLabel } from '../utils/format';
+import { DraftBlock, type DraftProps } from './draft';
 import { layoutTimed, PX_PER_MIN, slotMinutesFromPress, spanInfo, type PositionedOccurrence } from './layout';
 import { SelectableBlock, SelectionCheckbox, SelectionToolbar, TOOLBAR_CLEARANCE, useEventSelection, type PendingMove, type SelectedOccurrence } from './selection';
 import { GRID_HEIGHT, HourGutter, HourLines, NowLine, type TimeGridHandle } from './TimeGrid';
@@ -47,6 +48,7 @@ export function DayView({
   onCommitMoves,
   onDeleteEvents,
   onSelectionModeChange,
+  draft,
   active = true,
   onScrollY,
   ref,
@@ -54,7 +56,10 @@ export function DayView({
   date: Date;
   occurrences: Occurrence[];
   onPressEvent: (o: Occurrence) => void;
-  onPressSlot: (start: Date) => void;
+  /** `point` is where the tap landed in the window. */
+  onPressSlot: (start: Date, point: { x: number; y: number }) => void;
+  /** The new-event pill, drawn when it falls on this day. */
+  draft?: DraftProps | null;
   /** Saves moves staged in selection mode (on Done, or when leaving the page). */
   onCommitMoves: (moves: PendingMove[]) => void;
   onDeleteEvents: (picked: SelectedOccurrence[]) => void;
@@ -86,6 +91,7 @@ export function DayView({
     offset,
     scrollEnabled,
   } = useEventSelection({ resetKey: `${key}:${active}`, columnWidth: 0, occurrences, onCommitMoves, onSelectionModeChange });
+  const [draftDragging, setDraftDragging] = useState(false);
   const allDay = useMemo(() => displayed.filter((o) => o.event.isAllDay), [displayed]);
   const timed = useMemo(() => layoutTimed(displayed.filter((o) => !o.event.isAllDay), date), [displayed, date]);
 
@@ -104,7 +110,7 @@ export function DayView({
       done();
       return;
     }
-    onPressSlot(atMinutes(date, slotMinutesFromPress(e)));
+    onPressSlot(atMinutes(date, slotMinutesFromPress(e)), { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY });
   };
 
   const selectedHasRecurring = timed.some((p) => selected.includes(p.occ.key) && p.occ.event.recurrenceRule);
@@ -133,7 +139,7 @@ export function DayView({
 
       <ScrollView
         ref={scrollRef}
-        scrollEnabled={scrollEnabled}
+        scrollEnabled={scrollEnabled && !draftDragging}
         onScroll={onScrollY ? (e) => onScrollY(e.nativeEvent.contentOffset.y) : undefined}
         scrollEventThrottle={32}
         contentContainerStyle={{ paddingVertical: 8, paddingBottom: selectionMode ? TOOLBAR_CLEARANCE : 24 }}
@@ -142,7 +148,7 @@ export function DayView({
           <HourGutter />
           <View style={styles.column} onLayout={(e) => setColumnWidth(e.nativeEvent.layout.width)}>
             <HourLines />
-            <Pressable style={StyleSheet.absoluteFill} onPress={handleSlotPress} accessibilityLabel="Add event at this time" />
+            <Pressable style={[StyleSheet.absoluteFill, styles.slot]} onPress={handleSlotPress} accessibilityLabel="Add event at this time" />
             {columnWidth > 0 &&
               timed.map((pos) => {
                 const inner = columnWidth - 8;
@@ -176,6 +182,9 @@ export function DayView({
                 );
               })}
             {isToday ? <NowLine /> : null}
+            {draft && columnWidth > 0 && isSameDay(draft.range.start, date) ? (
+              <DraftBlock draft={draft} day={date} left={2} width={columnWidth - 8} onDragging={setDraftDragging} />
+            ) : null}
           </View>
         </View>
       </ScrollView>
@@ -206,6 +215,8 @@ const useStyles = createStyles((colors) => ({
   allDayLabel: { fontSize: 10, fontWeight: '700', color: colors.textFaint, letterSpacing: 1.4 },
   allDayList: { gap: 4 },
   grid: { flexDirection: 'row' },
+  // Clicking empty time shouldn't leave a focus ring around the whole column.
+  slot: { outlineWidth: 0 },
   column: { flex: 1, borderLeftWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
   block: {
     position: 'absolute',

@@ -8,6 +8,7 @@ import { createStyles, fonts } from '../theme';
 import { readableOn } from '../utils/color';
 import { atMinutes, dayKey, minutesSinceMidnight } from '../utils/dates';
 import { eventLabel } from '../utils/format';
+import { DraftBlock, type DraftProps } from './draft';
 import { layoutSpans, layoutTimed, PX_PER_MIN, slotMinutesFromPress } from './layout';
 import { SelectableBlock, SelectionCheckbox, SelectionToolbar, TOOLBAR_CLEARANCE, useEventSelection, type PendingMove, type SelectedOccurrence } from './selection';
 import { GRID_HEIGHT, GUTTER_WIDTH, HourGutter, HourLines, NowLine, type TimeGridHandle } from './TimeGrid';
@@ -23,6 +24,7 @@ export function WeekView({
   onCommitMoves,
   onDeleteEvents,
   onSelectionModeChange,
+  draft,
   active = true,
   onScrollY,
   ref,
@@ -30,7 +32,10 @@ export function WeekView({
   weekStart: Date;
   occurrences: Occurrence[];
   onPressEvent: (o: Occurrence) => void;
-  onPressSlot: (start: Date) => void;
+  /** `point` is where the tap landed in the window. */
+  onPressSlot: (start: Date, point: { x: number; y: number }) => void;
+  /** The new-event pill, drawn when it falls in this week. */
+  draft?: DraftProps | null;
   onPressDay: (d: Date) => void;
   /** Saves moves staged in selection mode (on Done, or when leaving the page). */
   onCommitMoves: (moves: PendingMove[]) => void;
@@ -63,6 +68,7 @@ export function WeekView({
     offset,
     scrollEnabled,
   } = useEventSelection({ resetKey: `${dayKey(weekStart)}:${active}`, columnWidth: colWidth, occurrences, onCommitMoves, onSelectionModeChange });
+  const [draftDragging, setDraftDragging] = useState(false);
 
   const perDay = useMemo(
     () => {
@@ -132,7 +138,7 @@ export function WeekView({
 
       <ScrollView
         ref={scrollRef}
-        scrollEnabled={scrollEnabled}
+        scrollEnabled={scrollEnabled && !draftDragging}
         onScroll={onScrollY ? (e) => onScrollY(e.nativeEvent.contentOffset.y) : undefined}
         scrollEventThrottle={32}
         contentContainerStyle={{ paddingVertical: 8, paddingBottom: selectionMode ? TOOLBAR_CLEARANCE : 8 }}
@@ -144,6 +150,7 @@ export function WeekView({
             {width > 0 &&
               perDay.map(({ day, timed }, i) => {
                 const hasSelected = timed.some((pos) => selected.includes(pos.occ.key));
+                const hasDraft = !!draft && isSameDay(draft.range.start, day);
                 return (
                   <View
                     key={dayKey(day)}
@@ -152,12 +159,14 @@ export function WeekView({
                       { left: i * colWidth, width: colWidth },
                       isSameDay(day, today) && styles.todayColumn,
                       // Keep dragged events above the neighbouring columns they slide over.
-                      hasSelected && styles.raisedColumn,
+                      (hasSelected || hasDraft) && styles.raisedColumn,
                     ]}
                   >
                     <Pressable
-                      style={StyleSheet.absoluteFill}
-                      onPress={(e) => (selectionMode ? done() : onPressSlot(atMinutes(day, slotMinutesFromPress(e))))}
+                      style={[StyleSheet.absoluteFill, styles.slot]}
+                      onPress={(e) =>
+                        selectionMode ? done() : onPressSlot(atMinutes(day, slotMinutesFromPress(e)), { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY })
+                      }
                     />
                     {timed.map((pos) => {
                       const inner = colWidth - 2;
@@ -201,6 +210,19 @@ export function WeekView({
                       );
                     })}
                     {isSameDay(day, today) ? <NowLine /> : null}
+                    {hasDraft ? (
+                      <DraftBlock
+                        draft={draft}
+                        day={day}
+                        left={1}
+                        width={colWidth - 3}
+                        columnWidth={colWidth}
+                        minDays={-i}
+                        maxDays={6 - i}
+                        compact
+                        onDragging={setDraftDragging}
+                      />
+                    ) : null}
                   </View>
                 );
               })}
@@ -245,6 +267,8 @@ const useStyles = createStyles((colors) => ({
   more: { fontSize: 10, color: colors.textMuted, paddingLeft: 4 },
   grid: { flexDirection: 'row' },
   columns: { flex: 1 },
+  // Clicking empty time shouldn't leave a focus ring around the whole column.
+  slot: { outlineWidth: 0 },
   dayColumn: { position: 'absolute', top: 0, bottom: 0, borderLeftWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
   todayColumn: { backgroundColor: 'rgba(226, 85, 58, 0.05)' },
   raisedColumn: { zIndex: 5 },

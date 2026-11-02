@@ -1,15 +1,17 @@
 import {
   addDays,
-  addHours,
+  addMinutes,
   addMonths,
   addWeeks,
   differenceInCalendarDays,
   differenceInCalendarMonths,
   differenceInCalendarWeeks,
+  differenceInMinutes,
   endOfWeek,
   format,
   isSameDay,
   isSameMonth,
+  min as earliest,
   setHours,
   startOfDay,
   startOfMonth,
@@ -20,8 +22,8 @@ import { Animated, Easing, PanResponder, Platform, Pressable, PressableStateCall
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EventGlyph, Icon } from '../components/Icon';
 import { MonthYearSheet } from '../components/MonthYearPicker';
+import { QuickCreatePanel, type QuickCreateValues } from '../components/QuickCreatePanel';
 import { RepeatDeleteSheet, type RepeatDeleteChoice } from '../components/RepeatDeleteSheet';
-import { Sheet } from '../components/Sheet';
 import { useToast } from '../components/Toast';
 import { Button, IconButton, PressableScale, Segmented } from '../components/ui';
 import { VIEW_OPTIONS, ViewMenu, type ViewMode } from '../components/ViewMenu';
@@ -32,16 +34,18 @@ import type { EventTemplate } from '../models/Template';
 import type { ScreenProps } from '../navigation/types';
 import { BIRTHDAYS_CALENDAR_ID, birthdayIdOf } from '../services/birthdays';
 import { occurrenceDayKey } from '../services/eventTimes';
+import { buildNewEvent } from '../services/newEvent';
 import type { Occurrence } from '../services/occurrences';
 import { confirmDeleteStamp, eventFromTemplate } from '../services/templates';
 import { createStyles, fonts, radius, shadow, spacing, useTheme } from '../theme';
-import { deepText, softBg } from '../utils/color';
+import { deepText } from '../utils/color';
 import { useDesktop } from '../utils/desktop';
-import { dayKey, nextRoundedHour, parseDayKey, parseTimestamp, relativeLabel, WEEK_STARTS_ON } from '../utils/dates';
+import { dayKey, formatTime, nextRoundedHour, parseDayKey, parseTimestamp, relativeLabel, WEEK_STARTS_ON } from '../utils/dates';
 import { formatDuration } from '../utils/format';
 import { newId } from '../utils/id';
 import { endRuleBefore } from '../utils/recurrence';
 import { DayView } from '../views/DayView';
+import type { DraftProps, DraftRange } from '../views/draft';
 import { MonthView } from '../views/MonthView';
 import { ScheduleView } from '../views/ScheduleView';
 import { shiftDate, type PendingMove, type SelectedOccurrence } from '../views/selection';
@@ -155,6 +159,8 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     deleteTemplate,
     birthdays,
     getEffectiveColor,
+    notificationPrefs,
+    defaultEventMinutes,
   } = useCalendarContext();
   const showToast = useToast();
   const [mode, setMode] = useState<ViewMode>(() => fromLink(route.params).mode ?? 'month');
@@ -168,7 +174,9 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     if (link.date) setCursor(startOfDay(link.date));
   }
   const [selectionActive, setSelectionActive] = useState(false);
-  const [slot, setSlot] = useState<Date | null>(null);
+  // The new-event pill from tapping an empty time, with what the desktop panel has typed so far.
+  // It belongs to the page it was made on and disappears when the view or date changes.
+  const [draft, setDraft] = useState<(DraftRange & QuickCreateValues & { page: string; anchor: { x: number; y: number } }) | null>(null);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   // On desktop the month picker drops down from the toolbar title.
   const monthTitleRef = useRef<View>(null);
@@ -454,7 +462,57 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     });
   };
   const newEventAt = (start: Date) =>
-    navigation.navigate('EventEdit', { draft: { startDate: start.toISOString(), endDate: addHours(start, 1).toISOString() } });
+    navigation.navigate('EventEdit', { draft: { startDate: start.toISOString(), endDate: addMinutes(start, defaultEventMinutes).toISOString() } });
+
+  const draftPage = `${mode}:${dayKey(cursor)}`;
+  const activeDraft = draft?.page === draftPage ? draft : null;
+  /** Tapping an empty time drops the pill there, or moves the one already showing (keeping its length). */
+  const pressSlot = (start: Date, anchor: { x: number; y: number }) => {
+    const keep = activeDraft;
+    const minutes = keep ? differenceInMinutes(keep.end, keep.start) : defaultEventMinutes;
+    const end = earliest([addMinutes(start, minutes), addDays(startOfDay(start), 1)]);
+    setDraft({ title: '', location: '', calendarId: calendars[0]?.id ?? '', ...keep, page: draftPage, start, end, anchor });
+  };
+  const closeDraft = () => setDraft(null);
+  /** Done (phones) or More options (desktop): the full editor, starting from the pill. */
+  const openDraftEditor = () => {
+    if (!activeDraft) return;
+    const { start, end, title, location, calendarId } = activeDraft;
+    setDraft(null);
+    navigation.navigate('EventEdit', {
+      draft: {
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+        title: title.trim() || undefined,
+        location: location.trim() || undefined,
+        calendarId: calendarId || undefined,
+      },
+    });
+  };
+  /** Save in the desktop panel: adds the event with its calendar's defaults; the toast offers Undo. */
+  const saveDraft = () => {
+    if (!activeDraft || !activeDraft.title.trim()) return;
+    const { start, end, title, location, calendarId } = activeDraft;
+    const event = buildNewEvent(
+      { startDate: start.toISOString(), endDate: end.toISOString(), title: title.trim(), location: location.trim() || undefined, calendarId: calendarId || undefined },
+      calendars[0]?.id ?? '',
+      calendarsById,
+      notificationPrefs,
+    );
+    setDraft(null);
+    saveEvent(event);
+    showToast({ icon: 'check', message: `Added ${event.title} · ${format(start, 'EEE h:mm a')}`, actionLabel: 'Undo', onAction: () => deleteEvent(event.id) });
+  };
+  const draftColor = (activeDraft && calendarsById[activeDraft.calendarId]?.color) || colors.primary;
+  const draftProps: DraftProps | null = activeDraft
+    ? {
+        range: { start: activeDraft.start, end: activeDraft.end },
+        color: draftColor,
+        label: activeDraft.title.trim() || '(No title)',
+        onChange: (r) => setDraft((d) => (d ? { ...d, ...r } : d)),
+        onPress: desktop ? undefined : openDraftEditor,
+      }
+    : null;
 
   /**
    * Saves moves staged in selection mode (on Done, or when leaving the page). A one-off event just
@@ -579,7 +637,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     const target = e.target as HTMLElement | null;
     if (e.metaKey || e.ctrlKey || e.altKey || !navigation.isFocused()) return;
     if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
-    if (viewMenuOpen || monthPickerOpen || slot || repeatQueue || selectionActive) return;
+    if (viewMenuOpen || monthPickerOpen || activeDraft || repeatQueue || selectionActive) return;
     const key = e.key.toLowerCase();
     const go = (fn: () => void) => {
       e.preventDefault();
@@ -643,8 +701,9 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
           weekStart={page.range.start}
           occurrences={page.occurrences}
           onPressEvent={openEvent}
-          onPressSlot={setSlot}
+          onPressSlot={pressSlot}
           onPressDay={openDay}
+          draft={active ? draftProps : null}
           onCommitMoves={commitMoves}
           onDeleteEvents={removeEvents}
           onSelectionModeChange={active ? setSelectionActive : undefined}
@@ -659,7 +718,8 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
         date={page.cursor}
         occurrences={page.occurrences}
         onPressEvent={openEvent}
-        onPressSlot={setSlot}
+        onPressSlot={pressSlot}
+        draft={active ? draftProps : null}
         onCommitMoves={commitMoves}
         onDeleteEvents={removeEvents}
         onSelectionModeChange={active ? setSelectionActive : undefined}
@@ -708,7 +768,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
             style={({ hovered }: PressableStateCallbackType & { hovered?: boolean }) => [styles.quickAdd, hovered && styles.quickAddHover]}
             accessibilityLabel="Quick add with natural language"
           >
-            <Icon name="sparkles" size={16} color={colors.primary} />
+            <Icon name="zap" size={16} color={colors.primary} />
             <Text style={styles.quickAddText} numberOfLines={1}>
               Quick add…
             </Text>
@@ -790,7 +850,50 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
         )}
       </Animated.View>
 
-      {!selectionActive && !desktop ? (
+      {activeDraft && !desktop ? (
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+          <View style={[styles.draftBar, shadow]}>
+            <View style={styles.draftTop}>
+              <View style={styles.flex}>
+                <Text style={styles.draftDay}>{format(activeDraft.start, 'EEEE, MMM d')}</Text>
+                <Text style={styles.draftTime}>
+                  {formatTime(activeDraft.start)} – {formatTime(activeDraft.end)} · {formatDuration(differenceInMinutes(activeDraft.end, activeDraft.start))}
+                </Text>
+              </View>
+              <Button small variant="ghost" title="Cancel" onPress={closeDraft} />
+              <Button small title="Done" onPress={openDraftEditor} />
+            </View>
+            <Text style={styles.draftHint}>Drag it to move it, or drag the round handles to change the length.</Text>
+            {templates.length ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stampChips}>
+                {templates.map((t) => {
+                  const color = t.color ?? calendarsById[t.calendarId]?.color ?? colors.primary;
+                  return (
+                    <Pressable
+                      key={t.id}
+                      style={({ pressed }) => [styles.stampChip, pressed && { backgroundColor: colors.surfaceAlt }]}
+                      onPress={() => {
+                        closeDraft();
+                        dropStamp(t, activeDraft.start);
+                      }}
+                      onLongPress={() => void confirmDeleteStamp(t, deleteTemplate)}
+                      delayLongPress={400}
+                      accessibilityLabel={`Add ${t.name} here`}
+                      accessibilityHint="Long-press to delete this stamp"
+                    >
+                      <EventGlyph value={t.emoji} fallback="event" size={15} color={deepText(color)} />
+                      <Text style={styles.stampChipText} numberOfLines={1}>
+                        {t.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+      {!selectionActive && !desktop && !activeDraft ? (
         <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
           <View style={[styles.dock, shadow]}>
             <PressableScale
@@ -800,7 +903,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
               onPress={() => navigation.navigate('QuickAdd')}
               accessibilityLabel="Quick add with natural language"
             >
-              <Icon name="sparkles" size={18} color={colors.primary} />
+              <Icon name="zap" size={18} color={colors.primary} />
               <Text style={styles.nlPlaceholder} numberOfLines={1}>
                 “Lunch with John Fri 1pm at Cafe X”
               </Text>
@@ -845,55 +948,19 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
 
       <MonthYearSheet visible={monthPickerOpen} onClose={() => setMonthPickerOpen(false)} value={cursor} onSelect={jumpToMonth} anchor={monthAnchor} />
 
-      <Sheet visible={!!slot} onClose={() => setSlot(null)} title={slot ? format(slot, 'EEE, MMM d · h:mm a') : ''} actionLabel="Close">
-        <View style={styles.slotSheet}>
-          <Button
-            title="New event here"
-            onPress={() => {
-              const s = slot;
-              setSlot(null);
-              if (s) newEventAt(s);
-            }}
-          />
-          <Text style={styles.slotHeading}>DROP A STAMP · ADDS INSTANTLY · HOLD TO DELETE</Text>
-          {templates.length === 0 ? (
-            <Pressable
-              onPress={() => {
-                setSlot(null);
-                navigation.navigate('TemplateEdit');
-              }}
-            >
-              <Text style={styles.slotEmpty}>No stamps yet. Tap to create one (e.g. “Coffee with John”).</Text>
-            </Pressable>
-          ) : (
-            <ScrollView style={{ maxHeight: 280 }}>
-              {templates.map((t) => (
-                <Pressable
-                  key={t.id}
-                  style={({ pressed }) => [styles.stampRow, pressed && { backgroundColor: colors.surfaceAlt }]}
-                  onPress={() => {
-                    const s = slot;
-                    setSlot(null);
-                    if (s) dropStamp(t, s);
-                  }}
-                  onLongPress={() => void confirmDeleteStamp(t, deleteTemplate)}
-                  delayLongPress={400}
-                  accessibilityHint="Long-press to delete this stamp"
-                >
-                  <View style={[styles.stampGlyph, { backgroundColor: softBg(t.color ?? calendarsById[t.calendarId]?.color ?? colors.primary) }]}>
-                    <EventGlyph value={t.emoji} fallback="event" size={18} color={deepText(t.color ?? calendarsById[t.calendarId]?.color ?? colors.primary)} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.stampName}>{t.name}</Text>
-                    <Text style={styles.stampMeta}>{t.isAllDay ? 'All day' : formatDuration(t.durationMinutes)}</Text>
-                  </View>
-                  <Icon name="plus" size={18} color={colors.primary} />
-                </Pressable>
-              ))}
-            </ScrollView>
-          )}
-        </View>
-      </Sheet>
+      {activeDraft && desktop ? (
+        <QuickCreatePanel
+          start={activeDraft.start}
+          end={activeDraft.end}
+          values={activeDraft}
+          calendars={calendars}
+          anchor={activeDraft.anchor}
+          onChange={(patch) => setDraft((d) => (d ? { ...d, ...patch } : d))}
+          onSave={saveDraft}
+          onMoreOptions={openDraftEditor}
+          onClose={closeDraft}
+        />
+      ) : null}
     </View>
   );
 }
@@ -992,11 +1059,22 @@ const useStyles = createStyles((colors) => ({
     justifyContent: 'center',
   },
   fab: { width: 50, height: 50, borderRadius: 25, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  slotSheet: { gap: 12 },
-  slotHeading: { fontSize: 11, fontWeight: '700', color: colors.textMuted, letterSpacing: 1.4, marginTop: 4 },
-  slotEmpty: { fontSize: 14, color: colors.primary, lineHeight: 20 },
-  stampRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 6, borderRadius: radius.md },
-  stampGlyph: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  stampName: { fontSize: 16, fontWeight: '600', color: colors.text },
-  stampMeta: { fontSize: 13, color: colors.textMuted },
+  draftBar: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 14, gap: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  draftTop: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  draftDay: { fontSize: 18, fontFamily: fonts.display, color: colors.text },
+  draftTime: { fontSize: 13, fontWeight: '700', color: colors.primary, marginTop: 1 },
+  draftHint: { fontSize: 12, color: colors.textMuted, lineHeight: 17 },
+  stampChips: { gap: 6 },
+  stampChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 34,
+    paddingHorizontal: 12,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+  },
+  stampChipText: { fontSize: 13, fontWeight: '600', color: colors.text, maxWidth: 140 },
 }));

@@ -1,9 +1,9 @@
-import React from 'react';
-import { ScrollView, View } from 'react-native';
+import React, { useState } from 'react';
+import { ScrollView, Text, View } from 'react-native';
 import { Logo } from '../components/Logo';
 import { useSyncStatus } from '../components/SyncWatcher';
 import { useToast } from '../components/Toast';
-import { Divider, Row, Section, Segmented, SwitchRow } from '../components/ui';
+import { Divider, Row, Section, Segmented, SwitchRow, TextField } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
 import { notificationsSupported } from '../services/notifications';
@@ -34,6 +34,8 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
     setThemeMode,
     floatingByDefault,
     setFloatingByDefault,
+    defaultEventMinutes,
+    setDefaultEventMinutes,
     colorRules,
   } = useCalendarContext();
   const timeZone = deviceTimeZone()?.replace(/_/g, ' ');
@@ -63,6 +65,9 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
         <Row label="Color rules" subtitle="Color events by a word in their title" value={String(colorRules.length)} onPress={() => navigation.navigate('ColorRules')} />
         <Divider />
         <Row label="Event list" subtitle="Find and edit any event with filters" value={String(events.length)} onPress={() => navigation.navigate('HiddenEvents')} />
+      </Section>
+      <Section title="New events" footer="In minutes (5 to 1440): how long a new event lasts when you tap an empty time or press New event. You can still drag its ends to change it.">
+        <MinutesRow label="Default length" value={defaultEventMinutes} onChange={setDefaultEventMinutes} />
       </Section>
       <Section
         title="Time zone"
@@ -139,8 +144,43 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
   );
 }
 
+/** A label with a minutes box. Saves on blur or Enter; anything outside 5–1440 snaps back to the saved value. */
+function MinutesRow({ label, value, onChange }: { label: string; value: number; onChange: (minutes: number) => void }) {
+  const styles = useStyles();
+  const [text, setText] = useState(String(value));
+  const commit = () => {
+    const minutes = Number.parseInt(text, 10);
+    if (Number.isFinite(minutes) && minutes >= 5 && minutes <= 1440) {
+      onChange(minutes);
+      setText(String(minutes));
+    } else setText(String(value));
+  };
+  return (
+    <View style={styles.minutesRow}>
+      <Text style={styles.minutesLabel}>{label}</Text>
+      <TextField
+        value={text}
+        onChangeText={(t) => setText(t.replace(/[^0-9]/g, ''))}
+        onBlur={commit}
+        onSubmitEditing={commit}
+        keyboardType="number-pad"
+        returnKeyType="done"
+        maxLength={4}
+        selectTextOnFocus
+        style={styles.minutesInput}
+        accessibilityLabel={`${label} in minutes`}
+      />
+      <Text style={styles.minutesUnit}>min</Text>
+    </View>
+  );
+}
+
 const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg },
   segment: { padding: spacing.md },
+  minutesRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  minutesLabel: { flex: 1, fontSize: 16, fontWeight: '500', color: colors.text },
+  minutesInput: { width: 76, textAlign: 'right', paddingVertical: 8 },
+  minutesUnit: { fontSize: 15, color: colors.textMuted },
 }));
