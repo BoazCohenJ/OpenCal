@@ -66,6 +66,7 @@ import {
   Wallet,
   Waves,
   X,
+  Zap,
 } from 'lucide-react-native';
 import React from 'react';
 import { Text } from 'react-native';
@@ -104,6 +105,7 @@ const UI_ICONS = {
   'view-week': Columns3,
   'view-month': CalendarDays,
   x: X,
+  zap: Zap,
 } satisfies Record<string, LucideIcon>;
 
 /**
