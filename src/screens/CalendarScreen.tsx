@@ -908,7 +908,7 @@ const useStyles = createStyles((colors) => ({
   quickAddText: { flex: 1, fontSize: 14, color: colors.textMuted },
   quickAddKey: { fontSize: 11, fontWeight: '700', color: colors.textFaint },
   viewSwitch: { width: 290 },
-  bodyDesktop: { borderRadius: radius.lg, marginRight: spacing.lg, marginBottom: spacing.lg, borderBottomWidth: StyleSheet.hairlineWidth },
+  bodyDesktop: { borderRadius: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0, borderWidth: 0, borderTopWidth: StyleSheet.hairlineWidth, borderLeftWidth: StyleSheet.hairlineWidth, marginBottom: 0 },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.md, paddingBottom: spacing.md },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, marginBottom: -spacing.md },
   eyebrowButton: { flexShrink: 1 },

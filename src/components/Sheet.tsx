@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createStyles, fonts, radius, spacing } from '../theme';
+import { useDesktop } from '../utils/desktop';
 
 const HIDDEN_OFFSET = 600;
 
@@ -26,6 +27,7 @@ export function Sheet({
 }) {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
+  const desktop = useDesktop();
   const progress = useState(() => new Animated.Value(0))[0];
   // Stay mounted while the close animation runs.
   const [mounted, setMounted] = useState(visible);
@@ -46,18 +48,21 @@ export function Sheet({
 
   return (
     <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.root}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.root, desktop && styles.rootDesktop]}>
         <Animated.View style={[styles.backdrop, { opacity: progress }]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
         </Animated.View>
         <Animated.View
           style={[
             styles.sheet,
-            { paddingBottom: insets.bottom + spacing.lg },
-            { transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [HIDDEN_OFFSET, 0] }) }] },
+            desktop && styles.sheetDesktop,
+            { paddingBottom: (desktop ? 0 : insets.bottom) + spacing.lg },
+            desktop
+              ? { opacity: progress, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }] }
+              : { transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [HIDDEN_OFFSET, 0] }) }] },
           ]}
         >
-          <View style={styles.handle} />
+          {desktop ? null : <View style={styles.handle} />}
           <View style={styles.header}>
             <Text style={styles.title} numberOfLines={1}>
               {title}
@@ -75,6 +80,8 @@ export function Sheet({
 
 const useStyles = createStyles((colors) => ({
   root: { flex: 1, justifyContent: 'flex-end' },
+  rootDesktop: { justifyContent: 'center' },
+  sheetDesktop: { borderRadius: radius.xl, maxWidth: 460, paddingTop: spacing.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   backdrop: { ...StyleSheet.absoluteFill, backgroundColor: colors.backdrop },
   sheet: {
     backgroundColor: colors.surface,
