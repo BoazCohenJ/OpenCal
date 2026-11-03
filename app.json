@@ -3,7 +3,7 @@
     "name": "OpenCal",
     "slug": "opencal",
     "scheme": "opencal",
-    "version": "1.6.0",
+    "version": "1.7.0",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -32,7 +32,7 @@
       ],
       "predictiveBackGestureEnabled": false,
       "package": "com.boazcohen.opencal.ota",
-      "versionCode": 10600,
+      "versionCode": 10700,
       "blockedPermissions": ["android.permission.SYSTEM_ALERT_WINDOW"],
       "intentFilters": [
         {

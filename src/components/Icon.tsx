@@ -18,9 +18,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
-  Columns3,
   Clock,
   Coffee,
+  createLucideIcon,
   Dog,
   Dumbbell,
   Film,
@@ -31,6 +31,7 @@ import {
   Heart,
   HeartPulse,
   House,
+  Info,
   Laptop,
   Leaf,
   List,
@@ -54,6 +55,7 @@ import {
   Search,
   Settings,
   ShoppingCart,
+  Smile,
   Sparkles,
   Stamp,
   Star,
@@ -73,6 +75,17 @@ import { Text } from 'react-native';
 import { useTheme } from '../theme';
 import type { EVENT_ICON_KEYS } from '../utils/eventIconKeys';
 
+/** Calendar frame with a single row of days, to sit beside Calendar1 (day) and CalendarDays (month). */
+const CalendarWeek = createLucideIcon('calendar-week', [
+  ['path', { d: 'M8 2v3', key: 'a' }],
+  ['path', { d: 'M16 2v3', key: 'b' }],
+  ['rect', { x: '3', y: '3', width: '18', height: '18', rx: '2', key: 'c' }],
+  ['path', { d: 'M3 9h18', key: 'd' }],
+  ['path', { d: 'M8 15h.01', key: 'e' }],
+  ['path', { d: 'M12 15h.01', key: 'f' }],
+  ['path', { d: 'M16 15h.01', key: 'g' }],
+]);
+
 /** Interface icons. */
 const UI_ICONS = {
   'arrow-down': ArrowDown,
@@ -88,6 +101,8 @@ const UI_ICONS = {
   'chevron-right': ChevronRight,
   'chevron-up': ChevronUp,
   clock: Clock,
+  info: Info,
+  smile: Smile,
   'map-pin': MapPin,
   minus: Minus,
   moon: Moon,
@@ -102,7 +117,7 @@ const UI_ICONS = {
   title: Type,
   'view-schedule': List,
   'view-day': Calendar1,
-  'view-week': Columns3,
+  'view-week': CalendarWeek,
   'view-month': CalendarDays,
   x: X,
   zap: Zap,
@@ -186,7 +201,7 @@ export function eventIconKey(value?: string): EventIconKey | null {
 
 /**
  * Renders an event/stamp glyph: an SVG icon for `icon:<key>` values, or the raw text for
- * legacy emoji values saved before icons existed. Renders nothing when unset.
+ * emoji values saved before icons existed. Renders nothing when unset.
  */
 export function EventGlyph({
   value,

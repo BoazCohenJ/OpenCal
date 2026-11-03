@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { ColorPicker } from '../components/ColorPicker';
-import { IconButtonTile, IconPicker } from '../components/IconPicker';
+import { IconButtonTile, IconPicker, IconPickerLayer, useIconPickerReady } from '../components/IconPicker';
 import { DurationField } from '../components/DurationField';
 import { ReminderEditor } from '../components/ReminderEditor';
 import { CalendarSelector, TagEditor } from '../components/Selectors';
@@ -12,7 +12,6 @@ import type { ScreenProps } from '../navigation/types';
 import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { confirmAsync, notify } from '../utils/confirm';
 import { newId } from '../utils/id';
-import { animateNextLayout } from '../utils/motion';
 
 
 export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateEdit'>) {
@@ -35,6 +34,14 @@ export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateE
       },
   );
   const [showEmoji, setShowEmoji] = useState(false);
+  const pickerReady = useIconPickerReady();
+  // Which state the picker was in when the current touch began, so tapping the icon tile of an open picker closes it
+  // instead of closing and reopening it.
+  const pickerWasOpen = useRef(false);
+  const closePickerOnTouch = () => {
+    pickerWasOpen.current = showEmoji;
+    if (showEmoji) setShowEmoji(false);
+  };
   const update = (patch: Partial<EventTemplate>) => setForm((f) => ({ ...f, ...patch }));
   const calendar = calendarsById[form.calendarId];
   const stampColor = form.color ?? calendar?.color ?? colors.primary;
@@ -76,33 +83,32 @@ export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateE
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.titleCard}>
-        <IconButtonTile value={form.emoji} color={stampColor} onPress={() => {
-            animateNextLayout();
-            setShowEmoji((v) => !v);
-          }} />
-        <TextInput
-          style={styles.titleInput}
-          placeholder="Event title, e.g. Coffee with John"
-          placeholderTextColor={colors.textFaint}
-          value={form.title}
-          onChangeText={(title) => update({ title })}
-          autoFocus={!existing}
-        />
-      </View>
-      {showEmoji ? (
-        <Section title="Icon">
-          <IconPicker
-            color={stampColor}
-            value={form.emoji}
-            onChange={(emoji) => {
-              update({ emoji });
-              setShowEmoji(false);
-            }}
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" onTouchStart={closePickerOnTouch}>
+      <View style={styles.titleWrap}>
+        <View style={styles.titleCard}>
+          <IconButtonTile value={form.emoji} color={stampColor} onPress={() => setShowEmoji(!pickerWasOpen.current)} />
+          <TextInput
+            style={styles.titleInput}
+            placeholder="Event title, e.g. Coffee with John"
+            placeholderTextColor={colors.textFaint}
+            value={form.title}
+            onChangeText={(title) => update({ title })}
+            autoFocus={!existing}
           />
-        </Section>
-      ) : null}
+        </View>
+        {showEmoji || pickerReady ? (
+          <IconPickerLayer open={showEmoji}>
+            <IconPicker
+              color={stampColor}
+              value={form.emoji}
+              onChange={(emoji) => {
+                update({ emoji });
+                setShowEmoji(false);
+              }}
+            />
+          </IconPickerLayer>
+        ) : null}
+      </View>
 
       <Section footer="Shown in the stamp list. Defaults to the event title.">
         <Field label="Stamp name">
@@ -165,6 +171,7 @@ export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateE
 const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: 48 },
+  titleWrap: { zIndex: 5 },
   titleCard: {
     flexDirection: 'row',
     alignItems: 'center',

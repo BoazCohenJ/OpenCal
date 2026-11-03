@@ -30,6 +30,7 @@ interface Native {
   getScheduled(): Promise<ScheduledReminder[]>;
   schedule(items: ReminderInput[]): Promise<void>;
   cancelAll(): Promise<void>;
+  scheduleWidgetRefresh(): Promise<void>;
 }
 
 // Reminders are scheduled with AlarmManager on Android only; other platforms have no native module.
@@ -48,3 +49,11 @@ export const requestPermissions = () => need().requestPermissions();
 export const getScheduled = () => need().getScheduled();
 export const scheduleReminders = (items: ReminderInput[]) => need().schedule(items);
 export const cancelAllReminders = () => need().cancelAll();
+
+/**
+ * Arms the alarm that redraws the home-screen widgets at the start of each day, so they never keep showing
+ * yesterday. Does nothing on a build that doesn't have it yet.
+ */
+export const scheduleWidgetRefresh = async (): Promise<void> => {
+  if (typeof native?.scheduleWidgetRefresh === 'function') await native.scheduleWidgetRefresh();
+};

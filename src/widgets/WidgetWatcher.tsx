@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { scheduleWidgetRefresh } from '../../modules/opencal-notifications';
 import { useCalendarContext } from '../context/CalendarContext';
 import { setLiveWidgetSource } from './data';
 import { refreshWidgets } from './homeScreen';
@@ -20,6 +21,11 @@ export function WidgetWatcher() {
     setLiveWidgetSource({ occurrences: getOccurrences, themeMode });
   }, [getOccurrences, themeMode]);
   useEffect(() => () => setLiveWidgetSource(null), []);
+
+  // Android only redraws idle widgets on a slow timer, so also ask for a redraw at every midnight.
+  useEffect(() => {
+    scheduleWidgetRefresh().catch((error: unknown) => console.warn("Couldn't schedule the midnight widget refresh", error));
+  }, []);
 
   const launched = useRef(false);
   useEffect(() => {

@@ -54,6 +54,8 @@ class OpenCalNotificationsModule : Module() {
     }
 
     AsyncFunction("cancelAll") { Scheduler.cancelAll(context) }
+
+    AsyncFunction("scheduleWidgetRefresh") { WidgetRefresher.scheduleNext(context) }
   }
 
   private fun readPermissions(promise: Promise) {

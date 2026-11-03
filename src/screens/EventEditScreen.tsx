@@ -3,7 +3,7 @@ import React, { useLayoutEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ColorPicker } from '../components/ColorPicker';
 import { DateTimeField } from '../components/DateTimeField';
-import { IconButtonTile, IconPicker } from '../components/IconPicker';
+import { IconButtonTile, IconPicker, IconPickerLayer, useIconPickerReady } from '../components/IconPicker';
 import { PauseWindowsEditor } from '../components/PauseWindowsEditor';
 import { RecurrenceEditor } from '../components/RecurrenceEditor';
 import { ReminderEditor } from '../components/ReminderEditor';
@@ -23,7 +23,6 @@ import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { confirmAsync, notify } from '../utils/confirm';
 import { deviceTimeZone, formatPauseWindow, parseDayKey, parseTimestamp } from '../utils/dates';
 import { newId } from '../utils/id';
-import { animateNextLayout } from '../utils/motion';
 
 export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>) {
   const styles = useStyles();
@@ -37,6 +36,14 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
     return calendarsById[initial.calendarId] ? initial : { ...initial, calendarId: defaultCalendarId };
   });
   const [showEmoji, setShowEmoji] = useState(false);
+  const pickerReady = useIconPickerReady();
+  // Which state the picker was in when the current touch began, so tapping the icon tile of an open picker closes it
+  // instead of closing and reopening it.
+  const pickerWasOpen = useRef(false);
+  const closePickerOnTouch = () => {
+    pickerWasOpen.current = showEmoji;
+    if (showEmoji) setShowEmoji(false);
+  };
   const [deletingRepeat, setDeletingRepeat] = useState(false);
   const removed = useRef(false);
   const confirmingRemoval = useRef(false);
@@ -195,35 +202,34 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" onTouchStart={closePickerOnTouch}>
       <RepeatDeleteSheet item={deletingRepeat && existing ? { event: existing, day: selectedDay } : null} color={eventColor} position={1} total={1} onChoose={removeRepeat} onCancel={() => setDeletingRepeat(false)} />
-      <View style={styles.titleCard}>
-        <IconButtonTile value={form.emoji} color={eventColor} onPress={() => {
-            animateNextLayout();
-            setShowEmoji((v) => !v);
-          }} />
-        <TextInput
-          style={styles.titleInput}
-          placeholder="Event title"
-          placeholderTextColor={colors.textFaint}
-          value={form.title}
-          onChangeText={(title) => update({ title })}
-          autoFocus={!existing && !form.title}
-          returnKeyType="done"
-        />
-      </View>
-      {showEmoji ? (
-        <Section title="Icon" footer="Shown next to the title in every view.">
-          <IconPicker
-            color={eventColor}
-            value={form.emoji}
-            onChange={(emoji) => {
-              update({ emoji });
-              setShowEmoji(false);
-            }}
+      <View style={styles.titleWrap}>
+        <View style={styles.titleCard}>
+          <IconButtonTile value={form.emoji} color={eventColor} onPress={() => setShowEmoji(!pickerWasOpen.current)} />
+          <TextInput
+            style={styles.titleInput}
+            placeholder="Event title"
+            placeholderTextColor={colors.textFaint}
+            value={form.title}
+            onChangeText={(title) => update({ title })}
+            autoFocus={!existing && !form.title}
+            returnKeyType="done"
           />
-        </Section>
-      ) : null}
+        </View>
+        {showEmoji || pickerReady ? (
+          <IconPickerLayer open={showEmoji}>
+            <IconPicker
+              color={eventColor}
+              value={form.emoji}
+              onChange={(emoji) => {
+                update({ emoji });
+                setShowEmoji(false);
+              }}
+            />
+          </IconPickerLayer>
+        ) : null}
+      </View>
 
       <Section title="Calendar">
         <CalendarSelector calendars={calendars} value={form.calendarId} onChange={changeCalendar} />
@@ -329,6 +335,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
 const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: 48 },
+  titleWrap: { zIndex: 5 },
   titleCard: {
     flexDirection: 'row',
     alignItems: 'center',

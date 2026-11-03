@@ -18,7 +18,7 @@ Schedule, Day, Week and Month views, with swipe navigation and a header that tel
 Calendars with their own default reminders, repeat, location and tags. 20 named colors, a color wheel and your own saved colors. Color rules that color every event whose title contains a word. Multi-select in Day and Week view to move or delete several events together, with Undo.
 
 <b>Your data stays yours</b>
-• Everything is stored locally on the device.
+• Your data is stored on the device. It only leaves it if you connect your own server (optional sync, below).
 • Back up all your data to one file and restore it on another phone.
 • Import and export standard .ics files to move events to and from other calendar apps.
 • Optional self-hosted sync: run the OpenCal server at home (one Docker command), enter its address and key in Settings, and your phones stay in step.

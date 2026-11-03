@@ -182,17 +182,20 @@ export function Section({
   footer,
   children,
   style,
+  allowOverflow = false,
 }: {
   title?: string;
   footer?: string;
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
+  /** Lets a floating `InfoCard` extend past the card's rounded box. Also give the section a `zIndex` above the ones after it. */
+  allowOverflow?: boolean;
 }) {
   const styles = useStyles();
   return (
     <View style={[styles.section, style]}>
       {title ? <Text style={styles.sectionTitle}>{title.toUpperCase()}</Text> : null}
-      <View style={styles.card}>{children}</View>
+      <View style={[styles.card, allowOverflow && styles.cardOverflow]}>{children}</View>
       {footer ? <Text style={styles.sectionFooter}>{footer}</Text> : null}
     </View>
   );
@@ -264,23 +267,57 @@ export function TextField(props: TextInputProps) {
   );
 }
 
+/** The (i) button that sits beside a label and shows or hides an `InfoCard`. */
+export function InfoButton({ label, open, onPress }: { label: string; open: boolean; onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Pressable onPress={onPress} hitSlop={10} accessibilityRole="button" accessibilityLabel={`About ${label.toLowerCase()}`} accessibilityState={{ expanded: open }}>
+      <Icon name="info" size={18} color={open ? colors.primary : colors.textMuted} />
+    </Pressable>
+  );
+}
+
+/**
+ * Explanatory text that floats over the rows below its row instead of pushing them down. Render it inside
+ * a row that has a `zIndex`, and pass that row's measured height as `top`.
+ */
+export function InfoCard({ text, top }: { text: string; top: number }) {
+  const styles = useStyles();
+  return (
+    <View style={[styles.infoCard, { top }]}>
+      <Text style={styles.infoText}>{text}</Text>
+    </View>
+  );
+}
+
 export function SwitchRow({
   label,
   subtitle,
   value,
   onValueChange,
+  info,
 }: {
   label: string;
   subtitle?: string;
   value: boolean;
   onValueChange: (v: boolean) => void;
+  /** An (i) beside the label that toggles a floating card with `text`. */
+  info?: { text: string; open: boolean; onToggle: () => void };
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
+  const [rowHeight, setRowHeight] = useState(0);
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, info && styles.infoRow]} onLayout={(e) => setRowHeight(e.nativeEvent.layout.height)}>
       <View style={styles.rowBody}>
-        <Text style={styles.rowLabel}>{label}</Text>
+        {info ? (
+          <View style={styles.infoLabelGroup}>
+            <Text style={styles.rowLabel}>{label}</Text>
+            <InfoButton label={label} open={info.open} onPress={info.onToggle} />
+          </View>
+        ) : (
+          <Text style={styles.rowLabel}>{label}</Text>
+        )}
         {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
       </View>
       <Switch
@@ -289,6 +326,7 @@ export function SwitchRow({
         trackColor={{ true: colors.primary, false: colors.border }}
         thumbColor={colors.surface}
       />
+      {info?.open ? <InfoCard text={info.text} top={rowHeight} /> : null}
     </View>
   );
 }
@@ -487,6 +525,24 @@ export const ColorDot = ({ color, size = 12 }: { color: string; size?: number })
 );
 
 const useStyles = createStyles((colors) => ({
+  infoRow: { zIndex: 2 },
+  infoLabelGroup: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  infoCard: {
+    position: 'absolute',
+    left: spacing.md,
+    right: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.bg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  infoText: { fontSize: 13, lineHeight: 18, color: colors.textMuted },
   pressed: { opacity: 0.7 },
   disabled: { opacity: 0.4 },
   bold: { fontWeight: '700' },
@@ -543,6 +599,7 @@ const useStyles = createStyles((colors) => ({
     borderColor: colors.border,
     overflow: 'hidden',
   },
+  cardOverflow: { overflow: 'visible' },
   sectionFooter: { fontSize: 12, color: colors.textMuted, marginTop: 6, marginHorizontal: spacing.xs, lineHeight: 17 },
   row: {
     flexDirection: 'row',
