@@ -7,3 +7,4 @@ export const COLOR_RULES_KEY = 'colorRules';
 export const BIRTHDAYS_KEY = 'birthdays';
 export const FLOATING_DEFAULT_KEY = 'floatingByDefault';
 export const DEFAULT_EVENT_MINUTES_KEY = 'defaultEventMinutes';
+export const DEFAULT_CALENDAR_KEY = 'defaultCalendarId';

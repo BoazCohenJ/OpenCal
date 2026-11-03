@@ -16,7 +16,7 @@ import { formatDuration, formatReminder } from '../utils/format';
 export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const { templates, calendars, calendarsById, saveEvent, deleteTemplate } = useCalendarContext();
+  const { templates, calendarsById, saveEvent, deleteTemplate, defaultCalendarId } = useCalendarContext();
   const [templateId, setTemplateId] = useState(route.params?.templateId);
   const [start, setStart] = useState(() => (route.params?.start ? new Date(route.params.start) : nextRoundedHour()));
   const template = templates.find((t) => t.id === templateId);
@@ -74,7 +74,7 @@ export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
     );
   }
 
-  const calendar = calendarsById[template.calendarId] ?? calendars[0];
+  const calendar = calendarsById[template.calendarId] ?? calendarsById[defaultCalendarId];
   const color = template.color ?? calendar?.color ?? colors.primary;
   const days = Math.max(1, Math.round(template.durationMinutes / 1440));
   const end = template.isAllDay ? endOfDay(addDays(start, days - 1)) : addMinutes(start, template.durationMinutes);

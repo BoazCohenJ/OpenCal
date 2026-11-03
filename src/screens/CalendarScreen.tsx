@@ -161,6 +161,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     getEffectiveColor,
     notificationPrefs,
     defaultEventMinutes,
+    defaultCalendarId,
   } = useCalendarContext();
   const showToast = useToast();
   const [mode, setMode] = useState<ViewMode>(() => fromLink(route.params).mode ?? 'month');
@@ -443,7 +444,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
   /** Dropping a stamp on a tapped slot adds the event right away; the toast offers Undo. */
   const lastDrop = useRef('');
   const dropStamp = (template: EventTemplate, start: Date) => {
-    const calendar = calendarsById[template.calendarId] ?? calendars[0];
+    const calendar = calendarsById[template.calendarId] ?? calendarsById[defaultCalendarId];
     if (!calendar) return;
     // Rapid repeat taps on the same slot would otherwise add a copy each.
     const key = `${template.id}@${start.getTime()}`;
@@ -471,7 +472,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     const keep = activeDraft;
     const minutes = keep ? differenceInMinutes(keep.end, keep.start) : defaultEventMinutes;
     const end = earliest([addMinutes(start, minutes), addDays(startOfDay(start), 1)]);
-    setDraft({ title: '', location: '', calendarId: calendars[0]?.id ?? '', ...keep, page: draftPage, start, end, anchor });
+    setDraft({ title: '', location: '', calendarId: defaultCalendarId, ...keep, page: draftPage, start, end, anchor });
   };
   const closeDraft = () => setDraft(null);
   /** Done (phones) or More options (desktop): the full editor, starting from the pill. */
@@ -495,7 +496,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     const { start, end, title, location, calendarId } = activeDraft;
     const event = buildNewEvent(
       { startDate: start.toISOString(), endDate: end.toISOString(), title: title.trim(), location: location.trim() || undefined, calendarId: calendarId || undefined },
-      calendars[0]?.id ?? '',
+      defaultCalendarId,
       calendarsById,
       notificationPrefs,
     );

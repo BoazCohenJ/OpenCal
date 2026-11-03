@@ -18,7 +18,7 @@ import { animateNextLayout } from '../utils/motion';
 export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateEdit'>) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const { templates, calendars, calendarsById, saveTemplate, deleteTemplate, allTags, notificationPrefs } = useCalendarContext();
+  const { templates, calendars, calendarsById, saveTemplate, deleteTemplate, allTags, notificationPrefs, defaultCalendarId } = useCalendarContext();
   const existing = templates.find((t) => t.id === route.params?.templateId);
   const [form, setForm] = useState<EventTemplate>(
     () =>
@@ -28,7 +28,7 @@ export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateE
         title: '',
         durationMinutes: 60,
         isAllDay: false,
-        calendarId: calendars[0]?.id ?? '',
+        calendarId: defaultCalendarId,
         reminders: [...notificationPrefs.defaultReminders],
         tags: [],
         sortOrder: templates.length,
@@ -52,7 +52,7 @@ export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateE
       name: form.name.trim() || title,
       location: form.location?.trim() || undefined,
       description: form.description?.trim() || undefined,
-      calendarId: calendar ? form.calendarId : calendars[0]?.id ?? '',
+      calendarId: calendar ? form.calendarId : defaultCalendarId,
     });
     navigation.goBack();
   };

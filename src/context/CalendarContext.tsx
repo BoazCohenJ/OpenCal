@@ -22,6 +22,7 @@ import {
   COLOR_RULES_KEY,
   FLOATING_DEFAULT_KEY,
   DEFAULT_EVENT_MINUTES_KEY,
+  DEFAULT_CALENDAR_KEY,
   HIDDEN_CALENDARS_KEY,
   NOTIFICATION_PREFS_KEY,
   SAVED_COLORS_KEY,
@@ -109,6 +110,9 @@ interface CalendarContextValue {
   /** How long a new event lasts when it's created by tapping the grid or with New event. */
   defaultEventMinutes: number;
   setDefaultEventMinutes: (minutes: number) => void;
+  /** The calendar new events start in (the saved choice, else "Personal", else the first calendar). */
+  defaultCalendarId: string;
+  setDefaultCalendarId: (id: string) => void;
   /** Sorted by name. Each one shows up on the calendar every year as an all-day event. */
   birthdays: Birthday[];
   saveBirthday: (birthday: Birthday) => void;
@@ -151,6 +155,7 @@ interface InitialData {
   birthdays: Birthday[];
   floatingByDefault: boolean;
   defaultEventMinutes: number;
+  savedDefaultCalendarId: string | null;
 }
 
 /** Opens (and if needed seeds) the database synchronously; runs once, before the first render. */
@@ -192,6 +197,7 @@ function loadInitialData(): { data: InitialData; error: null } | { data: null; e
         birthdays: db.getSetting<Birthday[]>(BIRTHDAYS_KEY, []),
         floatingByDefault: db.getSetting<boolean>(FLOATING_DEFAULT_KEY, false),
         defaultEventMinutes: db.getSetting<number>(DEFAULT_EVENT_MINUTES_KEY, 60),
+        savedDefaultCalendarId: db.getSetting<string | null>(DEFAULT_CALENDAR_KEY, null),
         notificationPrefs: normalizeNotificationPrefs(
           db.getSetting<Partial<NotificationPrefs> | null>(NOTIFICATION_PREFS_KEY, null),
         ),
@@ -222,6 +228,9 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
   const [birthdays, setBirthdays] = useState<Birthday[]>(initial.data?.birthdays ?? []);
   const [floatingByDefault, setFloatingByDefaultState] = useState(initial.data?.floatingByDefault ?? false);
   const [defaultEventMinutes, setDefaultEventMinutesState] = useState(initial.data?.defaultEventMinutes ?? 60);
+  const [savedDefaultCalendarId, setSavedDefaultCalendarId] = useState<string | null>(initial.data?.savedDefaultCalendarId ?? null);
+  const defaultCalendarId =
+    calendars.find((c) => c.id === savedDefaultCalendarId)?.id ?? calendars.find((c) => c.name === 'Personal')?.id ?? calendars[0]?.id ?? '';
 
   const calendarsById = useMemo(() => {
     const map: Record<string, Calendar> = {};
@@ -337,6 +346,11 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
   const setDefaultEventMinutes = useCallback((minutes: number) => {
     db.setSetting(DEFAULT_EVENT_MINUTES_KEY, minutes);
     setDefaultEventMinutesState(minutes);
+  }, []);
+
+  const setDefaultCalendarId = useCallback((id: string) => {
+    db.setSetting(DEFAULT_CALENDAR_KEY, id);
+    setSavedDefaultCalendarId(id);
   }, []);
 
   const saveBirthday = useCallback((birthday: Birthday) => {
@@ -623,6 +637,8 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
       setFloatingByDefault,
       defaultEventMinutes,
       setDefaultEventMinutes,
+      defaultCalendarId,
+      setDefaultCalendarId,
       birthdays,
       saveBirthday,
       deleteBirthday,
@@ -640,7 +656,7 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
       ready, error, calendars, calendarsById, events, templates, allTags, visibleCalendarIds,
       toggleCalendarVisibility, saveCalendar, deleteCalendarWithPlan, saveEvent, saveEvents, deleteEvent, deleteEvents,
       saveTemplate, deleteTemplate, moveTemplate, effectiveColor, themeMode, setThemeMode, savedColors, saveColor, deleteSavedColor,
-      colorRules, saveColorRule, deleteColorRule, moveColorRule, floatingByDefault, setFloatingByDefault, defaultEventMinutes, setDefaultEventMinutes, birthdays, saveBirthday, deleteBirthday, notificationPrefs, updateNotificationPrefs,
+      colorRules, saveColorRule, deleteColorRule, moveColorRule, floatingByDefault, setFloatingByDefault, defaultEventMinutes, setDefaultEventMinutes, defaultCalendarId, setDefaultCalendarId, birthdays, saveBirthday, deleteBirthday, notificationPrefs, updateNotificationPrefs,
       reminderStatus, refreshReminders, createBackupFile, importBackup, reloadSyncedData, importEvents, getOccurrences,
     ],
   );

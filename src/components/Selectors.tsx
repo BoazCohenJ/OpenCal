@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import type { Calendar } from '../models/Calendar';
 import { createStyles, radius, useTheme } from '../theme';
 import { Icon } from './Icon';
@@ -15,8 +15,22 @@ export function CalendarSelector({
   onChange: (id: string) => void;
 }) {
   const styles = useStyles();
+  const scroller = useRef<ScrollView>(null);
+  // A mouse wheel only scrolls vertically, so on desktop turn it into sideways scrolling for this row.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const node = scroller.current?.getScrollableNode() as unknown as HTMLElement | undefined;
+    if (!node) return;
+    const onWheel = (e: WheelEvent) => {
+      if (node.scrollWidth <= node.clientWidth || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      node.scrollLeft += e.deltaY;
+      e.preventDefault();
+    };
+    node.addEventListener('wheel', onWheel, { passive: false });
+    return () => node.removeEventListener('wheel', onWheel);
+  }, []);
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hRow}>
+    <ScrollView ref={scroller} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hRow}>
       {calendars.map((c) => (
         <Chip key={c.id} label={c.name} color={c.color} selected={c.id === value} onPress={() => onChange(c.id)} />
       ))}

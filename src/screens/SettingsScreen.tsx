@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { Logo } from '../components/Logo';
+import { CalendarSelector } from '../components/Selectors';
 import { useSyncStatus } from '../components/SyncWatcher';
 import { useToast } from '../components/Toast';
 import { Divider, Row, Section, Segmented, SwitchRow, TextField } from '../components/ui';
@@ -36,6 +37,8 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
     setFloatingByDefault,
     defaultEventMinutes,
     setDefaultEventMinutes,
+    defaultCalendarId,
+    setDefaultCalendarId,
     colorRules,
   } = useCalendarContext();
   const timeZone = deviceTimeZone()?.replace(/_/g, ' ');
@@ -66,8 +69,13 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
         <Divider />
         <Row label="Event list" subtitle="Find and edit any event with filters" value={String(events.length)} onPress={() => navigation.navigate('HiddenEvents')} />
       </Section>
-      <Section title="New events" footer="In minutes (5 to 1440): how long a new event lasts when you tap an empty time or press New event. You can still drag its ends to change it.">
+      <Section title="New events" footer="In minutes (5 to 1440): how long a new event lasts when you tap an empty time or press New event. You can still drag its ends to change it. New events go to the default calendar unless you pick another.">
         <MinutesRow label="Default length" value={defaultEventMinutes} onChange={setDefaultEventMinutes} />
+        <Divider />
+        <View style={styles.calendarPick}>
+          <Text style={styles.minutesLabel}>Default calendar</Text>
+        </View>
+        <CalendarSelector calendars={calendars} value={defaultCalendarId} onChange={setDefaultCalendarId} />
       </Section>
       <Section
         title="Time zone"
@@ -182,5 +190,6 @@ const useStyles = createStyles((colors) => ({
   minutesRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   minutesLabel: { flex: 1, fontSize: 16, fontWeight: '500', color: colors.text },
   minutesInput: { width: 76, textAlign: 'right', paddingVertical: 8 },
+  calendarPick: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   minutesUnit: { fontSize: 15, color: colors.textMuted },
 }));

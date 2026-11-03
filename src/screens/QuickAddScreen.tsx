@@ -15,10 +15,10 @@ const EXAMPLES = ['Lunch with John Fri 1pm at Cafe X', 'Dentist next Tuesday 9:3
 export function QuickAddScreen({ navigation, route }: ScreenProps<'QuickAdd'>) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const { calendars } = useCalendarContext();
+  const { calendars, defaultCalendarId } = useCalendarContext();
   const sharedText = route.params?.sharedText;
   const [text, setText] = useState(sharedText ?? '');
-  const [calendarId, setCalendarId] = useState(calendars[0]?.id ?? '');
+  const [calendarId, setCalendarId] = useState(defaultCalendarId);
   const parsed = useMemo(() => parseEventText(text), [text]);
   const hasInput = text.trim().length > 0;
 

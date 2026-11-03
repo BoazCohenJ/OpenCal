@@ -28,13 +28,13 @@ import { animateNextLayout } from '../utils/motion';
 export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const { calendars, calendarsById, events, saveEvent, deleteEvent, saveTemplate, allTags, notificationPrefs, floatingByDefault, defaultEventMinutes } =
+  const { calendars, calendarsById, events, saveEvent, deleteEvent, saveTemplate, allTags, notificationPrefs, floatingByDefault, defaultEventMinutes, defaultCalendarId } =
     useCalendarContext();
   const existing = route.params?.eventId ? events.find((e) => e.id === route.params?.eventId) : undefined;
   const [form, setForm] = useState<Event>(() => {
-    const built = existing ?? buildNewEvent(route.params?.draft, calendars[0]?.id ?? '', calendarsById, notificationPrefs, defaultEventMinutes);
+    const built = existing ?? buildNewEvent(route.params?.draft, defaultCalendarId, calendarsById, notificationPrefs, defaultEventMinutes);
     const initial = { ...built, id: existing?.id ?? route.params?.importId ?? built.id, floating: built.floating ?? floatingByDefault };
-    return calendarsById[initial.calendarId] ? initial : { ...initial, calendarId: calendars[0]?.id ?? '' };
+    return calendarsById[initial.calendarId] ? initial : { ...initial, calendarId: defaultCalendarId };
   });
   const [showEmoji, setShowEmoji] = useState(false);
   const [deletingRepeat, setDeletingRepeat] = useState(false);
