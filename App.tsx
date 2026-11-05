@@ -23,7 +23,6 @@ import type { RootStackParamList } from './src/navigation/types';
 import { deliverFile, isFileLink } from './src/services/incomingFiles';
 import { BirthdayEditScreen } from './src/screens/BirthdayEditScreen';
 import { BirthdaysScreen } from './src/screens/BirthdaysScreen';
-import { AboutScreen } from './src/screens/AboutScreen';
 import { ColorRulesScreen } from './src/screens/ColorRulesScreen';
 import { CalendarDeleteScreen } from './src/screens/CalendarDeleteScreen';
 import { CalendarEditScreen } from './src/screens/CalendarEditScreen';
@@ -149,7 +148,6 @@ const narrowed = {
   ColorRulesScreen: dialog(narrow(ColorRulesScreen)),
   ImportExportScreen: dialog(narrow(ImportExportScreen)),
   SyncScreen: dialog(narrow(SyncScreen)),
-  AboutScreen: dialog(narrow(AboutScreen)),
   EventEditScreen: dialog(narrow(EventEditScreen)),
   QuickAddScreen: dialog(narrow(QuickAddScreen)),
   FocusEditScreen: dialog(narrow(FocusEditScreen)),
@@ -227,7 +225,6 @@ function RootNavigator() {
         <Stack.Screen name="ColorRules" component={narrowed.ColorRulesScreen} options={{ title: 'Color rules' }} />
         <Stack.Screen name="ImportExport" component={narrowed.ImportExportScreen} options={{ title: 'Import & Export' }} />
         <Stack.Screen name="Sync" component={narrowed.SyncScreen} options={{ title: 'Sync' }} />
-        <Stack.Screen name="About" component={narrowed.AboutScreen} options={{ title: 'About' }} />
       </Stack.Group>
       <Stack.Group
         screenOptions={desktop ? { ...dialogOptions, animationDuration: 140 } : { presentation: 'modal', animation: 'slide_from_bottom' }}

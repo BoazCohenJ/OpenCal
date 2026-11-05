@@ -10,7 +10,7 @@ import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
 import { notificationsSupported } from '../services/notifications';
 import { getSyncConfig } from '../services/sync';
-import { APP_VERSION } from '../services/appInfo';
+import { APP_VERSION, updateInfo } from '../services/appInfo';
 import { createStyles, radius, spacing, useTheme, type ThemeMode } from '../theme';
 import { deviceTimeZone } from '../utils/dates';
 import { addWidgetToHomeScreen, widgetsSupported } from '../widgets/homeScreen';
@@ -179,13 +179,7 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
             : 'Your data is stored on this device. It only leaves it if you connect your own server under Sync.'
         }
       >
-        <Row
-          label="OpenCal"
-          value={APP_VERSION}
-          subtitle="Highlights, version and updates"
-          left={<Logo size={34} variant="tile" />}
-          onPress={() => navigation.navigate('About')}
-        />
+        <Row label="OpenCal" value={APP_VERSION} subtitle={updateInfo()} left={<Logo size={34} variant="tile" />} />
       </Section>
     </ScrollView>
   );

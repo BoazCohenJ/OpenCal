@@ -34,7 +34,7 @@ https://github.com/user-attachments/assets/96c68291-76bc-4ca8-a030-11c235435344
 
 ## Highlights
 
-The things OpenCal does that most calendars don't (also listed in the app under Settings → About):
+The things OpenCal does that most calendars don't:
 
 - **Tap an empty time, get an event.** A see-through event appears where you tapped; drag it, resize it with its handles, tap Done.
 - **Quick Add and Stamps.** Type "Lunch with John Fri 1pm at Cafe X", or drop a saved stamp (coffee, gym, calls) on a slot in one tap.
@@ -65,7 +65,7 @@ The things OpenCal does that most calendars don't (also listed in the app under 
 - **Color rules:** color every event whose title contains a word (all your "Break" events amber, all "Gym" green) in Settings → Color rules. Events are drawn in solid colors, and short events stay readable and never share a row with the event that follows them.
 - **Multi-day events** run as one long bar across the days they cover in Month and Week view (Day view adds a 2/3-style counter), and month cells fit as many events as their height allows.
 - **Icons instead of emoji** for events and stamps in a menu that floats over the editor (or pick any emoji from its emoji button), **dark mode** (System / Light / Dark), smooth animations.
-- **Settings with explanations:** the default length and default calendar for new events, the floating-time default, and (i) buttons that explain the trickier settings in place. **About** (Settings → About) tours the standout features, with the version, update status and a link to the source.
+- **Settings with explanations:** the default length and default calendar for new events, the floating-time default, and (i) buttons that explain the trickier settings in place.
 - **Made for the browser too:** in a wide browser window the web app switches to a desktop layout, with a sidebar (mini month, calendar toggles), a toolbar with Today, arrows and a Day/Week/Month/Schedule switch, editors as dialogs over the calendar (Esc closes), and keyboard shortcuts (T today, arrows to move, D/W/M/S views, C new event, Q quick add). Narrow windows keep the phone layout.
 - **Import & export:** back up everything (calendars, events, stamps, birthdays, settings) to one file and restore or merge it on another phone, or move events to and from Google Calendar, Apple Calendar and Outlook with standard .ics files (a whole calendar, or any filtered set of events).
 - **Event sharing:** Share event sends any event as an .ics invite (WhatsApp, Gmail, anything in the share sheet) that every calendar app can add. In the other direction, share an invite.ics, a calendar file, an invitation email or a message to OpenCal (or tap an invite.ics in Gmail and open it with OpenCal) and the event opens filled in, ready to save to the calendar you pick; a plain message goes through Quick Add, which finds the date and time in it. Opening an updated invite updates the same event. Import & export also reads invitation emails (.eml), including Google Calendar's "share event" emails, which have no .ics attached.
