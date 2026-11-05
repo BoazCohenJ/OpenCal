@@ -5,9 +5,10 @@
 <h1 align="center">OpenCal</h1>
 
 <p align="center">
-  A calm, local-first calendar for Android (and iOS/web) built with Expo.<br/>
-  No accounts, no ads: your calendar lives on your phone,<br/>
-  and syncs across your devices only through a server you run yourself, if you want it to.
+  A local-first calendar for Android (and iOS/web) built with Expo, with things most calendars don't do:<br/>
+  pause a repeat, schedule quiet time like an event, drop a stamp on a slot,<br/>
+  and let an AI assistant manage your schedule through a sync server you run yourself.<br/>
+  No accounts, no ads, no Google services.
 </p>
 
 <p align="center">
@@ -32,50 +33,33 @@ https://github.com/user-attachments/assets/96c68291-76bc-4ca8-a030-11c235435344
   <img src="docs/screenshots/event-editor.png" width="24%" alt="Event editor" />
 </p>
 
-## Highlights
+## What makes OpenCal different
 
 The things OpenCal does that most calendars don't:
 
-- **Tap an empty time, get an event.** A see-through event appears where you tapped; drag it, resize it with its handles, tap Done.
-- **Quick Add and Stamps.** Type "Lunch with John Fri 1pm at Cafe X", or drop a saved stamp (coffee, gym, calls) on a slot in one tap.
-- **Share events both ways.** Send any event as an invite every calendar app understands, and open invites, `.ics` files, invitation emails or a plain shared message straight in OpenCal.
-- **Pause a repeat** (a holiday, a school break) for one event or a whole calendar; it resumes on its own.
-- **Floating or fixed time** that survives travel and daylight-saving changes.
-- **Home-screen widgets** (Schedule, Today, Week, Month) that follow the app's theme and roll over at midnight on their own.
-- **Quiet time and Do Not Disturb** scheduled like events, and **color rules** that color events by a word in their title.
-- **A real desktop layout** in a wide browser window: sidebar, toolbar, dialogs and keyboard shortcuts.
-- **Your own sync server, and an AI assistant on top.** Optional: sync every device through a small server you run, and let an assistant like Claude, ChatGPT or Hermes read, add and move events over MCP, with every change undoable.
-- **Private by design.** No account, no ads, no tracking, no Google services.
+- **Your own sync server, with an AI assistant on top.** Run the small [OpenCal server](server/README.md) at home (one Docker command, great with Tailscale), enter its address and key in Settings → Sync, and every phone stays in step: calendars, events, stamps, birthdays and color rules. The same server offers calendar tools over MCP, so an assistant like Claude, ChatGPT or Hermes can read your schedule and add, move or delete events ("only this one" for repeats included). Forward it a message and the events appear on your phone, and every change it makes can be undone. Entirely optional, and your calendar only ever leaves the phone for your own server.
+- **Pause a repeat.** Skip a date range (a holiday, a school break) for one repeating event or a whole calendar, and it resumes on its own. No deleting and re-creating the series.
+- **Quiet time and Do Not Disturb, scheduled like events.** Add "every Monday 17:00–18:00" and reminders arrive silently (quiet) or are skipped (DND) for that window.
+- **Stamps.** Save the events you repeat by hand (coffee, gym, calls) and drop one on any empty time slot by tapping the time, then the stamp, with Undo.
+- **Tap an empty time, get an event.** A see-through event appears where you tapped; drag it to move it (sideways to another day in Week view), drag its round handles to change the length, tap Done for the full editor. On a computer, a small panel asks for the title, location and calendar first.
+- **Floating or fixed time.** A floating event keeps its clock time in any time zone (a 9:00 run stays at 9:00 when you travel); a fixed one keeps the same moment and remembers its time zone, so a repeating 9:00 meeting stays at 9:00 there across daylight-saving changes. Set the default for new events in Settings and change it on any event. This follows the iCalendar / JSCalendar (RFC 8984) model.
+- **Color rules.** Color every event whose title contains a word (all your "Break" events amber, all "Gym" green) in Settings → Color rules, instead of coloring each one by hand.
+- **Quick Add that understands a sentence.** Type "Lunch with John Fri 1pm at Cafe X" and review the parsed event before saving.
+- **Share events both ways.** Send any event as an `.ics` invite every calendar app understands, and open invites, calendar files, invitation emails (including Google Calendar's "share event" emails, which have no `.ics`) or a plain shared message straight in OpenCal. A plain message goes through Quick Add, which finds the date and time in it; opening an updated invite updates the same event.
+- **Home-screen widgets that stay current.** Schedule, Today, Week and Month widgets follow the app's colors and light/dark theme, page back and forward right on the home screen, resize freely, and roll over to the new day at midnight on their own (a native alarm redraws them).
+- **No Google services, anywhere.** Reminders are scheduled on the device with a small local module, not Firebase or Google Play services. The F-Droid variant also contains no remote-code library and never loads code from the network. No account, no ads, no tracking.
 
-## Features
+## Also included
 
-- **Four views:** Schedule (agenda), Day, Week and Month, switched from the View button next to the title, which also shows or hides each calendar (a dot on it means some are hidden). Swipe left/right to move between days, weeks and months, with the next one sliding in under your finger and staying ready for event taps when the slide finishes; Day and Week keep your scroll position. The header tells you where you are ("Tomorrow", "In 3 weeks", "Next month"). Tap the month or year to jump to any month, scrolling year by year.
-- **Home-screen widgets (Android):** Schedule (the next two weeks), Today, Week and Month, in the app's colors and following its light/dark theme. Tap an event to open it, a day to open it in Day view, or + for Quick Add; Week and Month page back and forward right on the home screen. Resize them freely (Today down to a single row showing what's next). They redraw a moment after any change in the app and roll over to the new day at midnight on their own (a native alarm redraws them).
-- **Tap to create:** tap an empty time in Day or Week view and a see-through event appears there. Drag it to move it (sideways to another day in Week view) and drag its round handles to change the length, then tap Done for the full editor. On a computer, clicking an empty time also opens a small panel for the title, location and calendar, with Save, or More options for everything else. The starting length is set in Settings → New events.
-- **Quick Add:** type "Lunch with John Fri 1pm at Cafe X" and review the parsed event before saving; go back and edit the text anytime.
-- **Stamps:** save events you repeat (coffee, gym, calls) and drop them on any empty time slot in one tap, with Undo: tap the time, then the stamp. Hold a stamp to delete it.
-- **Birthdays:** add a name and date of birth in Settings and it shows up every year as "Dana's 36th birthday", with its own show/hide toggle in the View menu.
-- **Repeating events** with pauses: skip a date range for one event or a whole calendar, and it resumes on its own.
-- **Calendars with defaults:** each calendar has a color plus default reminders, repeat, location and tags that new events inherit.
-- **Floating or fixed time:** a floating event keeps its clock time in any time zone (a 9:00 run stays at 9:00 when you travel), a fixed one keeps the same moment and remembers its time zone, so a repeating 9:00 meeting stays at 9:00 there across daylight-saving changes wherever you are. Set the default for new events in Settings and change it on any event; all-day events always float. This follows the iCalendar / JSCalendar (RFC 8984) model used by Google and Apple.
+- **Four views:** Schedule (agenda), Day, Week and Month, with swipe navigation and a header that says where you are ("Tomorrow", "In 3 weeks"). The View button also shows or hides each calendar.
 - **Reminders down to the minute,** with presets and custom values; all-day reminders fire at a time you choose.
-- **Quiet time and Do Not Disturb** scheduled like events (e.g. every Monday 17:00–18:00): quiet delivers reminders silently, DND skips them.
-- **Multi-select in Day and Week view:** long-press events, then drag them together (in Week view sideways to another day too) or nudge by 15 minutes / 1 hour / 1 day, and tap Done to save. Moving one day of a repeating event splits it off into its own event. You can also delete everything selected at once, with Undo. For each repeating event it asks whether to delete only that occurrence, it and the following ones, or the whole series.
-- **Colors:** 20 named swatches, a color wheel, hex input, and your own saved colors by name.
-- **Color rules:** color every event whose title contains a word (all your "Break" events amber, all "Gym" green) in Settings → Color rules. Events are drawn in solid colors, and short events stay readable and never share a row with the event that follows them.
-- **Multi-day events** run as one long bar across the days they cover in Month and Week view (Day view adds a 2/3-style counter), and month cells fit as many events as their height allows.
-- **Icons instead of emoji** for events and stamps in a menu that floats over the editor (or pick any emoji from its emoji button), **dark mode** (System / Light / Dark), smooth animations.
-- **Settings with explanations:** the default length and default calendar for new events, the floating-time default, and (i) buttons that explain the trickier settings in place.
-- **Made for the browser too:** in a wide browser window the web app switches to a desktop layout, with a sidebar (mini month, calendar toggles), a toolbar with Today, arrows and a Day/Week/Month/Schedule switch, editors as dialogs over the calendar (Esc closes), and keyboard shortcuts (T today, arrows to move, D/W/M/S views, C new event, Q quick add). Narrow windows keep the phone layout.
-- **Import & export:** back up everything (calendars, events, stamps, birthdays, settings) to one file and restore or merge it on another phone, or move events to and from Google Calendar, Apple Calendar and Outlook with standard .ics files (a whole calendar, or any filtered set of events).
-- **Event sharing:** Share event sends any event as an .ics invite (WhatsApp, Gmail, anything in the share sheet) that every calendar app can add. In the other direction, share an invite.ics, a calendar file, an invitation email or a message to OpenCal (or tap an invite.ics in Gmail and open it with OpenCal) and the event opens filled in, ready to save to the calendar you pick; a plain message goes through Quick Add, which finds the date and time in it. Opening an updated invite updates the same event. Import & export also reads invitation emails (.eml), including Google Calendar's "share event" emails, which have no .ics attached.
-- **Self-hosted sync (optional):** run the small [OpenCal server](server/README.md) at home (one Docker command, great with Tailscale), enter its address and key in Settings → Sync, and every phone connected to it stays in step: calendars, events, stamps, birthdays and color rules. Changes sync when the app opens, when you return to it and a few seconds after each edit; the latest change wins. Theme, notifications and hidden calendars stay per device.
-- **AI agent tools (optional):** the same server offers calendar tools over MCP, so an assistant like Hermes, Claude or ChatGPT can read your schedule and add, move or delete events ("only this one" for repeats included), with every change undoable. Forward it a message and the events appear on your phone.
-- **Private by design:** everything is stored locally (SQLite on device, localStorage on web), and only ever leaves the phone for your own sync server.
-
-Import preserves explicit UTC schedules and additional RDATE dates. Sub-daily recurrence rules (hourly, minutely and secondly) are skipped and counted in the import summary. First sync merges local calendars, including empty custom calendars.
-
-Deleting a repeating event offers only the selected occurrence, that occurrence and following ones, or the entire series. Confirmations and notices use OpenCal's themed sheets, including dark mode, on Android and web.
+- **Calendars with defaults:** a color plus default reminders, repeat, location and tags that new events inherit.
+- **Multi-select in Day and Week view:** long-press events, then drag them together or nudge by 15 minutes / 1 hour / 1 day. Delete a selection at once, with Undo; for repeating events it asks whether to delete only that occurrence, it and the following ones, or the whole series.
+- **Multi-day events** as one long bar across the days they cover, and **birthdays** that show up every year as "Dana's 36th birthday".
+- **Colors:** 20 named swatches, a color wheel, hex input and your own saved colors. **Icons** (or any emoji) for events and stamps, and **dark mode** (System / Light / Dark).
+- **A desktop layout in the browser:** in a wide window the web app gets a sidebar, a toolbar, editors as dialogs and keyboard shortcuts (T today, arrows to move, D/W/M/S views, C new event, Q quick add). Narrow windows keep the phone layout.
+- **Import & export:** back up everything to one file and restore or merge it on another phone, or move events to and from Google Calendar, Apple Calendar and Outlook with standard `.ics` files. Import preserves explicit UTC schedules and additional RDATE dates; sub-daily recurrence rules (hourly, minutely, secondly) are skipped and counted in the import summary.
+- **Settings with explanations:** default length and calendar for new events, and (i) buttons that explain the trickier settings in place.
 
 ## Install on Android
 
@@ -105,14 +89,14 @@ Calendar, sync and import regressions can be checked without opening the app usi
 Build an installable Android APK in the cloud with [EAS](https://docs.expo.dev/eas/). Release builds remove unused code and resources with R8 and resource shrinking:
 
 ```bash
-# Universal APK: supports ARM and x86 devices, including emulators.
-npx eas-cli@latest build -p android --profile preview
-
-# Smaller APK for ARM64 devices only; uses the same app ID and preview updates.
+# Release build: ARM64 devices only; same app ID and preview updates as the installed preview app.
 npx eas-cli@latest build -p android --profile preview-arm64
+
+# Universal APK (ARM and x86, including emulators); not attached to releases, build it only when needed.
+npx eas-cli@latest build -p android --profile preview
 ```
 
-The two profiles have the same version and signing credentials. Use the universal APK for devices without ARM64 support. The production AAB and F-Droid builds retain support for all default architectures. These build changes require installing a new APK; they cannot reduce an already installed app through an over-the-air update.
+Each GitHub release attaches two APKs: `OpenCal-X.Y.Z-arm64.apk` (the OTA build) and `OpenCal-X.Y.Z-fdroid-arm64.apk` (the F-Droid variant, with a clean app ID and no update library). Both have the same version and signing credentials per variant. Use the universal profile for devices without ARM64 support. The production AAB and F-Droid recipe builds retain support for all default architectures. These build changes require installing a new APK; they cannot reduce an already installed app through an over-the-air update.
 
 `.easignore` excludes generated native folders, local validation builds, QA reports, server files and promo tooling from cloud build uploads. App assets and local native modules remain included.
 

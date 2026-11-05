@@ -54,18 +54,19 @@ The phone runs an installed **preview** APK (`eas.json` → `preview` profile, c
 - changing native config in `app.json` (permissions, icons, splash, package id, plugins),
 - upgrading the Expo SDK.
 
-For those, in the same change: bump `version` in `app.json` and `android.versionCode` (major·10000 + minor·100 + patch, so 1.5.0 is `10500`; F-Droid needs it to increase) and add `metadata/android/en-US/changelogs/<versionCode>.txt` (e.g. `1.0.0` → `1.1.0`; keep `package.json` in step with `npm version X.Y.Z --no-git-tag-version`), commit, then build and reinstall: `npx eas-cli@latest build -p android --profile preview`. Never ship JS that depends on new native code to an old version, since it would crash on the installed build.
+For those, in the same change: bump `version` in `app.json` and `android.versionCode` (major·10000 + minor·100 + patch, so 1.5.0 is `10500`; F-Droid needs it to increase) and add `metadata/android/en-US/changelogs/<versionCode>.txt` (e.g. `1.0.0` → `1.1.0`; keep `package.json` in step with `npm version X.Y.Z --no-git-tag-version`), commit, then build and reinstall: `npx eas-cli@latest build -p android --profile preview-arm64`. Never ship JS that depends on new native code to an old version, since it would crash on the installed build.
 
 App icon, Android adaptive/monochrome icons, notification icon, splash image and favicon are all rendered from one geometry by `scripts/make-logo.js` (see its header for usage); the in-app `src/components/Logo.tsx` mirrors it. Regenerating them is a native change (version bump + rebuild).
 
 ### Keeping the GitHub page up to date
 
-- **README.md:** when a change adds, removes or noticeably changes a user-facing feature, update the Features list (and screenshots in `docs/screenshots/` if a shown screen changed) in the same change. Keep the Development, Tech stack and Project structure sections accurate when tooling or folders change.
-- **Releases (the APK "packages"):** every new build (i.e. every `version` bump) gets a GitHub Release named `vX.Y.Z` on the commit that was built, with the APK attached and short notes of what changed since the previous release:
+- **README.md:** when a change adds, removes or noticeably changes a user-facing feature, update the "What makes OpenCal different" list if the feature is one most calendars lack, otherwise the "Also included" list (and screenshots in `docs/screenshots/` if a shown screen changed) in the same change. Keep the Development, Tech stack and Project structure sections accurate when tooling or folders change.
+- **Releases (the APK "packages"):** every new build (i.e. every `version` bump) gets a GitHub Release named `vX.Y.Z` on the commit that was built, with short notes of what changed since the previous release. **Each release carries exactly two APKs, as 1.5.1 and 1.6.0 did: `OpenCal-X.Y.Z-arm64.apk` (EAS `preview-arm64` profile) and `OpenCal-X.Y.Z-fdroid-arm64.apk` (the F-Droid variant, signed with the release key described in `docs/fdroid/OTHER-STORES.md`).** Do not build or attach the universal `preview` APK (about 92 MB) or an x86_64 one; only `preview-arm64` is a release profile. Before finishing, run `gh release view vX.Y.Z --json assets` and check both files are there.
   ```bash
-  npx eas-cli@latest build -p android --profile preview          # wait for FINISHED, copy the .apk URL
-  curl -L -o OpenCal-X.Y.Z.apk "<apk url from the build>"
-  gh release create vX.Y.Z OpenCal-X.Y.Z.apk --target <built commit sha> --title "OpenCal X.Y.Z" --notes "<what changed>"
+  npx eas-cli@latest build -p android --profile preview-arm64    # wait for FINISHED, copy the .apk URL
+  curl -L -o OpenCal-X.Y.Z-arm64.apk "<apk url from the build>"
+  # build the F-Droid variant (scripts/fdroid, then sign) and name it OpenCal-X.Y.Z-fdroid-arm64.apk
+  gh release create vX.Y.Z OpenCal-X.Y.Z-arm64.apk OpenCal-X.Y.Z-fdroid-arm64.apk --target <built commit sha> --title "OpenCal X.Y.Z" --notes "<what changed>"
   ```
   Over-the-air-only changes don't get their own release; list them in the notes of the next release.
 
