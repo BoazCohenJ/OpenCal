@@ -26,6 +26,7 @@ export type RootStackParamList = {
   /** `incoming`: a calendar file opened with OpenCal from another app, shown ready to import. */
   ImportExport: { incoming?: { name: string; text: string } } | undefined;
   Sync: undefined;
+  About: undefined;
   BirthdayEdit: { birthdayId?: string } | undefined;
 };
 
