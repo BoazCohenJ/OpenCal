@@ -1,90 +1,106 @@
-import {
-  ArrowDown,
-  ArrowUp,
-  Baby,
-  Beer,
-  Bell,
-  BellOff,
-  BellRing,
-  Bike,
-  BookOpen,
-  Briefcase,
-  Calendar1,
-  Cake,
-  CalendarDays,
-  Car,
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
-  Clock,
-  Coffee,
-  createLucideIcon,
-  Dog,
-  Dumbbell,
-  Film,
-  Footprints,
-  Gamepad2,
-  Gift,
-  GraduationCap,
-  Heart,
-  HeartPulse,
-  House,
-  Info,
-  Laptop,
-  Leaf,
-  List,
-  type LucideIcon,
-  MapPin,
-  Minus,
-  Moon,
-  Music,
-  PartyPopper,
-  Pause,
-  Pencil,
-  Phone,
-  Pill,
-  Pipette,
-  Pizza,
-  Plane,
-  Plus,
-  Repeat,
-  Salad,
-  Scissors,
-  Search,
-  Settings,
-  ShoppingCart,
-  Smile,
-  Sparkles,
-  Stamp,
-  Star,
-  Stethoscope,
-  Sun,
-  Trophy,
-  Type,
-  Users,
-  Utensils,
-  Wallet,
-  Waves,
-  X,
-  Zap,
-} from 'lucide-react-native';
+// Each icon is imported from its own module: importing from the package root would bundle all
+// ~3,700 lucide icons (about 1.6 MB of JS), since Metro doesn't tree-shake.
+import ArrowDown from 'lucide-react-native/icons/arrow-down';
+import ArrowUp from 'lucide-react-native/icons/arrow-up';
+import Baby from 'lucide-react-native/icons/baby';
+import Beer from 'lucide-react-native/icons/beer';
+import Bell from 'lucide-react-native/icons/bell';
+import BellOff from 'lucide-react-native/icons/bell-off';
+import BellRing from 'lucide-react-native/icons/bell-ring';
+import Bike from 'lucide-react-native/icons/bike';
+import BookOpen from 'lucide-react-native/icons/book-open';
+import Briefcase from 'lucide-react-native/icons/briefcase';
+import Calendar1 from 'lucide-react-native/icons/calendar-1';
+import Cake from 'lucide-react-native/icons/cake';
+import CalendarDays from 'lucide-react-native/icons/calendar-days';
+import Car from 'lucide-react-native/icons/car';
+import Check from 'lucide-react-native/icons/check';
+import ChevronDown from 'lucide-react-native/icons/chevron-down';
+import ChevronLeft from 'lucide-react-native/icons/chevron-left';
+import ChevronRight from 'lucide-react-native/icons/chevron-right';
+import ChevronUp from 'lucide-react-native/icons/chevron-up';
+import Clock from 'lucide-react-native/icons/clock';
+import Coffee from 'lucide-react-native/icons/coffee';
+import Dog from 'lucide-react-native/icons/dog';
+import Dumbbell from 'lucide-react-native/icons/dumbbell';
+import Film from 'lucide-react-native/icons/film';
+import Footprints from 'lucide-react-native/icons/footprints';
+import Gamepad2 from 'lucide-react-native/icons/gamepad-2';
+import Gift from 'lucide-react-native/icons/gift';
+import GraduationCap from 'lucide-react-native/icons/graduation-cap';
+import Heart from 'lucide-react-native/icons/heart';
+import HeartPulse from 'lucide-react-native/icons/heart-pulse';
+import House from 'lucide-react-native/icons/house';
+import Info from 'lucide-react-native/icons/info';
+import Laptop from 'lucide-react-native/icons/laptop';
+import Leaf from 'lucide-react-native/icons/leaf';
+import List from 'lucide-react-native/icons/list';
+import MapPin from 'lucide-react-native/icons/map-pin';
+import Minus from 'lucide-react-native/icons/minus';
+import Moon from 'lucide-react-native/icons/moon';
+import Music from 'lucide-react-native/icons/music';
+import PartyPopper from 'lucide-react-native/icons/party-popper';
+import Pause from 'lucide-react-native/icons/pause';
+import Pencil from 'lucide-react-native/icons/pencil';
+import Phone from 'lucide-react-native/icons/phone';
+import Pill from 'lucide-react-native/icons/pill';
+import Pipette from 'lucide-react-native/icons/pipette';
+import Pizza from 'lucide-react-native/icons/pizza';
+import Plane from 'lucide-react-native/icons/plane';
+import Plus from 'lucide-react-native/icons/plus';
+import Repeat from 'lucide-react-native/icons/repeat';
+import Salad from 'lucide-react-native/icons/salad';
+import Scissors from 'lucide-react-native/icons/scissors';
+import Search from 'lucide-react-native/icons/search';
+import Settings from 'lucide-react-native/icons/settings';
+import ShoppingCart from 'lucide-react-native/icons/shopping-cart';
+import Smile from 'lucide-react-native/icons/face-slightly-smiling';
+import Sparkles from 'lucide-react-native/icons/sparkles';
+import Stamp from 'lucide-react-native/icons/stamp';
+import Star from 'lucide-react-native/icons/star';
+import Stethoscope from 'lucide-react-native/icons/stethoscope';
+import Sun from 'lucide-react-native/icons/sun';
+import Trophy from 'lucide-react-native/icons/trophy';
+import Type from 'lucide-react-native/icons/type';
+import Users from 'lucide-react-native/icons/users';
+import Utensils from 'lucide-react-native/icons/utensils';
+import Wallet from 'lucide-react-native/icons/wallet';
+import Waves from 'lucide-react-native/icons/waves-horizontal';
+import X from 'lucide-react-native/icons/x';
+import Zap from 'lucide-react-native/icons/zap';
+import type { LucideIcon } from 'lucide-react-native';
 import React from 'react';
 import { Text } from 'react-native';
+import Svg, { Path, Rect } from 'react-native-svg';
 import { useTheme } from '../theme';
 import type { EVENT_ICON_KEYS } from '../utils/eventIconKeys';
 
+type IconProps = { size?: number; color?: string; strokeWidth?: number };
+type IconComponent = LucideIcon | ((props: IconProps) => React.ReactElement);
+
 /** Calendar frame with a single row of days, to sit beside Calendar1 (day) and CalendarDays (month). */
-const CalendarWeek = createLucideIcon('calendar-week', [
-  ['path', { d: 'M8 2v3', key: 'a' }],
-  ['path', { d: 'M16 2v3', key: 'b' }],
-  ['rect', { x: '3', y: '3', width: '18', height: '18', rx: '2', key: 'c' }],
-  ['path', { d: 'M3 9h18', key: 'd' }],
-  ['path', { d: 'M8 15h.01', key: 'e' }],
-  ['path', { d: 'M12 15h.01', key: 'f' }],
-  ['path', { d: 'M16 15h.01', key: 'g' }],
-]);
+function CalendarWeek({ size = 24, color = 'currentColor', strokeWidth = 2 }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M8 2v3" />
+      <Path d="M16 2v3" />
+      <Rect x="3" y="3" width="18" height="18" rx="2" />
+      <Path d="M3 9h18" />
+      <Path d="M8 15h.01" />
+      <Path d="M12 15h.01" />
+      <Path d="M16 15h.01" />
+    </Svg>
+  );
+}
 
 /** Interface icons. */
 const UI_ICONS = {
@@ -121,7 +137,7 @@ const UI_ICONS = {
   'view-month': CalendarDays,
   x: X,
   zap: Zap,
-} satisfies Record<string, LucideIcon>;
+} satisfies Record<string, IconComponent>;
 
 /**
  * Icons users can attach to events and stamps. The key is what gets stored in the

@@ -1,4 +1,6 @@
-import * as chrono from 'chrono-node';
+// English-only entry point: the package root also bundles 13 other languages' parsers.
+import * as chrono from 'chrono-node/en';
+import type { ParsedComponents } from 'chrono-node';
 import { addHours, endOfDay, startOfDay } from 'date-fns';
 
 export interface ParsedEventText {
@@ -34,7 +36,7 @@ export function parseEventText(text: string, reference: Date = new Date()): Pars
 
   // Prefer the most specific match (explicit dates/times, ranges) over bare words like "night".
   const PARTS = ['year', 'month', 'day', 'weekday', 'hour', 'minute'] as const;
-  const certain = (c: chrono.ParsedComponents) => PARTS.filter((p) => c.isCertain(p)).length;
+  const certain = (c: ParsedComponents) => PARTS.filter((p) => c.isCertain(p)).length;
   const specificity = (r: chrono.ParsedResult) => certain(r.start) + (r.end ? certain(r.end) : 0);
   const result = chrono
     .parse(input, reference, { forwardDate: true })

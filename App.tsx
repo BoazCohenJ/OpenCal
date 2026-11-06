@@ -1,9 +1,8 @@
-import {
-  Fraunces_500Medium_Italic,
-  Fraunces_600SemiBold,
-  Fraunces_800ExtraBold,
-  useFonts,
-} from '@expo-google-fonts/fraunces';
+// Import each weight from its own folder: the package root would bundle all 18 Fraunces fonts.
+import { Fraunces_500Medium_Italic } from '@expo-google-fonts/fraunces/500Medium_Italic';
+import { Fraunces_600SemiBold } from '@expo-google-fonts/fraunces/600SemiBold';
+import { Fraunces_800ExtraBold } from '@expo-google-fonts/fraunces/800ExtraBold';
+import { useFonts } from 'expo-font';
 import { createNavigationContainerRef, DarkTheme, DefaultTheme, NavigationContainer, type LinkingOptions, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator, type NativeStackHeaderProps } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
