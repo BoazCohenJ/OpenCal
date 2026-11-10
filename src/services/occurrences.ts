@@ -6,7 +6,7 @@ import type { Event } from '../models/Event';
 import type { PauseWindow } from '../models/PauseWindow';
 import { DEFAULT_EVENT_COLOR } from '../utils/color';
 import { dayKey, deviceTimeZone, parseTimestamp } from '../utils/dates';
-import { createRuleAt, fastForwardRule } from '../utils/recurrence';
+import { createRuleAt, ruleBetween } from '../utils/recurrence';
 import { wallDayKey } from '../utils/timeZones';
 import { eventClock, type EventClock } from './eventTimes';
 
@@ -102,7 +102,7 @@ function repeatsInYear(p: Prepared, rule: RRule, year: number): number[] {
   let list = p.years.get(year);
   if (!list) {
     const from = Date.UTC(year, 0, 1);
-    const walls = fastForwardRule(rule, from).between(new Date(from), new Date(Date.UTC(year + 1, 0, 1) - 1), true, (_, i) => i < 10000);
+    const walls = ruleBetween(rule, new Date(from), new Date(Date.UTC(year + 1, 0, 1) - 1));
     list = [];
     for (const wall of walls) {
       const k = wallDayKey(wall);

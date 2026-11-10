@@ -312,4 +312,27 @@ assert.deepEqual(received.map((e) => [e.id, e.title, e.startDate, e.endDate, e.t
   found('dayKey through date-fns format dominated drawing the views', { compared });
 }
 
+// Plain daily and weekly rules are worked out directly instead of through rrule; the dates must match.
+{
+  const { createRuleAt, ruleBetween } = await mod('src/utils/recurrence.ts');
+  let seed = 7, compared = 0;
+  const rnd = (n) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+  const D = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+  for (let i = 0; i < 1500; i++) {
+    const parts = [`FREQ=${rnd(2) ? 'WEEKLY' : 'DAILY'}`];
+    if (rnd(2)) parts.push(`INTERVAL=${1 + rnd(5)}`);
+    if (rnd(2)) parts.push(`WKST=${D[rnd(7)]}`);
+    if (rnd(3)) parts.push('BYDAY=' + [...new Set(Array.from({ length: 1 + rnd(4) }, () => D[rnd(7)]))].join(','));
+    if (rnd(3) === 0) parts.push(`UNTIL=${2025 + rnd(4)}${String(1 + rnd(12)).padStart(2, '0')}${String(1 + rnd(28)).padStart(2, '0')}T${String(rnd(24)).padStart(2, '0')}0000Z`);
+    if (rnd(8) === 0) parts.push(`BYHOUR=${rnd(24)}`);
+    const y0 = 1965 + rnd(65);
+    const rule = createRuleAt(parts.join(';'), new Date(Date.UTC(y0, rnd(12), 1 + rnd(28), rnd(24), rnd(4) * 15, rnd(2) * 30)));
+    const y = [y0, y0 + 1, 2026, 2027][rnd(4)];
+    const from = new Date(Date.UTC(y, 0, 1)), to = new Date(Date.UTC(y + 1, 0, 1) - 1);
+    assert.deepEqual(ruleBetween(rule, from, to), rule.between(from, to, true), `${parts.join(';')} in ${y}`);
+    compared++;
+  }
+  found('Weekly and daily repeats walk rrule period by period', { compared });
+}
+
 console.log('All regression assertions passed, including themed prompt queue and editor deletion scopes');

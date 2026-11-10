@@ -180,6 +180,46 @@ export function fastForwardRule(rule: RRule, fromMs: number): RRule {
   return new RRule({ ...o, ...pinned, dtstart });
 }
 
+const isEmpty = (list: unknown[] | null | undefined): boolean => !list || list.length === 0;
+/** Monday = 0, like rrule, for a day counted from 1970-01-01 (a Thursday). */
+const weekdayOf = (day: number): number => (((day + 3) % 7) + 7) % 7;
+
+/**
+ * The rule's dates (wall clock dates) from `from` to `to`, both included. Plain daily and weekly
+ * rules (the most common kind) are worked out directly, which is far cheaper than rrule's
+ * period-by-period walk; everything else goes through rrule.
+ */
+export function ruleBetween(rule: RRule, from: Date, to: Date): Date[] {
+  return plainDates(rule, from.getTime(), to.getTime()) ?? fastForwardRule(rule, from.getTime()).between(from, to, true, (_, i) => i < 10000);
+}
+
+/** Dates of a daily or weekly rule with only BYDAY, INTERVAL, WKST and UNTIL, or null for any other rule. */
+function plainDates(rule: RRule, fromMs: number, toMs: number): Date[] | null {
+  const o = rule.options;
+  const daily = o.freq === RRule.DAILY;
+  if (!daily && o.freq !== RRule.WEEKLY) return null;
+  if (o.count != null || o.byeaster != null || !isEmpty(o.bysetpos) || !isEmpty(o.bymonth) || !isEmpty(o.bymonthday)) return null;
+  if (!isEmpty(o.bynmonthday) || !isEmpty(o.byyearday) || !isEmpty(o.byweekno) || !isEmpty(o.bynweekday)) return null;
+  if (o.byhour?.length !== 1 || o.byminute?.length !== 1 || o.bysecond?.length !== 1) return null;
+  const start = o.dtstart.getTime();
+  const end = Math.min(toMs, o.until ? o.until.getTime() : Infinity);
+  const time = ((o.byhour[0]! * 60 + o.byminute[0]!) * 60 + o.bysecond[0]!) * 1000;
+  const weekdays = isEmpty(o.byweekday) ? null : new Set(o.byweekday);
+  const interval = o.interval || 1;
+  // Which period (day, or week starting on WKST) a day is in; the rule repeats every `interval` of them.
+  const period = (day: number) => (daily ? day : Math.floor((day - ((weekdayOf(day) - o.wkst + 7) % 7)) / 7));
+  const startDay = Math.floor(start / DAY_MS);
+  const first = period(startDay);
+  const out: Date[] = [];
+  for (let day = Math.max(startDay, Math.floor(fromMs / DAY_MS)); day * DAY_MS <= end; day++) {
+    if (weekdays && !weekdays.has(weekdayOf(day))) continue;
+    if ((period(day) - first) % interval !== 0) continue;
+    const t = day * DAY_MS + time;
+    if (t >= start && t >= fromMs && t <= end) out.push(new Date(t));
+  }
+  return out;
+}
+
 const UNITS = {
   daily: ['day', 'days'],
   weekly: ['week', 'weeks'],
