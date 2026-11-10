@@ -290,7 +290,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     }
     if (!pages.some((page) => page.offset === dir)) {
       // Swiping on quickly: wait for the neighbour instead of jumping to it without a slide.
-      if (!pendingStep.current) pendingStep.current = dir;
+      pendingStep.current += dir;
       return;
     }
     sliding.current = true;
@@ -320,21 +320,28 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
       toValue: -position * pageWidth, useNativeDriver: true, isInteraction: false, speed: 30, bounciness: 4,
     }).start();
   };
-  const previousReady = pages.some((page) => page.offset === -1);
-  const nextReady = pages.some((page) => page.offset === 1);
-  const swipe = useRef({ enabled: false, mode, pan, position, pageWidth, previousReady, nextReady, step, springBack, syncNeighbours, peekTo });
-  useLayoutEffect(() => {
-    swipe.current = {
-      enabled: paging && !selectionActive && !desktop, mode, pan, position, pageWidth, previousReady, nextReady, step, springBack, syncNeighbours, peekTo,
-    };
-  });
-  useEffect(() => {
+  /** Takes the next queued step once nothing is sliding and its neighbour page exists. */
+  const runPending = () => {
     const dir = Math.sign(pendingStep.current) as -1 | 0 | 1;
     if (dir && !sliding.current && pages.some((page) => page.offset === dir)) {
       pendingStep.current -= dir;
-      swipe.current.step(dir);
+      step(dir);
     }
-  }, [pages]);
+  };
+  const previousReady = pages.some((page) => page.offset === -1);
+  const nextReady = pages.some((page) => page.offset === 1);
+  const swipe = useRef({ enabled: false, mode, pan, position, pageWidth, previousReady, nextReady, step, springBack, syncNeighbours, peekTo, runPending });
+  useLayoutEffect(() => {
+    swipe.current = {
+      enabled: paging && !selectionActive && !desktop, mode, pan, position, pageWidth, previousReady, nextReady, step, springBack, syncNeighbours, peekTo, runPending,
+    };
+  });
+  useEffect(() => swipe.current.runPending(), [pages]);
+  // The gesture in progress. PanResponder measures dx from where it took the touch over, so the
+  // distance moved before that is kept here; on a busy JS thread a quick swipe can arrive in one batch
+  // and be taken over at its very end, which made it look like a tap. While a slide runs or steps are
+  // waiting, a swipe only adds to the queue (a new touch used to clear it, dropping swipes in a burst).
+  const gesture = useRef({ granted: false, before: 0, queueOnly: false });
   // eslint-disable-next-line react-hooks/refs -- the handlers read refs when a gesture fires, never during render
   const [swipeResponder] = useState(() =>
     PanResponder.create({
@@ -342,34 +349,46 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
         const s = swipe.current;
         const minDistance = s.mode === 'month' ? 8 : 16;
         const horizontalBias = s.mode === 'month' ? 1.3 : 1.8;
-        return s.enabled && Math.abs(g.dx) > minDistance && Math.abs(g.dx) > Math.abs(g.dy) * horizontalBias;
+        const take = s.enabled && Math.abs(g.dx) > minDistance && Math.abs(g.dx) > Math.abs(g.dy) * horizontalBias;
+        if (take && !gesture.current.granted) gesture.current.before = g.dx;
+        return take;
       },
       onPanResponderTerminationRequest: () => false,
       // A swipe during a slide (or the render after it) only queues the next step.
       onPanResponderGrant: () => {
-        if (sliding.current) return;
-        pendingStep.current = 0;
+        gesture.current.granted = true;
+        gesture.current.queueOnly = sliding.current || pendingStep.current !== 0;
+        if (gesture.current.queueOnly) return;
         swipe.current.pan.stopAnimation();
         swipe.current.syncNeighbours();
       },
       // Follow the finger by at most one page; a neighbour still being built only gives a little.
       onPanResponderMove: (_, g) => {
-        if (sliding.current) return;
+        if (gesture.current.queueOnly || sliding.current) return;
         const s = swipe.current;
-        s.peekTo(g.dx < 0 ? 1 : g.dx > 0 ? -1 : 0);
-        const dx = (g.dx < 0 && !s.nextReady) || (g.dx > 0 && !s.previousReady) ? g.dx * 0.25 : g.dx;
+        const moved = gesture.current.before + g.dx;
+        s.peekTo(moved < 0 ? 1 : moved > 0 ? -1 : 0);
+        const dx = (moved < 0 && !s.nextReady) || (moved > 0 && !s.previousReady) ? moved * 0.25 : moved;
         s.pan.setValue(-s.position * s.pageWidth + Math.max(-s.pageWidth, Math.min(s.pageWidth, dx)));
       },
       onPanResponderRelease: (_, g) => {
-        if (sliding.current) {
-          if (Math.abs(g.dx) > 70 || Math.abs(g.vx) > 0.45) pendingStep.current += g.dx < 0 ? 1 : -1;
+        const { before, queueOnly } = gesture.current;
+        gesture.current = { granted: false, before: 0, queueOnly: false };
+        const moved = before + g.dx;
+        const swiped = Math.abs(moved) > 70 || Math.abs(g.vx) > 0.45;
+        const dir = (moved !== 0 ? moved : g.vx) < 0 ? 1 : -1;
+        if (queueOnly || sliding.current) {
+          if (swiped) pendingStep.current += dir;
+          swipe.current.runPending();
           return;
         }
-        if (Math.abs(g.dx) > 70 || Math.abs(g.vx) > 0.45) swipe.current.step(g.dx < 0 ? 1 : -1);
+        if (swiped) swipe.current.step(dir);
         else swipe.current.springBack();
       },
       onPanResponderTerminate: () => {
-        if (!sliding.current) swipe.current.springBack();
+        const { queueOnly } = gesture.current;
+        gesture.current = { granted: false, before: 0, queueOnly: false };
+        if (!queueOnly && !sliding.current) swipe.current.springBack();
       },
     }),
   );
