@@ -38,17 +38,14 @@ export function EventPill({
     );
   }
   const fg = readableOn(occ.color);
-  return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={2}
-      style={[
-        styles.pill,
-        compact && styles.pillCompact,
-        big && styles.pillBig,
-        { backgroundColor: occ.color, borderLeftColor: occ.color },
-      ]}
-    >
+  const style = [
+    styles.pill,
+    compact && styles.pillCompact,
+    big && styles.pillBig,
+    { backgroundColor: occ.color, borderLeftColor: occ.color },
+  ];
+  const content = (
+    <>
       {hasIcon ? <EventGlyph value={occ.event.emoji} size={big ? 12 : compact ? 9 : 14} color={fg} /> : null}
       <Text
         numberOfLines={1}
@@ -62,6 +59,13 @@ export function EventPill({
           {suffix}
         </Text>
       ) : null}
+    </>
+  );
+  // The month grid shows pills as a preview only; a View is much cheaper to mount than a Pressable.
+  if (!onPress) return <View style={style}>{content}</View>;
+  return (
+    <Pressable onPress={onPress} hitSlop={2} style={style}>
+      {content}
     </Pressable>
   );
 }

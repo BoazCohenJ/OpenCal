@@ -5,7 +5,12 @@ export const DESKTOP_MIN_WIDTH = 900;
 
 export const isWeb = Platform.OS === 'web';
 
-export function useDesktop(): boolean {
-  const { width } = useWindowDimensions();
-  return isWeb && width >= DESKTOP_MIN_WIDTH;
+function useDesktopWeb(): boolean {
+  return useWindowDimensions().width >= DESKTOP_MIN_WIDTH;
 }
+
+/**
+ * Whether to use the desktop layout. Always false on phones, where it skips subscribing to window
+ * size changes: month pages render a few hundred pills and bars that each ask.
+ */
+export const useDesktop: () => boolean = isWeb ? useDesktopWeb : () => false;

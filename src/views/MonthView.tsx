@@ -14,6 +14,9 @@ const CELL_HEAD = 23;
 const CELL_HEAD_DESKTOP = 31;
 const DEFAULT_CAPACITY = 3;
 const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
+// Every month page has the same row height. New pages start from the last one measured, so they
+// render once with the right number of pill rows instead of again after their first layout.
+let knownRowHeight = 0;
 
 /** Memoized: the pages beside the current one keep their props while swiping, so they skip rendering. */
 export const MonthView = React.memo(function MonthView({
@@ -29,7 +32,7 @@ export const MonthView = React.memo(function MonthView({
   const desktop = useDesktop();
   const LANE = desktop ? DESKTOP_LANE_HEIGHT : COMPACT_LANE_HEIGHT;
   // As many pill rows as the cells are tall: the week rows share the height, so measure one.
-  const [rowHeight, setRowHeight] = useState(0);
+  const [rowHeight, setRowHeight] = useState(() => knownRowHeight);
   const capacity = rowHeight > 0 ? Math.max(1, Math.floor((rowHeight - (desktop ? CELL_HEAD_DESKTOP : CELL_HEAD)) / LANE)) : DEFAULT_CAPACITY;
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(month), { weekStartsOn: WEEK_STARTS_ON });
@@ -81,7 +84,7 @@ export const MonthView = React.memo(function MonthView({
         ))}
       </View>
       {weeks.map(({ week, shownLanes, segments, hidden }, wi) => (
-        <View key={wi} style={styles.week} onLayout={wi === 0 ? (e) => setRowHeight(e.nativeEvent.layout.height) : undefined}>
+        <View key={wi} style={styles.week} onLayout={wi === 0 ? (e) => setRowHeight((knownRowHeight = e.nativeEvent.layout.height)) : undefined}>
           {week.map((d, col) => {
             const list = byDay.get(dayKey(d)) ?? [];
             const room = capacity - shownLanes;
