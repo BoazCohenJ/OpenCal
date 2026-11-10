@@ -297,4 +297,19 @@ assert.deepEqual(received.map((e) => [e.id, e.title, e.startDate, e.endDate, e.t
   found('Monthly and yearly series walk every period since they started', { compared, ms: Math.round(ms) });
 }
 
+// dayKey and toFloatingISO are built by hand instead of with date-fns format; they must match it.
+{
+  const { format } = require('date-fns');
+  const { dayKey, toFloatingISO } = await mod('src/utils/dates.ts');
+  let compared = 0;
+  for (let t = Date.UTC(1969, 0, 1); t < Date.UTC(2071, 0, 1); t += 86400000 * 3 + 3600000 * 5 + 61001) {
+    const d = new Date(t);
+    assert.equal(dayKey(d), format(d, 'yyyy-MM-dd'));
+    assert.equal(toFloatingISO(d), format(d, "yyyy-MM-dd'T'HH:mm:ss.SSS"));
+    compared++;
+  }
+  assert.equal(dayKey(new Date(987, 0, 5)), '0987-01-05');
+  found('dayKey through date-fns format dominated drawing the views', { compared });
+}
+
 console.log('All regression assertions passed, including themed prompt queue and editor deletion scopes');

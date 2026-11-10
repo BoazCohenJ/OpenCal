@@ -3,7 +3,12 @@ import type { PauseWindow } from '../models/PauseWindow';
 
 export const WEEK_STARTS_ON = 0 as const;
 
-export const dayKey = (d: Date): string => format(d, 'yyyy-MM-dd');
+const pad2 = (n: number): string => (n < 10 ? `0${n}` : `${n}`);
+const year4 = (y: number): string => String(y).padStart(4, '0');
+
+// Built by hand rather than with date-fns format: dayKey runs for every occurrence on every render
+// (isMultiDay alone calls it twice), and format was the largest cost in drawing the views.
+export const dayKey = (d: Date): string => `${year4(d.getFullYear())}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 
 export const parseDayKey = (key: string): Date => {
   const [y, m, d] = key.split('-').map(Number);
@@ -14,7 +19,8 @@ export const parseDayKey = (key: string): Date => {
  * Wall-clock timestamp with no zone, e.g. `2026-10-05T09:30:00.000`. `new Date()` reads it as local
  * time wherever the phone is, which is how floating and all-day events are stored.
  */
-export const toFloatingISO = (d: Date): string => format(d, "yyyy-MM-dd'T'HH:mm:ss.SSS");
+export const toFloatingISO = (d: Date): string =>
+  `${dayKey(d)}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, '0')}`;
 
 /**
  * Parses a stored event timestamp. Zone-less ones (toFloatingISO) are read as local time by hand
