@@ -252,4 +252,26 @@ assert.deepEqual(received.map((e) => [e.id, e.title, e.startDate, e.endDate, e.t
   found('Never-matching repeat rules stall rendering', 'expand + nextOccurrence fast, imported as one-off');
 }
 
+// Many events sharing a UID, or one series with many overrides, used to parse in quadratic time.
+{
+  const ve = (uid, extra, d) => `BEGIN:VEVENT\r\nUID:${uid}\r\nSUMMARY:x\r\nDTSTART:${d}\r\nDTEND:${d.replace('T09', 'T10')}\r\n${extra}END:VEVENT\r\n`;
+  const day = (i) => new Date(Date.UTC(2026, 0, 1) + i * 86400000).toISOString().slice(0, 10).replace(/-/g, '') + 'T090000';
+  const wrap = (b) => `BEGIN:VCALENDAR\r\nVERSION:2.0\r\n${b}END:VCALENDAR\r\n`;
+  const n = 4000;
+  let t0 = performance.now();
+  const dups = parseICS(wrap(ve('same-dup3@x', '', day(0)) + Array.from({ length: n }, (_, i) => ve('same', '', day(i))).join('')), 540).events;
+  const dupMs = performance.now() - t0;
+  const ids = dups.map((e) => e.id);
+  assert.equal(new Set(ids).size, n + 1);
+  assert.deepEqual(ids.slice(0, 4), ['ics-same-dup3@x', 'ics-same', 'ics-same-dup2', 'ics-same-dup3']);
+  assert.equal(ids.at(-1), `ics-same-dup${n}`);
+  t0 = performance.now();
+  const series = parseICS(wrap(ve('m', 'RRULE:FREQ=DAILY\r\n', day(0)) + Array.from({ length: n }, (_, i) => ve('m', `RECURRENCE-ID:${day(n - i)}\r\n`, day(n - i))).join('')), 540).events;
+  const overrideMs = performance.now() - t0;
+  assert.equal(series[0].skippedDates.length, n);
+  assert.deepEqual(series[0].skippedDates, [...series[0].skippedDates].sort());
+  assert.ok(dupMs < 500 && overrideMs < 500, `dups ${dupMs.toFixed(0)} ms, overrides ${overrideMs.toFixed(0)} ms`);
+  found('parseICS slows sharply with many duplicate UIDs', { dupMs: Math.round(dupMs), overrideMs: Math.round(overrideMs) });
+}
+
 console.log('All regression assertions passed, including themed prompt queue and editor deletion scopes');

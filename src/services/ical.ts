@@ -334,6 +334,8 @@ export function parseICS(text: string, allDayTime: number): ICSImport | null {
   const result: ICSImport = { events: [], skipped: 0 };
   const masters = new Map<string, Event>();
   const overrides: { uid: string; recurrenceId: ParsedDate; event: Event | null }[] = [];
+  // Next -dupN suffix to try per id; every lower one is already taken.
+  const nextDup = new Map<string, number>();
 
   for (const cal of calendars) {
     const calProp = (name: string) => cal.props.find((p) => p.name === name)?.value;
@@ -431,7 +433,11 @@ export function parseICS(text: string, allDayTime: number): ICSImport | null {
       else {
         // Two distinct events sharing a UID: keep both rather than letting the second overwrite the first.
         let id = event.id;
-        for (let n = 2; masters.has(id); n++) id = `${event.id}-dup${n}`;
+        if (masters.has(id)) {
+          let n = nextDup.get(event.id) ?? 2;
+          while (masters.has((id = `${event.id}-dup${n}`))) n++;
+          nextDup.set(event.id, n + 1);
+        }
         event.id = id;
         masters.set(id, event);
       }
@@ -440,13 +446,17 @@ export function parseICS(text: string, allDayTime: number): ICSImport | null {
 
   // A changed or cancelled instance of a repeating event: skip that day in the series and keep
   // the changed instance as its own one-off event.
+  const skipped = new Map<Event, Set<string>>();
   for (const o of overrides) {
     const master = masters.get(o.uid);
     if (master?.recurrenceRule) {
-      master.skippedDates = [...new Set([...(master.skippedDates ?? []), occurrenceDayKey(master, o.recurrenceId.date)])].sort();
+      let days = skipped.get(master);
+      if (!days) skipped.set(master, (days = new Set(master.skippedDates ?? [])));
+      days.add(occurrenceDayKey(master, o.recurrenceId.date));
     }
     if (o.event) result.events.push(o.event);
   }
+  for (const [master, days] of skipped) master.skippedDates = [...days].sort();
   result.events.unshift(...masters.values());
   return result;
 }
