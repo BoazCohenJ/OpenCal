@@ -2,7 +2,7 @@ import { addDays, format, isSameDay, isSameMonth, startOfMonth, startOfWeek } fr
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { EventPill } from '../components/EventPill';
-import { COMPACT_LANE_HEIGHT, DESKTOP_LANE_HEIGHT, SpanBar } from '../components/SpanBar';
+import { COMPACT_LANE_HEIGHT, COMPACT_MAX_SCALE, DESKTOP_LANE_HEIGHT, SpanBar } from '../components/SpanBar';
 import { occurrencesByDay, type Occurrence } from '../services/occurrences';
 import { createStyles, fonts } from '../theme';
 import { dayKey, WEEK_STARTS_ON } from '../utils/dates';
@@ -100,7 +100,10 @@ export const MonthView = React.memo(function MonthView({
                 accessibilityLabel={`${format(d, 'EEEE, MMMM d')}, ${list.length} events`}
               >
                 <View style={[styles.dayBadge, desktop && styles.dayBadgeDesktop, isToday && styles.dayBadgeToday]}>
-                  <Text style={[styles.dayText, desktop && styles.dayTextDesktop, !inMonth && styles.dayTextOutside, isToday && styles.dayTextToday]}>
+                  <Text
+                    maxFontSizeMultiplier={COMPACT_MAX_SCALE}
+                    style={[styles.dayText, desktop && styles.dayTextDesktop, !inMonth && styles.dayTextOutside, isToday && styles.dayTextToday]}
+                  >
                     {format(d, 'd')}
                   </Text>
                 </View>
@@ -109,7 +112,11 @@ export const MonthView = React.memo(function MonthView({
                   {list.slice(0, shown).map((o) => (
                     <EventPill key={o.key} occ={o} compact />
                   ))}
-                  {more > 0 ? <Text style={[styles.more, desktop && { fontSize: 11, lineHeight: 19 }]}>+{more} more</Text> : null}
+                  {more > 0 ? (
+                    <Text numberOfLines={1} maxFontSizeMultiplier={COMPACT_MAX_SCALE} style={[styles.more, desktop && { fontSize: 11, lineHeight: 19 }]}>
+                      +{more} more
+                    </Text>
+                  ) : null}
                 </View>
               </Pressable>
             );
@@ -142,8 +149,9 @@ const useStyles = createStyles((colors) => ({
   cellWeekend: { backgroundColor: colors.weekend },
   cellPressed: { backgroundColor: colors.primarySoft },
   cellHover: { backgroundColor: colors.surfaceAlt },
-  dayBadge: { alignSelf: 'center', width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 1 },
-  dayBadgeDesktop: { alignSelf: 'flex-start', width: 24, height: 24, borderRadius: 12, marginLeft: 4, marginTop: 2, marginBottom: 2 },
+  // minWidth, not width: two digits in a large system font are wider than the circle.
+  dayBadge: { alignSelf: 'center', minWidth: 20, height: 20, paddingHorizontal: 2, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 1 },
+  dayBadgeDesktop: { alignSelf: 'flex-start', minWidth: 24, height: 24, borderRadius: 12, marginLeft: 4, marginTop: 2, marginBottom: 2 },
   dayTextDesktop: { fontSize: 13 },
   dayBadgeToday: { backgroundColor: colors.primary },
   dayText: { fontSize: 12, fontFamily: fonts.display, color: colors.text },

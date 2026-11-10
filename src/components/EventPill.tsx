@@ -5,7 +5,7 @@ import { createStyles } from '../theme';
 import { readableOn } from '../utils/color';
 import { eventLabel } from '../utils/format';
 import { useDesktop } from '../utils/desktop';
-import { DESKTOP_BAR_HEIGHT } from './SpanBar';
+import { COMPACT_MAX_SCALE, DESKTOP_BAR_HEIGHT } from './SpanBar';
 import { EventGlyph, eventIconKey } from './Icon';
 
 export function EventPill({
@@ -31,7 +31,7 @@ export function EventPill({
       <Pressable onPress={onPress} hitSlop={2} style={styles.dotRow}>
         <View style={[styles.dot, { backgroundColor: occ.color }]} />
         {hasIcon && !compact ? <EventGlyph value={occ.event.emoji} size={12} color={occ.color} /> : null}
-        <Text numberOfLines={1} style={[styles.dotText, compact && styles.compactText]}>
+        <Text numberOfLines={1} maxFontSizeMultiplier={compact ? COMPACT_MAX_SCALE : undefined} style={[styles.dotText, compact && styles.compactText]}>
           {label}
         </Text>
       </Pressable>
@@ -50,10 +50,18 @@ export function EventPill({
       ]}
     >
       {hasIcon ? <EventGlyph value={occ.event.emoji} size={big ? 12 : compact ? 9 : 14} color={fg} /> : null}
-      <Text numberOfLines={1} style={[styles.pillText, compact && styles.compactText, big && styles.textBig, { color: fg }]}>
+      <Text
+        numberOfLines={1}
+        maxFontSizeMultiplier={compact ? COMPACT_MAX_SCALE : undefined}
+        style={[styles.pillText, compact && styles.compactText, big && styles.textBig, { color: fg }]}
+      >
         {label}
       </Text>
-      {suffix ? <Text style={[styles.suffix, compact && styles.compactText, { color: fg }]}>{suffix}</Text> : null}
+      {suffix ? (
+        <Text maxFontSizeMultiplier={compact ? COMPACT_MAX_SCALE : undefined} style={[styles.suffix, compact && styles.compactText, { color: fg }]}>
+          {suffix}
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
