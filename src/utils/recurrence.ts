@@ -145,18 +145,39 @@ function neverMatches(rule: RRule): boolean {
 const DAY_MS = 86400000;
 
 /**
- * The same daily or weekly rule, started a whole number of its periods later: shortly before
- * `fromMs` instead of years back. rrule steps through every repeat from the start, so this saves
- * that walk for long-running series and gives the same dates from `fromMs` on. Rules with a COUNT
- * (which counts from the very first repeat) and other frequencies are returned as they are.
+ * The same rule, started a whole number of its periods later: shortly before `fromMs` instead of
+ * years back. rrule steps through every period from the start, so this saves that walk for
+ * long-running series and gives the same dates from `fromMs` on. Rules with a COUNT (which counts
+ * from the very first repeat) are returned as they are.
  */
 export function fastForwardRule(rule: RRule, fromMs: number): RRule {
   const o = rule.origOptions;
-  if (o.count != null || !o.dtstart || (o.freq !== RRule.DAILY && o.freq !== RRule.WEEKLY)) return rule;
-  const period = (o.interval || 1) * (o.freq === RRule.DAILY ? 1 : 7) * DAY_MS;
-  const start = o.dtstart.getTime();
-  const steps = Math.floor((fromMs - period - start) / period);
-  return steps > 0 ? new RRule({ ...o, dtstart: new Date(start + steps * period) }) : rule;
+  if (o.count != null || !o.dtstart) return rule;
+  const start = o.dtstart;
+  if (o.freq === RRule.DAILY || o.freq === RRule.WEEKLY) {
+    const period = (o.interval || 1) * (o.freq === RRule.DAILY ? 1 : 7) * DAY_MS;
+    const steps = Math.floor((fromMs - period - start.getTime()) / period);
+    return steps > 0 ? new RRule({ ...o, dtstart: new Date(start.getTime() + steps * period) }) : rule;
+  }
+  if (o.freq !== RRule.MONTHLY && o.freq !== RRule.YEARLY) return rule;
+  // Whole periods (months or years) to skip, keeping at least one period before `fromMs`.
+  const monthly = o.freq === RRule.MONTHLY;
+  const from = new Date(fromMs);
+  const unit = (d: Date) => (monthly ? d.getUTCFullYear() * 12 + d.getUTCMonth() : d.getUTCFullYear());
+  const interval = o.interval || 1;
+  const steps = Math.floor((unit(from) - 1 - unit(start)) / interval);
+  if (steps <= 0) return rule;
+  const target = unit(start) + steps * interval;
+  // The new start is the first day of its period at the same time of day. rrule takes the day
+  // (and for yearly rules the month) from the start when the rule names none, so pin those.
+  const named = o.bymonthday != null || o.byweekday != null || o.byyearday != null || o.byweekno != null;
+  const pinned = named
+    ? {}
+    : { bymonthday: start.getUTCDate(), ...(!monthly && o.bymonth == null ? { bymonth: start.getUTCMonth() + 1 } : {}) };
+  const dtstart = new Date(
+    Date.UTC(monthly ? Math.floor(target / 12) : target, monthly ? target % 12 : 0, 1, start.getUTCHours(), start.getUTCMinutes(), start.getUTCSeconds()),
+  );
+  return new RRule({ ...o, ...pinned, dtstart });
 }
 
 const UNITS = {

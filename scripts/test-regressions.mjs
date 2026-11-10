@@ -274,4 +274,27 @@ assert.deepEqual(received.map((e) => [e.id, e.title, e.startDate, e.endDate, e.t
   found('parseICS slows sharply with many duplicate UIDs', { dupMs: Math.round(dupMs), overrideMs: Math.round(overrideMs) });
 }
 
+// Monthly and yearly series that started long ago are fast-forwarded like daily and weekly ones,
+// with the same dates as walking from the start.
+{
+  const { createRuleAt, fastForwardRule } = await mod('src/utils/recurrence.ts');
+  const rules = ['FREQ=MONTHLY', 'FREQ=MONTHLY;BYMONTHDAY=31', 'FREQ=MONTHLY;INTERVAL=7;BYDAY=-1FR', 'FREQ=MONTHLY;BYDAY=MO,TU;BYSETPOS=2', 'FREQ=MONTHLY;INTERVAL=13;BYDAY=2SU',
+    'FREQ=YEARLY', 'FREQ=YEARLY;INTERVAL=3', 'FREQ=YEARLY;BYMONTH=3,9;BYDAY=2SU', 'FREQ=YEARLY;BYWEEKNO=20;BYDAY=MO', 'FREQ=YEARLY;BYYEARDAY=100,-1', 'FREQ=MONTHLY;UNTIL=20270615T000000Z'];
+  let compared = 0;
+  for (const r of rules) for (const s of ['1990-01-31T09:30:00Z', '2004-02-29T23:15:00Z', '2015-07-15T12:00:00Z']) {
+    const rule = createRuleAt(r, new Date(s));
+    for (const y of [2026, 2027]) {
+      const from = Date.UTC(y, 0, 1), to = new Date(Date.UTC(y + 1, 0, 1) - 1);
+      assert.deepEqual(fastForwardRule(rule, from).between(new Date(from), to, true), rule.between(new Date(from), to, true), `${r} from ${s} in ${y}`);
+      compared++;
+    }
+  }
+  const old = Array.from({ length: 200 }, (_, i) => event({ id: `old-${i}`, recurrenceRule: 'FREQ=MONTHLY;BYDAY=-1FR', startDate: '1990-01-15T09:00:00.000', endDate: '1990-01-15T10:00:00.000', isAllDay: false }));
+  const t0 = performance.now();
+  for (const e of old) expandEvent(e, calendar, new Date(2026, 10, 1), new Date(2026, 11, 13));
+  const ms = performance.now() - t0;
+  assert.ok(ms < 150, `200 monthly series from 1990 took ${ms.toFixed(0)} ms`);
+  found('Monthly and yearly series walk every period since they started', { compared, ms: Math.round(ms) });
+}
+
 console.log('All regression assertions passed, including themed prompt queue and editor deletion scopes');
