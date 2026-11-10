@@ -231,4 +231,25 @@ assert.match(sharedIcs, /\r\nMETHOD:PUBLISH\r\n/);
 const received = parseInvite(sharedIcs, 540).events;
 assert.deepEqual(received.map((e) => [e.id, e.title, e.startDate, e.endDate, e.timeZone]), [['evt-share', 'Dinner, at 8', sharedOut.startDate, sharedOut.endDate, 'Asia/Jerusalem']]);
 
+// Rules that can never match (Feb 30, Apr 31) used to make rrule search to year 9999 on every year visited.
+{
+  const { nextOccurrence } = await mod('src/services/occurrences.ts');
+  for (const rule of ['FREQ=MONTHLY;BYMONTH=2,4;BYMONTHDAY=31', 'FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30', 'FREQ=YEARLY;INTERVAL=4;BYMONTH=2;BYMONTHDAY=29']) {
+    const impossible = event({ id: `never-${rule}`, recurrenceRule: rule, startDate: '2025-01-01T09:00:00.000', endDate: '2025-01-01T10:00:00.000', isAllDay: false });
+    const t0 = performance.now();
+    for (let y = 2026; y < 2030; y++) expandEvent(impossible, calendar, new Date(y, 5, 1), new Date(y, 6, 13));
+    assert.equal(nextOccurrence(impossible, calendar, new Date(2026, 0, 1)), null);
+    const ms = performance.now() - t0;
+    assert.ok(ms < 100, `${rule} took ${ms.toFixed(0)} ms`);
+    const ics = parseICS(`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:never\r\nSUMMARY:Never\r\nDTSTART:20250101T090000\r\nDTEND:20250101T100000\r\nRRULE:${rule}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`, 540);
+    assert.equal(ics.events.length, 1);
+    assert.equal(ics.events[0].recurrenceRule, undefined);
+  }
+  // Rare but possible rules still repeat.
+  const leap = event({ id: 'leap', recurrenceRule: 'FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29', startDate: '2025-01-01T09:00:00.000', endDate: '2025-01-01T10:00:00.000', isAllDay: false });
+  assert.equal(nextOccurrence(leap, calendar, new Date(2026, 0, 1))?.start.getFullYear(), 2028);
+  assert.equal(expandEvent(event({ id: 'm31', recurrenceRule: 'FREQ=MONTHLY;BYMONTHDAY=31', isAllDay: false, startDate: '2026-01-31T09:00:00.000', endDate: '2026-01-31T10:00:00.000' }), calendar, new Date(2026, 0, 1), new Date(2027, 0, 1)).length, 7);
+  found('Never-matching repeat rules stall rendering', 'expand + nextOccurrence fast, imported as one-off');
+}
+
 console.log('All regression assertions passed, including themed prompt queue and editor deletion scopes');

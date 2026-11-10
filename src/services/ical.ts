@@ -2,7 +2,7 @@ import { addDays, differenceInCalendarDays, format, startOfDay } from 'date-fns'
 import type { Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
 import { deviceTimeZone, parseTimestamp } from '../utils/dates';
-import { createRule, createRuleAt, fromFloatingUTC, toFloatingUTC } from '../utils/recurrence';
+import { createRule, createRuleAt, fromFloatingUTC, isImpossibleRule, toFloatingUTC } from '../utils/recurrence';
 import { fromZoneWallClock, isValidTimeZone, toZoneWallClock, wallDayKey, wallFromDayKey, zoneOffset } from '../utils/timeZones';
 import { isFloating, occurrenceDayKey } from './eventTimes';
 import { expandEvent, isDayInPauseWindows } from './occurrences';
@@ -390,7 +390,8 @@ export function parseICS(text: string, allDayTime: number): ICSImport | null {
       const rrule = one('RRULE')?.value.trim();
       const normalized = rrule ? normalizeRule(rrule, zone) : undefined;
       const rule = normalized && !recurrenceId && createRule(normalized, start.date) ? normalized : undefined;
-      if (normalized && !recurrenceId && !rule) { result.skipped++; continue; }
+      // A rule that can never match (BYMONTHDAY=30 in February) keeps the event as a one-off.
+      if (normalized && !recurrenceId && !rule && !isImpossibleRule(normalized, start.date)) { result.skipped++; continue; }
       const color = (one('X-OPENCAL-COLOR') ?? one('COLOR'))?.value.trim();
       const baseId = uid.endsWith(UID_SUFFIX) ? uid.slice(0, -UID_SUFFIX.length) : `ics-${uid}`;
 

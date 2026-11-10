@@ -87,11 +87,59 @@ export function createRuleAt(rule: string, wallStart: Date): RRule | null {
     const options = RRule.parseString(rule.replace(/^RRULE:/i, ''));
     // Sub-daily rules are outside the editor contract and can exhaust the synchronous renderer.
     if (options.freq == null || options.freq > RRule.DAILY) return null;
-    return new RRule({ ...options, dtstart: wallStart });
+    const parsed = new RRule({ ...options, dtstart: wallStart });
+    // rrule looks for a match up to year 9999 before giving up, which stalls the renderer.
+    return neverMatches(parsed) ? null : parsed;
   } catch (error) {
     console.warn('Invalid recurrence rule', rule, error);
     return null;
   }
+}
+
+/** A rule that parses but can never produce a date, e.g. BYMONTH=2;BYMONTHDAY=30. */
+export function isImpossibleRule(rule: string, start: Date): boolean {
+  try {
+    const options = RRule.parseString(rule.replace(/^RRULE:/i, ''));
+    if (options.freq == null || options.freq > RRule.DAILY) return false;
+    return neverMatches(new RRule({ ...options, dtstart: toFloatingUTC(start) }));
+  } catch {
+    return false;
+  }
+}
+
+const daysIn = (year: number, month: number): number => new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+
+/**
+ * Whether no month the rule visits has one of its BYMONTHDAY days (Feb 30, Apr 31, Feb 29 in
+ * years a yearly rule never reaches). The calendar repeats every 400 years, so one cycle of the
+ * rule's months is enough. Rules with BYYEARDAY or BYWEEKNO aren't checked (assumed possible).
+ */
+function neverMatches(rule: RRule): boolean {
+  const o = rule.options;
+  if (o.byyearday?.length || o.byweekno?.length) return false;
+  const days = [...(o.bymonthday ?? []), ...(o.bynmonthday ?? []).map((d) => -d)];
+  if (!days.length) return false;
+  const months = o.bymonth?.length ? o.bymonth.map((m) => m - 1) : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+  const fits = (year: number, month: number) => {
+    const n = daysIn(year, month);
+    return days.some((d) => d <= n);
+  };
+  const y0 = o.dtstart.getUTCFullYear();
+  const interval = Math.max(1, o.interval || 1);
+  if (o.freq === RRule.YEARLY) {
+    for (let k = 0; k < 400; k++) if (months.some((m) => fits(y0 + k * interval, m))) return false;
+    return true;
+  }
+  if (o.freq === RRule.MONTHLY) {
+    const m0 = y0 * 12 + o.dtstart.getUTCMonth();
+    for (let k = 0; k < 4800; k++) {
+      const m = m0 + k * interval;
+      if (months.includes(m % 12) && fits(Math.floor(m / 12), m % 12)) return false;
+    }
+    return true;
+  }
+  // Daily and weekly rules reach every month over the cycle; 2000 is a leap year.
+  return !months.some((m) => fits(2000, m));
 }
 
 const DAY_MS = 86400000;
