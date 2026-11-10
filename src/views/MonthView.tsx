@@ -49,17 +49,26 @@ export const MonthView = React.memo(function MonthView({
   }, [days, occurrences]);
 
   const today = new Date();
-  // Each week: its all-day and multi-day events as bars across their days (up to MAX_PER_CELL rows of
-  // them), with the day cells leaving room underneath for the timed events.
+  // Each week: its all-day and multi-day events as bars across their days (as many rows as fit, less
+  // one when a day needs its "+N more" line), with the day cells leaving room underneath for the rest.
   const weeks = useMemo(
     () =>
       [0, 1, 2, 3, 4, 5].map((w) => {
         const week = days.slice(w * 7, w * 7 + 7);
         const { segments, lanes } = layoutSpans(occurrences, week[0]!);
-        const shownLanes = Math.min(lanes, capacity);
+        let shownLanes = Math.min(lanes, capacity);
+        // Bars filling every row would leave no room for a day's "+N more" line, so give up the last one.
+        if (shownLanes === capacity) {
+          const crowded = week.some(
+            (d, col) =>
+              (byDay.get(dayKey(d))?.length ?? 0) > 0 ||
+              segments.some((s) => s.lane >= shownLanes && col >= s.col && col < s.col + s.length),
+          );
+          if (crowded) shownLanes--;
+        }
         return { week, shownLanes, segments: segments.filter((s) => s.lane < shownLanes), hidden: segments.filter((s) => s.lane >= shownLanes) };
       }),
-    [days, occurrences, capacity],
+    [days, occurrences, capacity, byDay],
   );
 
   return (
@@ -77,8 +86,8 @@ export const MonthView = React.memo(function MonthView({
             const list = byDay.get(dayKey(d)) ?? [];
             const room = capacity - shownLanes;
             const hiddenHere = hidden.filter((h) => col >= h.col && col < h.col + h.length).length;
-            // When something doesn't fit, the last row becomes the "+N more" line.
-            const overflow = list.length + hiddenHere > room;
+            // When something doesn't fit, the last row becomes the "+N more" line. Hidden bars can only be counted.
+            const overflow = hiddenHere > 0 || list.length > room;
             const shown = overflow ? Math.max(0, room - 1) : list.length;
             const more = overflow ? list.length - shown + hiddenHere : 0;
             const isToday = isSameDay(d, today);
