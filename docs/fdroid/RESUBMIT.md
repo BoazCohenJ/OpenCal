@@ -188,3 +188,7 @@ config or native config, so the OTA build is untouched. The built arm64 APK cont
 The universal APK was about 90 MB. Open points: fastlane changelogs are looked up by versionCode, so
 `changelogs/10700.txt` will not match `107003`; check whether F-Droid falls back to `default.txt` or add per-ABI
 copies. Phones that installed the self-hosted repo's 10600 build upgrade fine, since 10700N is higher.
+
+### Changelog file names with per-ABI version codes (checked 2026-11-16)
+
+Read from `fdroidserver/update.py` in the build image: a changelog is used only if its file name is the build's own versionCode (`<code>.txt`), and the app-level "what's new" comes from `<CurrentVersionCode>.txt`; `default.txt` is only a fallback when that is missing. With the v2 recipe the codes are `<versionCode>1` to `<versionCode>4` (for 1.7.0: 107001 to 107004), so `10700.txt` alone would show nothing. Each release therefore carries four identical copies next to the original (added for 1.7.0; the rule is in `AGENTS.md`).
