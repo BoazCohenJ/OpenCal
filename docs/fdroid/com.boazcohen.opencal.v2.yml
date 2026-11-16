@@ -1,6 +1,13 @@
-# DRAFT v2 for the resubmission (see docs/fdroid/RESUBMIT.md). Differences from the first submission:
-# Node comes from Debian forky and the build uses the image's JDK 21 (patched like com.scariflabs.horus), so
-# nothing is downloaded in `sudo`; the NDK is pinned by its full version. `commit` must be the full hash.
+# DRAFT v2 for the resubmission (see docs/fdroid/RESUBMIT.md, "Test results"). Differences from the first
+# submission:
+# - Node comes from Debian forky and the build uses the image's JDK 21 (patched like com.scariflabs.horus), so
+#   nothing is downloaded in `sudo`; the NDK is pinned by its full version. `commit` is the full hash.
+# - One APK per ABI instead of one ~90 MB APK with four. versionCode = 10 * app versionCode + ABI number
+#   (1 armeabi-v7a, 2 x86, 3 arm64-v8a, 4 x86_64), patched in with $$VERCODE$$ and kept by VercodeOperation.
+# - `scandelete: node_modules` replaces the long list of paths; the scanignore entries stay because the scanner
+#   would otherwise delete those Gradle files instead of ignoring their local maven repos.
+# - Library modules get the app's NDK (Gradle would otherwise download AGP's default NDK during the build) and
+#   the encrypted Google dependency-metadata block is left out of the APK.
 
 Categories:
   - Calendar & Agenda
@@ -9,6 +16,8 @@ AuthorName: Boaz Cohen
 WebSite: https://github.com/BoazCohenJ/OpenCal
 SourceCode: https://github.com/BoazCohenJ/OpenCal
 IssueTracker: https://github.com/BoazCohenJ/OpenCal/issues
+Changelog: 
+  https://github.com/BoazCohenJ/OpenCal/tree/HEAD/metadata/android/en-US/changelogs
 
 AutoName: OpenCal
 
@@ -16,77 +25,189 @@ RepoType: git
 Repo: https://github.com/BoazCohenJ/OpenCal.git
 
 Builds:
-  - versionName: 1.5.0
-    versionCode: 10500
-    commit: v1.5.0
+  - versionName: 1.7.0
+    versionCode: 107001
+    commit: 0c7de94c7fbe75d6e94ef6b851006068c029d02d
     timeout: 7200
     sudo:
       - apt-get update
       - apt-get install -y cmake ninja-build build-essential zlib1g-dev libicu-dev
-      # React Native 0.86 needs Node >= 22.13; Debian trixie ships 20, so take it from forky (24.x).
       - echo "deb https://deb.debian.org/debian forky main" > /etc/apt/sources.list.d/forky.list
       - apt-get update
       - apt-get install -y -t forky nodejs npm
+    output: android/app/build/outputs/apk/release/app-release.apk
     srclibs:
       - hermes@hermes-v250829098.0.17
-    init: export OPENCAL_VARIANT=fdroid
-    output: android/app/build/outputs/apk/release/app-release.apk
     prebuild:
       - export OPENCAL_VARIANT=fdroid
-      - npm ci
-      # The F-Droid variant must not load remote code; JS imports resolve to a stub (metro.config.js).
+      - npm ci --no-audit --no-fund
       - npm uninstall expo-updates
-      # Compile every Expo module from source instead of using the prebuilt AARs in node_modules.
       - npm pkg set --json 'expo.autolinking.android.buildFromSource=[".*"]'
       - npx expo prebuild --platform android --no-install --clean
-      # The React Native Gradle plugin asks for a JDK 17 toolchain; the build image has 21.
-      - sed -i '/jvmToolchain\|JavaVersion/s/17/21/' node_modules/@react-native/gradle-plugin/*/build.gradle.kts node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/utils/JdkConfiguratorUtils.kt
-      # Build the Hermes compiler from source (the npm package only ships prebuilt binaries) and use it.
+      - sed -i '/jvmToolchain\|JavaVersion/s/17/21/' node_modules/@react-native/gradle-plugin/*/build.gradle.kts
+        node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/utils/JdkConfiguratorUtils.kt
       - cmake -S $$hermes$$ -B $$hermes$$/build -G Ninja -DCMAKE_BUILD_TYPE=Release
       - cmake --build $$hermes$$/build --target hermesc -j 4
-      - sed -i 's#^ *hermesCommand = new File.*#    hermesCommand = "$$hermes$$/build/bin/hermesc"#' android/app/build.gradle
-    build:
-      - export OPENCAL_VARIANT=fdroid
-      - cd android
-      - gradle assembleRelease -x lint
-    ndk: 27.1.12297006
-    scandelete:
-      # iOS, macOS, Windows and web leftovers that ship inside the npm packages.
-      - node_modules/react-native/React/I18n
-      - node_modules/fb-dotslash
-      - node_modules/@expo/expo-modules-macros-plugin
-      - node_modules/hermes-compiler/hermesc
-      - node_modules/expo/template.tgz
-      - node_modules/expo-modules-core/prebuilds
-      - node_modules/expo-font/prebuilds
-      - node_modules/expo-file-system/prebuilds
-      - node_modules/expo-sqlite/ios/libsql.xcframework
-      - node_modules/expo-sqlite/web/wa-sqlite
-      # Optional SQLite extensions (libSQL, sqlite-vec) that OpenCal does not enable.
-      - node_modules/expo-sqlite/android/libsql
-      - node_modules/expo-sqlite/android/vec
-      # Prebuilt copies of the Expo modules; deleting them makes Gradle compile the sources instead.
-      - node_modules/expo-sqlite/local-maven-repo
-      - node_modules/expo-status-bar/local-maven-repo
-      - node_modules/expo-font/local-maven-repo
-      - node_modules/expo-file-system/local-maven-repo
-      - node_modules/expo-system-ui/local-maven-repo
-      - node_modules/expo-document-picker/local-maven-repo
-      - node_modules/expo-sharing/local-maven-repo
-      - node_modules/expo-splash-screen/local-maven-repo
-      - node_modules/@expo/dom-webview/local-maven-repo
-      - node_modules/expo/node_modules/expo-keep-awake/local-maven-repo
-      - node_modules/expo/node_modules/expo-asset/local-maven-repo
+      - sed -i 's#^ *hermesCommand = new File.*#    hermesCommand = "$$hermes$$/build/bin/hermesc"#'
+        android/app/build.gradle
+      - sed -i 's/versionCode [0-9]*/versionCode $$VERCODE$$/' android/app/build.gradle
+      - printf '\nsubprojects { p -> p.plugins.withId("com.android.library") { p.android.ndkVersion
+        = rootProject.ext.ndkVersion } }\n' >> android/build.gradle
+      - printf '\nandroid { dependenciesInfo { includeInApk = false; includeInBundle
+        = false } }\n' >> android/app/build.gradle
     scanignore:
-      # Gradle files that point at local directories inside node_modules.
       - node_modules/react-native/ReactAndroid/publish.gradle
       - node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
       - node_modules/react-native-screens/android/build.gradle
       - node_modules/react-native-svg/android/build.gradle
       - node_modules/react-native-safe-area-context/android/build.gradle
+    scandelete:
+      - node_modules
+    build:
+      - export OPENCAL_VARIANT=fdroid
+      - cd android
+      - gradle assembleRelease -x lint -PreactNativeArchitectures=armeabi-v7a
+    ndk: 27.1.12297006
+
+  - versionName: 1.7.0
+    versionCode: 107002
+    commit: 0c7de94c7fbe75d6e94ef6b851006068c029d02d
+    timeout: 7200
+    sudo:
+      - apt-get update
+      - apt-get install -y cmake ninja-build build-essential zlib1g-dev libicu-dev
+      - echo "deb https://deb.debian.org/debian forky main" > /etc/apt/sources.list.d/forky.list
+      - apt-get update
+      - apt-get install -y -t forky nodejs npm
+    output: android/app/build/outputs/apk/release/app-release.apk
+    srclibs:
+      - hermes@hermes-v250829098.0.17
+    prebuild:
+      - export OPENCAL_VARIANT=fdroid
+      - npm ci --no-audit --no-fund
+      - npm uninstall expo-updates
+      - npm pkg set --json 'expo.autolinking.android.buildFromSource=[".*"]'
+      - npx expo prebuild --platform android --no-install --clean
+      - sed -i '/jvmToolchain\|JavaVersion/s/17/21/' node_modules/@react-native/gradle-plugin/*/build.gradle.kts
+        node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/utils/JdkConfiguratorUtils.kt
+      - cmake -S $$hermes$$ -B $$hermes$$/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - cmake --build $$hermes$$/build --target hermesc -j 4
+      - sed -i 's#^ *hermesCommand = new File.*#    hermesCommand = "$$hermes$$/build/bin/hermesc"#'
+        android/app/build.gradle
+      - sed -i 's/versionCode [0-9]*/versionCode $$VERCODE$$/' android/app/build.gradle
+      - printf '\nsubprojects { p -> p.plugins.withId("com.android.library") { p.android.ndkVersion
+        = rootProject.ext.ndkVersion } }\n' >> android/build.gradle
+      - printf '\nandroid { dependenciesInfo { includeInApk = false; includeInBundle
+        = false } }\n' >> android/app/build.gradle
+    scanignore:
+      - node_modules/react-native/ReactAndroid/publish.gradle
+      - node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
+      - node_modules/react-native-screens/android/build.gradle
+      - node_modules/react-native-svg/android/build.gradle
+      - node_modules/react-native-safe-area-context/android/build.gradle
+    scandelete:
+      - node_modules
+    build:
+      - export OPENCAL_VARIANT=fdroid
+      - cd android
+      - gradle assembleRelease -x lint -PreactNativeArchitectures=x86
+    ndk: 27.1.12297006
+
+  - versionName: 1.7.0
+    versionCode: 107003
+    commit: 0c7de94c7fbe75d6e94ef6b851006068c029d02d
+    timeout: 7200
+    sudo:
+      - apt-get update
+      - apt-get install -y cmake ninja-build build-essential zlib1g-dev libicu-dev
+      - echo "deb https://deb.debian.org/debian forky main" > /etc/apt/sources.list.d/forky.list
+      - apt-get update
+      - apt-get install -y -t forky nodejs npm
+    output: android/app/build/outputs/apk/release/app-release.apk
+    srclibs:
+      - hermes@hermes-v250829098.0.17
+    prebuild:
+      - export OPENCAL_VARIANT=fdroid
+      - npm ci --no-audit --no-fund
+      - npm uninstall expo-updates
+      - npm pkg set --json 'expo.autolinking.android.buildFromSource=[".*"]'
+      - npx expo prebuild --platform android --no-install --clean
+      - sed -i '/jvmToolchain\|JavaVersion/s/17/21/' node_modules/@react-native/gradle-plugin/*/build.gradle.kts
+        node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/utils/JdkConfiguratorUtils.kt
+      - cmake -S $$hermes$$ -B $$hermes$$/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - cmake --build $$hermes$$/build --target hermesc -j 4
+      - sed -i 's#^ *hermesCommand = new File.*#    hermesCommand = "$$hermes$$/build/bin/hermesc"#'
+        android/app/build.gradle
+      - sed -i 's/versionCode [0-9]*/versionCode $$VERCODE$$/' android/app/build.gradle
+      - printf '\nsubprojects { p -> p.plugins.withId("com.android.library") { p.android.ndkVersion
+        = rootProject.ext.ndkVersion } }\n' >> android/build.gradle
+      - printf '\nandroid { dependenciesInfo { includeInApk = false; includeInBundle
+        = false } }\n' >> android/app/build.gradle
+    scanignore:
+      - node_modules/react-native/ReactAndroid/publish.gradle
+      - node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
+      - node_modules/react-native-screens/android/build.gradle
+      - node_modules/react-native-svg/android/build.gradle
+      - node_modules/react-native-safe-area-context/android/build.gradle
+    scandelete:
+      - node_modules
+    build:
+      - export OPENCAL_VARIANT=fdroid
+      - cd android
+      - gradle assembleRelease -x lint -PreactNativeArchitectures=arm64-v8a
+    ndk: 27.1.12297006
+
+  - versionName: 1.7.0
+    versionCode: 107004
+    commit: 0c7de94c7fbe75d6e94ef6b851006068c029d02d
+    timeout: 7200
+    sudo:
+      - apt-get update
+      - apt-get install -y cmake ninja-build build-essential zlib1g-dev libicu-dev
+      - echo "deb https://deb.debian.org/debian forky main" > /etc/apt/sources.list.d/forky.list
+      - apt-get update
+      - apt-get install -y -t forky nodejs npm
+    output: android/app/build/outputs/apk/release/app-release.apk
+    srclibs:
+      - hermes@hermes-v250829098.0.17
+    prebuild:
+      - export OPENCAL_VARIANT=fdroid
+      - npm ci --no-audit --no-fund
+      - npm uninstall expo-updates
+      - npm pkg set --json 'expo.autolinking.android.buildFromSource=[".*"]'
+      - npx expo prebuild --platform android --no-install --clean
+      - sed -i '/jvmToolchain\|JavaVersion/s/17/21/' node_modules/@react-native/gradle-plugin/*/build.gradle.kts
+        node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/utils/JdkConfiguratorUtils.kt
+      - cmake -S $$hermes$$ -B $$hermes$$/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - cmake --build $$hermes$$/build --target hermesc -j 4
+      - sed -i 's#^ *hermesCommand = new File.*#    hermesCommand = "$$hermes$$/build/bin/hermesc"#'
+        android/app/build.gradle
+      - sed -i 's/versionCode [0-9]*/versionCode $$VERCODE$$/' android/app/build.gradle
+      - printf '\nsubprojects { p -> p.plugins.withId("com.android.library") { p.android.ndkVersion
+        = rootProject.ext.ndkVersion } }\n' >> android/build.gradle
+      - printf '\nandroid { dependenciesInfo { includeInApk = false; includeInBundle
+        = false } }\n' >> android/app/build.gradle
+    scanignore:
+      - node_modules/react-native/ReactAndroid/publish.gradle
+      - node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
+      - node_modules/react-native-screens/android/build.gradle
+      - node_modules/react-native-svg/android/build.gradle
+      - node_modules/react-native-safe-area-context/android/build.gradle
+    scandelete:
+      - node_modules
+    build:
+      - export OPENCAL_VARIANT=fdroid
+      - cd android
+      - gradle assembleRelease -x lint -PreactNativeArchitectures=x86_64
+    ndk: 27.1.12297006
 
 AutoUpdateMode: Version
-UpdateCheckMode: Tags
+UpdateCheckMode: Tags ^v[0-9.]+$
+VercodeOperation:
+  - 10 * %c + 1
+  - 10 * %c + 2
+  - 10 * %c + 3
+  - 10 * %c + 4
 UpdateCheckData: app.json|"versionCode":\s*(\d+)|app.json|"version":\s*"([\d.]+)"
-CurrentVersion: 1.5.0
-CurrentVersionCode: 10500
+CurrentVersion: 1.7.0
+CurrentVersionCode: 107004

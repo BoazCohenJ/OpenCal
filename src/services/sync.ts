@@ -8,7 +8,7 @@ import * as db from './database';
  */
 
 export interface SyncConfig {
-  /** Base URL, e.g. https://gigaserver.tailnet.ts.net:2290 */
+  /** Base URL, e.g. https://myserver.tailnet.ts.net:2290 */
   url: string;
   apiKey: string;
 }

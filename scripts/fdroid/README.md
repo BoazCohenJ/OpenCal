@@ -27,7 +27,7 @@ scanner removes the wrapper jar; `config/categories.yml` only exists so `fdroid 
 
 `publish.sh` signs the APK from `unsigned/` with the repo key (`keystore.p12`, created once with
 `fdroid update --create-key`; its passwords live only in the server's `config.yml`), rebuilds the index and
-copies `repo/` to `~/caddy/www/fdroid`. Caddy serves it on the tailnet at
-`https://gigaserver.taila02557.ts.net:2293/repo`; add that URL (or scan its QR code from `index.html`) in
+copies `repo/` to `~/caddy/www/fdroid`. A web server serves it on a private network at
+`https://your-server.example:2293/repo`; add that URL (or scan its QR code from `index.html`) in
 F-Droid's repository settings. Back up `keystore.p12` and `config.yml`: losing the key means every user has to
 reinstall. The repo signing key is not the app's: F-Droid's own signing would replace it on the official repo.

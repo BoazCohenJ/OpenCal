@@ -73,6 +73,10 @@ Releases that change native parts of the app (icons, splash, new native modules)
 
 Releases also carry a `-fdroid` APK: the F-Droid variant (`com.boazcohen.opencal`) with no remote code loading. It is a different app id from the build above, so it installs next to it instead of updating it; move your data over with Import & export. In [Obtainium](https://github.com/ImranR98/Obtainium), add `https://github.com/BoazCohenJ/OpenCal` and set the APK filter to `fdroid`. Obtainium then follows new releases and offers each update.
 
+## Feedback
+
+Found a bug, or something that annoys you? [Open an issue](https://github.com/BoazCohenJ/OpenCal/issues/new/choose). Short reports are fine, and every one gets read.
+
 ## Development
 
 Requirements: Node 22+ and npm.

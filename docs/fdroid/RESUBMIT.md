@@ -18,7 +18,7 @@ date is **2026-12-22**. Until then:
 - Collect evidence of real users: GitHub release downloads, issues from people other than the author, stars,
   mentions. A short note in the merge request about the number of users helps with reason 2 as well.
 - IzzyOnDroid was ruled out (it rejects AI-written code); Obtainium and Accrescent are in `OTHER-STORES.md`.
-- The self-hosted repo at https://gigaserver.taila02557.ts.net:2293/repo works in the meantime (tailnet only).
+- The private self-hosted F-Droid repo works in the meantime.
 
 ## Merge request description (fills in the repository's `Default.md` template)
 
@@ -95,8 +95,8 @@ list the feature, not that it was verified absent in the app.
   `com.scariflabs.horus` (React Native, Hermes built from source) also uses `hermes@<tag>` as a srclib, so there is
   precedent. Mention it in the merge request and ask if a submodule is preferred.
 - Reproducible builds: see below.
-- ABI split if the APK is large: the APK is about 90 MB because it carries all four ABIs. Consider an ABI split
-  (`reactNativeArchitectures` / `splits` in Gradle) so each APK is smaller; F-Droid asks for this.
+- ABI split if the APK is large: done in the v2 recipe (one build block per ABI, 25-33 MB each instead of about
+  90 MB); see "Test results".
 - Only the latest version in the metadata, no disabled versions: yes.
 - Pipeline passes: it did on the first submission (all 9 jobs).
 - Add `/label ~"New App"` at the end of the description.
@@ -111,8 +111,9 @@ The `horus` recipe shows what reviewers accepted for another React Native app. C
 - It deletes the whole `node_modules` from the scanner's view with `scandelete: - node_modules`, instead of our long
   list of paths and `scanignore` entries. Try the same: it is much shorter.
 
-`docs/fdroid/com.boazcohen.opencal.v2.yml` is a draft with these changes. It has been tested only if the section
-"Test results" below says so.
+`docs/fdroid/com.boazcohen.opencal.v2.yml` has these changes plus the ABI split, and was built and scanned on
+2026-11-16 (see "Test results"). Submit it instead of `com.boazcohen.opencal.yml`, with the header comments removed
+(`fdroid rewritemeta` drops them anyway) and `versionName`/`commit`/`Current*` moved to the release being submitted.
 
 ## Reproducible builds
 
@@ -123,4 +124,67 @@ request that reproducibility could not be enabled and why, which the template ex
 
 ## Test results
 
-(Filled in below as the checks are run.)
+All builds ran `fdroid build --on-server` in F-Droid's buildserver image (a local build container, see
+`scripts/fdroid/`). APKs were compared entry by entry with Python's `zipfile` (names, order, offsets, CRC, SHA-256).
+
+### 1. Reproducibility (checked 2026-11-16)
+
+- **v1.5.0, old recipe, two builds (2026-10-25 and 2026-10-26, same container and path):** all 1276 ZIP entries
+  outside the v1 signature files are identical (content, order, 1981-01-01 timestamps, compression). A third build
+  that used the npm `hermesc` instead of the one built from the srclib is identical too, so the Hermes bytecode does
+  not depend on which `hermesc` built it. The only bytes that differ sit in the APK Signing Block: Gradle signs the
+  release with the template's debug key and adds Google's encrypted dependency-metadata block (ID `0x504b4453`),
+  which changes every build. The v2 recipe now turns that block off (`dependenciesInfo`); F-Droid strips the debug
+  signature anyway.
+- **v1.7.0, v2 recipe, arm64 built twice in different directories (2026-11-16):** dex, Hermes bundle, resources,
+  manifest and prebuilt libraries are identical. Seven `.so` files compiled from source here (`libappmodules`,
+  `libexpo-modules-core`, `libexpo-sqlite`, `librnscreens`, three `libreact_codegen_*`) differ in 20 bytes each:
+  the GNU build-id, which the linker hashes over the unstripped binary including debug info with absolute build
+  paths. Same directory gives identical builds; a different directory does not.
+- **Against the developer-signed `OpenCal-1.7.0-fdroid-arm64.apk` from the GitHub release:** 15 of 1089 entries
+  differ: built with JDK 17 instead of 21 (`kotlin-tooling-metadata.json`, dex), a different JS bundle hash in the
+  Hermes header, different `.so` build-ids, versionCode 10700 instead of 107003, baseline profile and
+  `resources.arsc`.
+
+**Conclusion:** not bit-reproducible today, so leave `AllowedAPKSigningKeys`/`Binaries` out and say so in the merge
+request. Enabling it later would need all of: (a) build the developer APK with the exact v2 recipe (same image, JDK
+21, hermesc from source, per-ABI versionCode), not the local Gradle setup; (b) make the native build path-independent,
+for example `-ffile-prefix-map=<source root>=.` in `CFLAGS`/`CXXFLAGS` for the CMake builds, or the same build
+directory as F-Droid's server (`/home/vagrant/build/com.boazcohen.opencal`), untested; (c) sign with v2/v3 using
+the permanent release key. Remember the choice is one-way.
+
+### 2. v2 recipe (2026-11-16, commit `0c7de94c7fbe75d6e94ef6b851006068c029d02d` = `v1.7.0`, the latest tag)
+
+- `fdroid lint` and `fdroid rewritemeta` pass; the committed file is in rewritemeta's format.
+- Node from Debian forky, JDK 21 patch, no downloads in `sudo`: works. `scandelete: node_modules` works (93 files
+  removed: prebuilt AARs/JARs, iOS/web binaries, `fb-dotslash`, sqlite extensions, gradle wrapper jar). The
+  `scanignore` entries were kept: under `scandelete` the scanner removes flagged files rather than ignoring them, so
+those `build.gradle` files (flagged for local maven repos) would most likely be deleted (not tested). Remaining
+  scanner output is warnings only (Windows DLLs in `node_modules/hermes-compiler/hermesc/win64-bin`); adding
+  `rm -rf node_modules/hermes-compiler/hermesc` to `prebuild` as horus does would silence them (not tested).
+- Fixes needed on the way: `expo-sqlite` and other library modules set no `ndkVersion`, so Gradle silently
+  downloaded AGP's default NDK 27.0.12077973 during every build (also in the first submission). The recipe now gives
+  every library module the app's NDK (`subprojects { ... ndkVersion ... }` appended to `android/build.gradle`), and
+  that download is gone. Gradle still installs SDK CMake 3.22.1 itself, as in all earlier builds.
+- The first universal attempt failed on a temporary DNS error in the build container (not the recipe); the per-ABI
+  builds below passed scanning and `BUILD SUCCESSFUL` (about 16 minutes of Gradle each).
+
+### 3. ABI split (2026-11-16)
+
+One build block per ABI with `gradle assembleRelease -PreactNativeArchitectures=<abi>`; the versionCode in the
+generated `android/app/build.gradle` is replaced by `$$VERCODE$$` (= 10 × app versionCode + 1 armeabi-v7a, 2 x86,
+3 arm64-v8a, 4 x86_64, the usual F-Droid order so arm64 phones get the arm64 APK), and `VercodeOperation` keeps
+auto-update working from `app.json`. Everything is recipe-level: no change to the repo's `app.config.js`, metro
+config or native config, so the OTA build is untouched. The built arm64 APK contains only `lib/arm64-v8a`, no
+`expo/modules/updates` classes (the stub is used) and no Firebase/GMS classes.
+
+| ABI | versionCode | APK size |
+|---|---|---|
+| armeabi-v7a | 107001 | 25.6 MB (built) |
+| x86 | 107002 | about 33.3 MB (estimated from library sizes, not built) |
+| arm64-v8a | 107003 | 31.9 MB (built twice) |
+| x86_64 | 107004 | about 32.5 MB (estimated, not built) |
+
+The universal APK was about 90 MB. Open points: fastlane changelogs are looked up by versionCode, so
+`changelogs/10700.txt` will not match `107003`; check whether F-Droid falls back to `default.txt` or add per-ABI
+copies. Phones that installed the self-hosted repo's 10600 build upgrade fine, since 10700N is higher.
