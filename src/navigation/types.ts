@@ -12,6 +12,8 @@ export type RootStackParamList = {
   /** `sharedText`: text shared to OpenCal from another app (a message, a note), kept as the description. */
   QuickAdd: { sharedText?: string } | undefined;
   Stamp: { templateId?: string; start?: string } | undefined;
+  /** The welcome tour: the first screen on a new device, reopened from Settings → About. */
+  Onboarding: undefined;
   Settings: undefined;
   Notifications: undefined;
   FocusEdit: { windowId?: string; kind?: FocusKind } | undefined;

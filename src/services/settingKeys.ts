@@ -8,3 +8,5 @@ export const BIRTHDAYS_KEY = 'birthdays';
 export const FLOATING_DEFAULT_KEY = 'floatingByDefault';
 export const DEFAULT_EVENT_MINUTES_KEY = 'defaultEventMinutes';
 export const DEFAULT_CALENDAR_KEY = 'defaultCalendarId';
+/** True once this device has finished or skipped the welcome tour (OnboardingScreen). Per device, never synced. */
+export const ONBOARDING_DONE_KEY = 'onboardingDone';

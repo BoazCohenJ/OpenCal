@@ -61,6 +61,7 @@ The things OpenCal does that most calendars don't:
 - **A desktop layout in the browser:** in a wide window the web app gets a sidebar, a toolbar, editors as dialogs and keyboard shortcuts (T today, arrows to move, D/W/M/S views, C new event, Q quick add). Narrow windows keep the phone layout.
 - **Import & export:** back up everything to one file and restore or merge it on another phone, or move events to and from Google Calendar, Apple Calendar and Outlook with standard `.ics` files. Import preserves explicit UTC schedules and additional RDATE dates; sub-daily recurrence rules (hourly, minutely, secondly) are skipped and counted in the import summary.
 - **Settings with explanations:** default length and calendar for new events, and (i) buttons that explain the trickier settings in place.
+- **A short welcome tour** on first launch: how to add events, what's different, theme and notification permission, then import or sync. Reopen it from Settings → About.
 
 ## Install on Android
 

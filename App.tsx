@@ -7,7 +7,7 @@ import { createNavigationContainerRef, DarkTheme, DefaultTheme, NavigationContai
 import { createNativeStackNavigator, type NativeStackHeaderProps } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Linking, Platform, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Logo } from './src/components/Logo';
@@ -32,6 +32,7 @@ import { ImportExportScreen } from './src/screens/ImportExportScreen';
 import { HiddenEventsListScreen } from './src/screens/HiddenEventsListScreen';
 import { FocusEditScreen } from './src/screens/FocusEditScreen';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
+import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { QuickAddScreen } from './src/screens/QuickAddScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { StampScreen } from './src/screens/StampScreen';
@@ -173,7 +174,9 @@ function RootNavigator() {
   // Line the header buttons up with the column below them instead of the window edges.
   const headerInset = Platform.OS === 'web' ? Math.max(0, (width - WEB_COLUMN) / 2) : 0;
   const { colors } = useTheme();
-  const { ready, error } = useCalendarContext();
+  const { ready, error, onboardingDone } = useCalendarContext();
+  // Decided once: finishing the tour later must not change the navigator's first screen.
+  const [firstRoute] = useState<keyof RootStackParamList>(onboardingDone ? 'Calendar' : 'Onboarding');
   const [fontsLoaded, fontError] = useFonts({ Fraunces_500Medium_Italic, Fraunces_600SemiBold, Fraunces_800ExtraBold });
   const loading = !ready || (!fontsLoaded && !fontError);
   useEffect(() => {
@@ -197,6 +200,7 @@ function RootNavigator() {
   }
   return (
     <Stack.Navigator
+      initialRouteName={firstRoute}
       screenOptions={{
         headerShadowVisible: false,
         headerTintColor: colors.primary,
@@ -211,6 +215,11 @@ function RootNavigator() {
       }}
     >
       <Stack.Screen name="Calendar" component={CalendarScreen} options={{ headerShown: false }} />
+      <Stack.Screen
+        name="Onboarding"
+        component={OnboardingScreen}
+        options={{ headerShown: false, gestureEnabled: false, animation: 'fade', animationDuration: 200 }}
+      />
       <Stack.Group screenOptions={desktop ? dialogOptions : {}}>
         <Stack.Screen name="Settings" component={narrowed.SettingsScreen} options={{ title: 'Settings' }} />
         <Stack.Screen name="Notifications" component={narrowed.NotificationsScreen} options={{ title: 'Notifications' }} />

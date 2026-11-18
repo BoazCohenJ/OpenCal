@@ -180,6 +180,8 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
         }
       >
         <Row label="OpenCal" value={APP_VERSION} subtitle={updateInfo()} left={<Logo size={34} variant="tile" />} />
+        <Divider />
+        <Row label="Welcome tour" subtitle="The short introduction from the first launch" onPress={() => navigation.navigate('Onboarding')} />
       </Section>
     </ScrollView>
   );

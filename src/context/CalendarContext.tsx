@@ -25,6 +25,7 @@ import {
   DEFAULT_CALENDAR_KEY,
   HIDDEN_CALENDARS_KEY,
   NOTIFICATION_PREFS_KEY,
+  ONBOARDING_DONE_KEY,
   SAVED_COLORS_KEY,
   THEME_MODE_KEY,
 } from '../services/settingKeys';
@@ -93,6 +94,9 @@ interface CalendarContextValue {
   getEffectiveColor: (event: Event) => string;
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
+  /** False until this device has finished or skipped the welcome tour. */
+  onboardingDone: boolean;
+  completeOnboarding: () => void;
   /** Colors the user named in the color picker, oldest first. */
   savedColors: SavedColor[];
   /** Adds a named color, or renames it if that hex is already saved. */
@@ -156,6 +160,7 @@ interface InitialData {
   floatingByDefault: boolean;
   defaultEventMinutes: number;
   savedDefaultCalendarId: string | null;
+  onboardingDone: boolean;
 }
 
 /** Opens (and if needed seeds) the database synchronously; runs once, before the first render. */
@@ -184,17 +189,26 @@ function loadInitialData(): { data: InitialData; error: null } | { data: null; e
       db.saveEvents(zoneless.map((e) => withStoredTimes(e, false)));
       events = db.loadEvents();
     }
+    const templates = db.loadTemplates();
+    const birthdays = db.getSetting<Birthday[]>(BIRTHDAYS_KEY, []);
+    let onboardingDone = db.getSetting<boolean>(ONBOARDING_DONE_KEY, false);
+    // People who used OpenCal before the tour existed skip it: anything of theirs is already here.
+    if (!onboardingDone && (events.length || templates.length || birthdays.length || db.getSetting('syncServer', null))) {
+      db.setSetting(ONBOARDING_DONE_KEY, true);
+      onboardingDone = true;
+    }
     return {
       error: null,
       data: {
         calendars,
         events,
-        templates: db.loadTemplates(),
+        templates,
+        onboardingDone,
         hiddenCalendarIds: db.getSetting<string[]>(HIDDEN_CALENDARS_KEY, []),
         themeMode: db.getSetting<ThemeMode>(THEME_MODE_KEY, 'system'),
         savedColors: db.getSetting<SavedColor[]>(SAVED_COLORS_KEY, []),
         colorRules: db.getSetting<ColorRule[]>(COLOR_RULES_KEY, []),
-        birthdays: db.getSetting<Birthday[]>(BIRTHDAYS_KEY, []),
+        birthdays,
         floatingByDefault: db.getSetting<boolean>(FLOATING_DEFAULT_KEY, false),
         defaultEventMinutes: db.getSetting<number>(DEFAULT_EVENT_MINUTES_KEY, 60),
         savedDefaultCalendarId: db.getSetting<string | null>(DEFAULT_CALENDAR_KEY, null),
@@ -289,6 +303,12 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
   const setThemeMode = useCallback((mode: ThemeMode) => {
     db.setSetting(THEME_MODE_KEY, mode);
     setThemeModeState(mode);
+  }, []);
+
+  const [onboardingDone, setOnboardingDone] = useState(initial.data?.onboardingDone ?? true);
+  const completeOnboarding = useCallback(() => {
+    db.setSetting(ONBOARDING_DONE_KEY, true);
+    setOnboardingDone(true);
   }, []);
 
   const saveColor = useCallback((name: string, hex: string) => {
@@ -626,6 +646,8 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
       getEffectiveColor: effectiveColor,
       themeMode,
       setThemeMode,
+      onboardingDone,
+      completeOnboarding,
       savedColors,
       saveColor,
       deleteSavedColor,
@@ -655,7 +677,7 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
     [
       ready, error, calendars, calendarsById, events, templates, allTags, visibleCalendarIds,
       toggleCalendarVisibility, saveCalendar, deleteCalendarWithPlan, saveEvent, saveEvents, deleteEvent, deleteEvents,
-      saveTemplate, deleteTemplate, moveTemplate, effectiveColor, themeMode, setThemeMode, savedColors, saveColor, deleteSavedColor,
+      saveTemplate, deleteTemplate, moveTemplate, effectiveColor, themeMode, setThemeMode, onboardingDone, completeOnboarding, savedColors, saveColor, deleteSavedColor,
       colorRules, saveColorRule, deleteColorRule, moveColorRule, floatingByDefault, setFloatingByDefault, defaultEventMinutes, setDefaultEventMinutes, defaultCalendarId, setDefaultCalendarId, birthdays, saveBirthday, deleteBirthday, notificationPrefs, updateNotificationPrefs,
       reminderStatus, refreshReminders, createBackupFile, importBackup, reloadSyncedData, importEvents, getOccurrences,
     ],
