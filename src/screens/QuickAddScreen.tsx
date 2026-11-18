@@ -72,7 +72,7 @@ export function QuickAddScreen({ navigation, route }: ScreenProps<'QuickAdd'>) {
           </View>
         </View>
       ) : (
-        <Section title="We understood" footer="You can fix anything on the next screen before saving.">
+        <Section title="Preview" footer="You can fix anything on the next screen before saving.">
           <PreviewRow icon="title" label="Title" value={parsed.title || 'Untitled'} muted={!parsed.title} />
           <PreviewRow
             icon="calendar"

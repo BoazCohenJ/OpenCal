@@ -109,7 +109,6 @@ export function NotificationsScreen({ navigation }: ScreenProps<'Notifications'>
         <Divider />
         <SwitchRow
           label="Play sound"
-          subtitle="Off delivers every reminder silently"
           value={prefs.sound}
           onValueChange={(sound) => updateNotificationPrefs({ sound })}
         />

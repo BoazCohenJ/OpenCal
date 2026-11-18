@@ -23,7 +23,7 @@ export function TemplatesScreen({ navigation }: ScreenProps<'Templates'>) {
         <EmptyState
           icon="stamp"
           title="Save events you repeat often"
-          subtitle="A stamp stores title, duration, color, reminders, calendar and location. Drop it on any date and just confirm the time."
+          subtitle="A stamp stores title, duration, color, reminders, calendar and location. Drop it on any date and confirm the time."
         >
           <Button title="Create your first stamp" onPress={() => navigation.navigate('TemplateEdit')} />
         </EmptyState>

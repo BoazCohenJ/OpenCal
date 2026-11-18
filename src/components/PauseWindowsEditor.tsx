@@ -78,7 +78,7 @@ export function PauseWindowsEditor({ value, onChange }: { value: PauseWindow[]; 
           {!rangeStart
             ? 'Tap the first day of the pause.'
             : !rangeEnd
-              ? `From ${format(rangeStart, 'MMM d')} — now tap the last day (or Add for a single day).`
+              ? `From ${format(rangeStart, 'MMM d')}. Now tap the last day, or Add for a single day.`
               : `${format(rangeStart, 'MMM d, yyyy')} → ${format(rangeEnd, 'MMM d, yyyy')}`}
         </Text>
         <MiniMonth month={month} onChangeMonth={setMonth} rangeStart={rangeStart} rangeEnd={rangeEnd} onSelectDay={pick} />

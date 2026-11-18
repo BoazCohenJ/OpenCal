@@ -86,11 +86,11 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
     // Any touch closes the info card without claiming the gesture, so a scroll can still start.
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} onTouchStart={closeInfoOnTouch}>
       <Section title="Organize">
-        <Row label="Calendars" subtitle="Colors, pauses, create & delete" value={String(calendars.length)} onPress={() => navigation.navigate('Calendars')} />
+        <Row label="Calendars" value={String(calendars.length)} onPress={() => navigation.navigate('Calendars')} />
         <Divider />
         <Row label="Stamps" subtitle="Reusable event templates" value={String(templates.length)} onPress={() => navigation.navigate('Templates')} />
         <Divider />
-        <Row label="Birthdays" subtitle="Yearly birthdays with ages" value={String(birthdays.length)} onPress={() => navigation.navigate('Birthdays')} />
+        <Row label="Birthdays" value={String(birthdays.length)} onPress={() => navigation.navigate('Birthdays')} />
         <Divider />
         <Row label="Color rules" subtitle="Color events by a word in their title" value={String(colorRules.length)} onPress={() => navigation.navigate('ColorRules')} />
         <Divider />
@@ -166,7 +166,6 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
       <Section title="Reminders">
         <Row
           label="Notifications"
-          subtitle="Sound, quiet hours, defaults, per-calendar"
           value={notificationSummary}
           onPress={() => navigation.navigate('Notifications')}
         />
@@ -181,7 +180,7 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
       >
         <Row label="OpenCal" value={APP_VERSION} subtitle={updateInfo()} left={<Logo size={34} variant="tile" />} />
         <Divider />
-        <Row label="Welcome tour" subtitle="The short introduction from the first launch" onPress={() => navigation.navigate('Onboarding')} />
+        <Row label="Welcome tour" onPress={() => navigation.navigate('Onboarding')} />
       </Section>
     </ScrollView>
   );

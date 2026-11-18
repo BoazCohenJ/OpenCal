@@ -120,7 +120,7 @@ export function SyncScreen(_props: ScreenProps<'Sync'>) {
           </View>
         </Section>
         <Section footer={WHAT_SYNCS}>
-          <Row label="How to set up a server" subtitle="Docker, one command, works great with Tailscale" onPress={() => void Linking.openURL(SERVER_DOCS)} />
+          <Row label="How to set up a server" subtitle="Docker, one command" onPress={() => void Linking.openURL(SERVER_DOCS)} />
         </Section>
       </ScrollView>
     );
