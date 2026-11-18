@@ -10,6 +10,7 @@ import android.media.RingtoneManager
 object Channels {
   const val SOUND = "reminders"
   const val SILENT = "reminders-silent"
+  const val ALARM = "alarms"
 
   fun ensure(context: Context) {
     val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -29,6 +30,20 @@ object Channels {
       setSound(null, null)
       enableVibration(false)
     }
-    nm.createNotificationChannels(listOf(loud, quiet))
+    val alarm = NotificationChannel(ALARM, "Alarms", NotificationManager.IMPORTANCE_HIGH).apply {
+      description = "Reminders set to ring like an alarm until you dismiss or snooze them"
+      enableVibration(true)
+      vibrationPattern = longArrayOf(0, 600, 400, 600)
+      setSound(
+        RingtoneManager.getActualDefaultRingtoneUri(context, RingtoneManager.TYPE_ALARM)
+          ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+          ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+        AudioAttributes.Builder()
+          .setUsage(AudioAttributes.USAGE_ALARM)
+          .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+          .build(),
+      )
+    }
+    nm.createNotificationChannels(listOf(loud, quiet, alarm))
   }
 }

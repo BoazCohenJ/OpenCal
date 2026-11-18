@@ -101,9 +101,16 @@ function readEvent(o: Obj): Event | null {
     pauseWindows: pauses(o.pauseWindows),
     skippedDates: strList(o.skippedDates).filter((d) => DAY_KEY.test(d)),
     reminders: numList(o.reminders),
+    ...readAlarms(numList(o.reminders), numList(o.alarms), o.alarmsInQuiet === true),
     emoji: str(o.emoji),
     tags: strList(o.tags),
   };
+}
+
+/** Only reminders the event actually has can be alarms. */
+function readAlarms(reminders: number[], alarms: number[], inQuiet: boolean): Pick<Event, 'alarms' | 'alarmsInQuiet'> {
+  const kept = alarms.filter((m) => reminders.includes(m));
+  return kept.length ? { alarms: kept, ...(inQuiet ? { alarmsInQuiet: true } : {}) } : {};
 }
 
 function readTemplate(o: Obj): EventTemplate | null {

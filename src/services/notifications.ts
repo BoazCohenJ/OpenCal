@@ -53,6 +53,8 @@ export interface PendingReminder {
   title: string;
   body: string;
   silent: boolean;
+  /** Rings like an alarm. Never set together with `silent`. */
+  alarm: boolean;
 }
 
 /** Pure planning step: every reminder inside the horizon, soonest first (uncapped). */
@@ -75,6 +77,7 @@ export function planReminders(
   for (const occ of expandEvents(candidates, calendarsById, now, searchEnd)) {
     // All-day reminders count back from a configurable time of day instead of midnight.
     const anchor = occ.event.isAllDay ? atMinutes(occ.start, prefs.allDayTime) : occ.start;
+    const alarms = new Set(occ.event.alarms ?? []);
     for (const minutes of new Set(occ.event.reminders)) {
       const date = new Date(anchor.getTime() - minutes * 60000);
       const key = `${occ.event.id}@${date.getTime()}`;
@@ -82,12 +85,15 @@ export function planReminders(
       seen.add(key);
       const state = focusStateAt(date, focus);
       if (state === 'dnd') continue;
+      // Alarms ring even with reminder sounds off; in quiet time they arrive silently unless the event opts in.
+      const alarm = alarms.has(minutes) && (state !== 'quiet' || occ.event.alarmsInQuiet === true);
       pending.push({
         key,
         date,
         title: eventLabel(occ.event),
         body: [formatRange(occ.start, occ.end, occ.event.isAllDay), occ.event.location].filter(Boolean).join(' · '),
-        silent: !prefs.sound || state === 'quiet',
+        silent: !alarm && (!prefs.sound || state === 'quiet'),
+        alarm,
       });
     }
   }
@@ -132,7 +138,7 @@ async function doReschedule(
     await configure();
     let status = await getNotificationStatus();
     if (pending.length === 0 || status !== 'granted') {
-      if (status === 'granted') await Reminders.cancelAllReminders();
+      if (status === 'granted') await Reminders.cancelAllReminders(prefs.enabled ? withAlarms(events) : []);
       // Background passes only ask once reminders exist; the Enable button (askAlways) asks right away.
       if (!askPermission || (pending.length === 0 && !askAlways) || status !== 'undetermined') return empty(status);
       status = (await requestNotificationPermission()) ? 'granted' : await getNotificationStatus();
@@ -140,17 +146,29 @@ async function doReschedule(
     }
 
     // Usually nothing changed since the last pass (e.g. just reopening the app): keep what's queued.
-    const signature = (key: unknown, silent: unknown, title: unknown, body: unknown) => `${key}|${silent === true}|${title}|${body}`;
+    // Ring and snooze lengths only matter for alarms, so a changed setting re-queues just when alarms are queued.
+    const signature = (n: { key: unknown; silent: unknown; title: unknown; body: unknown; alarm?: unknown; ringMinutes?: unknown; snoozeMinutes?: unknown }) =>
+      `${n.key}|${n.silent === true}|${n.alarm === true}|${n.title}|${n.body}` +
+      (n.alarm === true ? `|${n.ringMinutes}|${n.snoozeMinutes}` : '');
     const queued = await Reminders.getScheduled();
-    const wanted = new Set(pending.map((p) => signature(p.key, p.silent, p.title, p.body)));
-    const have = new Set(queued.map((n) => signature(n.key, n.silent, n.title, n.body)));
+    const wanted = new Set(pending.map((p) => signature({ ...p, ringMinutes: prefs.alarmRingMinutes, snoozeMinutes: prefs.alarmSnoozeMinutes })));
+    const have = new Set(queued.map(signature));
     if (queued.length === wanted.size && have.size === wanted.size && [...have].every((s) => wanted.has(s))) {
       return { scheduled: queued.length, truncated: planned.length > MAX_SCHEDULED, next: pending[0]?.date ?? null, status };
     }
 
-    await Reminders.cancelAllReminders();
+    await Reminders.cancelAllReminders(withAlarms(events));
     await Reminders.scheduleReminders(
-      pending.map((p) => ({ key: p.key, atMs: p.date.getTime(), title: p.title, body: p.body, silent: p.silent })),
+      pending.map((p) => ({
+        key: p.key,
+        atMs: p.date.getTime(),
+        title: p.title,
+        body: p.body,
+        silent: p.silent,
+        alarm: p.alarm,
+        ringMinutes: prefs.alarmRingMinutes,
+        snoozeMinutes: prefs.alarmSnoozeMinutes,
+      })),
     );
     const scheduled = pending.length;
     return { scheduled, truncated: planned.length > MAX_SCHEDULED, next: pending[0]?.date ?? null, status };
@@ -158,6 +176,27 @@ async function doReschedule(
     console.warn('Failed to schedule reminders', error);
     return empty(await getNotificationStatus());
   }
+}
+
+/** Ids of events that still have alarms: a snoozed alarm whose event is gone or lost its alarm is dropped. */
+const withAlarms = (events: Event[]): string[] => events.filter((e) => e.alarms?.length).map((e) => e.id);
+
+/** Fires a sample alarm a few seconds from now, ringing as a real one would (quiet times aside). */
+export async function sendTestAlarm(prefs: NotificationPrefs): Promise<boolean> {
+  if (!(await requestNotificationPermission())) return false;
+  await Reminders.scheduleReminders([
+    {
+      key: 'test-alarm',
+      atMs: Date.now() + 3000,
+      title: 'OpenCal alarm',
+      body: `Rings for up to ${prefs.alarmRingMinutes} min. Snooze puts it off for ${prefs.alarmSnoozeMinutes} min.`,
+      silent: false,
+      alarm: true,
+      ringMinutes: prefs.alarmRingMinutes,
+      snoozeMinutes: prefs.alarmSnoozeMinutes,
+    },
+  ]);
+  return true;
 }
 
 /** Fires a sample reminder a few seconds from now so users can check sound and banners. */

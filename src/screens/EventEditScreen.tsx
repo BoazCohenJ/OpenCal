@@ -17,7 +17,7 @@ import { Button, Divider, Field, HeaderButton, Section, SwitchRow, TextField } f
 import { useCalendarContext } from '../context/CalendarContext';
 import type { Event } from '../models/Event';
 import type { ScreenProps } from '../navigation/types';
-import { buildNewEvent, defaultRemindersFor, INHERITED, inheritedValues, type InheritedField } from '../services/newEvent';
+import { buildNewEvent, defaultRemindersFor, eventAlarms, INHERITED, inheritedValues, type InheritedField } from '../services/newEvent';
 import { templateFromEvent } from '../services/templates';
 import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { confirmAsync, notify } from '../utils/confirm';
@@ -125,6 +125,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
       description: form.description?.trim() || undefined,
       pauseWindows: form.recurrenceRule ? form.pauseWindows : [],
       skippedDates: form.recurrenceRule ? form.skippedDates : [],
+      ...eventAlarms(form.reminders, form.alarms, form.alarmsInQuiet),
     };
   };
 
@@ -302,9 +303,26 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
         <ReminderEditor
           value={form.reminders}
           onChange={(reminders) => edit({ reminders })}
+          alarms={form.alarms ?? []}
+          onAlarmsChange={(alarms) => update({ alarms })}
           allDay={form.isAllDay}
           allDayTime={notificationPrefs.allDayTime}
         />
+        {form.alarms?.some((m) => form.reminders.includes(m)) ? (
+          <>
+            <Divider />
+            <SwitchRow
+              label="Ring during quiet times"
+              subtitle={
+                form.alarmsInQuiet
+                  ? 'Alarms ring even in quiet time. Do Not Disturb still skips them.'
+                  : 'In quiet time, alarms arrive as silent notifications'
+              }
+              value={form.alarmsInQuiet === true}
+              onValueChange={(alarmsInQuiet) => update({ alarmsInQuiet })}
+            />
+          </>
+        ) : null}
       </Section>
 
       <Section title="Details">

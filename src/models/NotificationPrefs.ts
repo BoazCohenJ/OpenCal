@@ -38,6 +38,10 @@ export interface NotificationPrefs {
   horizonDays: number;
   /** Calendars whose events never send reminders. */
   mutedCalendarIds: string[];
+  /** How long an alarm rings before it stops on its own (it stays in the notification shade). */
+  alarmRingMinutes: number;
+  /** How long Snooze puts an alarm off. */
+  alarmSnoozeMinutes: number;
 }
 
 export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
@@ -49,6 +53,8 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   focusWindows: [],
   horizonDays: 30,
   mutedCalendarIds: [],
+  alarmRingMinutes: 10,
+  alarmSnoozeMinutes: 10,
 };
 
 const atMinutes = (day: Date, minutes: number) => new Date(startOfDay(day).getTime() + minutes * 60000);
@@ -95,5 +101,11 @@ export function normalizeNotificationPrefs(
       : DEFAULT_NOTIFICATION_PREFS.defaultAllDayReminders,
     mutedCalendarIds: Array.isArray(p.mutedCalendarIds) ? p.mutedCalendarIds : [],
     horizonDays: Number.isFinite(p.horizonDays) && p.horizonDays > 0 ? p.horizonDays : DEFAULT_NOTIFICATION_PREFS.horizonDays,
+    alarmRingMinutes: positive(p.alarmRingMinutes, DEFAULT_NOTIFICATION_PREFS.alarmRingMinutes),
+    alarmSnoozeMinutes: positive(p.alarmSnoozeMinutes, DEFAULT_NOTIFICATION_PREFS.alarmSnoozeMinutes),
   };
+}
+
+function positive(v: unknown, fallback: number): number {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 1 ? Math.round(v) : fallback;
 }

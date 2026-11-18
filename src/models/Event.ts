@@ -41,6 +41,13 @@ export interface Event {
   skippedDates?: string[];
   /** Minutes before start. */
   reminders: number[];
+  /**
+   * The entries of `reminders` that ring like an alarm instead of a plain notification. Kept as a
+   * subset so builds and exports that don't know alarms still deliver them as reminders.
+   */
+  alarms?: number[];
+  /** Alarms ring during quiet times too, instead of arriving as silent notifications. */
+  alarmsInQuiet?: boolean;
   emoji?: string;
   tags: string[];
 }

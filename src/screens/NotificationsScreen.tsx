@@ -11,7 +11,7 @@ import { useCalendarContext } from '../context/CalendarContext';
 import type { FocusKind, FocusWindow } from '../models/NotificationPrefs';
 import type { ScreenProps } from '../navigation/types';
 import { activeFocusPeriod } from '../services/focus';
-import { notificationsSupported, planReminders, sendTestNotification } from '../services/notifications';
+import { notificationsSupported, planReminders, sendTestAlarm, sendTestNotification } from '../services/notifications';
 import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { notify } from '../utils/confirm';
 import { formatTime } from '../utils/dates';
@@ -19,6 +19,11 @@ import { animateNextLayout } from '../utils/motion';
 import { describeRRule } from '../utils/recurrence';
 
 const HORIZONS = ['7', '14', '30', '60'] as const;
+const RING_LENGTHS = ['1', '5', '10', '15', '30'] as const;
+const SNOOZE_LENGTHS = ['5', '10', '15', '30'] as const;
+/** The listed choice matching `value`, or the closest one when a stored value isn't in the list. */
+const nearest = <T extends string>(options: readonly T[], value: number): T =>
+  options.reduce((best, o) => (Math.abs(Number(o) - value) < Math.abs(Number(best) - value) ? o : best), options[0]!);
 
 const timeOfDay = (minutes: number): Date => {
   const d = new Date();
@@ -73,6 +78,10 @@ export function NotificationsScreen({ navigation }: ScreenProps<'Notifications'>
 
   const test = async () => {
     const ok = await sendTestNotification(prefs);
+    if (!ok) notify('Notifications are blocked', 'Allow notifications for OpenCal in your device settings, then try again.');
+  };
+  const testAlarm = async () => {
+    const ok = await sendTestAlarm(prefs);
     if (!ok) notify('Notifications are blocked', 'Allow notifications for OpenCal in your device settings, then try again.');
   };
 
@@ -160,6 +169,33 @@ export function NotificationsScreen({ navigation }: ScreenProps<'Notifications'>
           value={formatMinutes(prefs.allDayTime)}
           onPress={() => setEditingAllDayTime(true)}
         />
+      </Section>
+
+      <Section
+        title="Alarms"
+        footer="Tap Alarm on any reminder of an event to make it ring until you dismiss or snooze it. Alarms use your alarm volume. In quiet time they arrive silently unless the event says to ring."
+      >
+        <Text style={styles.subhead}>Ring for</Text>
+        <View style={styles.segmentWrap}>
+          <Segmented
+            options={RING_LENGTHS.map((m) => ({ value: m, label: `${m} min` }))}
+            value={nearest(RING_LENGTHS, prefs.alarmRingMinutes)}
+            onChange={(m) => updateNotificationPrefs({ alarmRingMinutes: Number(m) })}
+          />
+        </View>
+        <Text style={styles.subhead}>Snooze for</Text>
+        <View style={styles.segmentWrap}>
+          <Segmented
+            options={SNOOZE_LENGTHS.map((m) => ({ value: m, label: `${m} min` }))}
+            value={nearest(SNOOZE_LENGTHS, prefs.alarmSnoozeMinutes)}
+            onChange={(m) => updateNotificationPrefs({ alarmSnoozeMinutes: Number(m) })}
+          />
+        </View>
+        {notificationsSupported ? (
+          <View style={styles.segmentWrap}>
+            <Button small variant="secondary" title="Test an alarm" onPress={() => void testAlarm()} />
+          </View>
+        ) : null}
       </Section>
 
       <Section

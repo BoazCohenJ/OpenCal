@@ -21,6 +21,9 @@ class ReminderRecord : Record {
   @Field var title: String = ""
   @Field var body: String = ""
   @Field var silent: Boolean = false
+  @Field var alarm: Boolean = false
+  @Field var ringMinutes: Int = 10
+  @Field var snoozeMinutes: Int = 10
 }
 
 class OpenCalNotificationsModule : Module() {
@@ -46,14 +49,23 @@ class OpenCalNotificationsModule : Module() {
     }
 
     AsyncFunction("getScheduled") {
-      ReminderStore.all(context).map { mapOf("key" to it.key, "silent" to it.silent, "title" to it.title, "body" to it.body) }
+      // Snoozed alarms aren't the app's to plan, so leave them out of the comparison it makes.
+      ReminderStore.all(context).filter { !it.snoozed }.map {
+        mapOf(
+          "key" to it.key, "silent" to it.silent, "title" to it.title, "body" to it.body,
+          "alarm" to it.alarm, "ringMinutes" to it.ringMinutes, "snoozeMinutes" to it.snoozeMinutes,
+        )
+      }
     }
 
     AsyncFunction("schedule") { items: List<ReminderRecord> ->
-      Scheduler.add(context, items.map { Reminder(0, it.key, it.atMs.toLong(), it.title, it.body, it.silent) })
+      Scheduler.add(
+        context,
+        items.map { Reminder(0, it.key, it.atMs.toLong(), it.title, it.body, it.silent, it.alarm, it.ringMinutes, it.snoozeMinutes) },
+      )
     }
 
-    AsyncFunction("cancelAll") { Scheduler.cancelAll(context) }
+    AsyncFunction("cancelAll") { keepSnoozedFor: List<String>? -> Scheduler.cancelAll(context, keepSnoozedFor?.toSet()) }
 
     AsyncFunction("scheduleWidgetRefresh") { WidgetRefresher.scheduleNext(context) }
   }

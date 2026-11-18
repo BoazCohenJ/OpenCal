@@ -33,9 +33,14 @@ export function ReminderEditor({
   allDay = false,
   allDayTime = 9 * 60,
   emptyLabel = 'No reminders',
+  alarms,
+  onAlarmsChange,
 }: {
   value: number[];
   onChange: (v: number[]) => void;
+  /** Which reminders ring like an alarm. Pass with `onAlarmsChange` to show the alarm toggle on each row. */
+  alarms?: number[];
+  onAlarmsChange?: (alarms: number[]) => void;
   allDay?: boolean;
   allDayTime?: number;
   emptyLabel?: string;
@@ -51,8 +56,12 @@ export function ReminderEditor({
     animateNextLayout();
     onChange(Array.from(new Set([...value, m])).sort((a, b) => a - b));
   };
+  const isAlarm = (m: number) => alarms?.includes(m) === true;
+  const toggleAlarm = (m: number) =>
+    onAlarmsChange?.(isAlarm(m) ? (alarms ?? []).filter((x) => x !== m) : [...(alarms ?? []), m].sort((a, b) => a - b));
   const remove = (m: number) => {
     animateNextLayout();
+    if (isAlarm(m)) onAlarmsChange?.((alarms ?? []).filter((x) => x !== m));
     onChange(value.filter((x) => x !== m));
   };
 
@@ -60,6 +69,10 @@ export function ReminderEditor({
   const saveDraft = () => {
     if (!editing) return;
     const without = editing.original === null ? value : value.filter((x) => x !== editing.original);
+    // An edited alarm stays an alarm at its new time.
+    if (editing.original !== null && isAlarm(editing.original)) {
+      onAlarmsChange?.([...new Set([...(alarms ?? []).filter((x) => x !== editing.original), draftMinutes])].sort((a, b) => a - b));
+    }
     animateNextLayout();
     onChange(Array.from(new Set([...without, draftMinutes])).sort((a, b) => a - b));
     setEditing(null);
@@ -80,11 +93,24 @@ export function ReminderEditor({
               onPress={() => setEditing({ original: m, ...splitMinutes(m) })}
               accessibilityLabel={`Edit reminder ${label(m)}`}
             >
-              <View style={styles.bell}>
-                <Icon name="bell" size={15} color={colors.primary} />
+              <View style={[styles.bell, isAlarm(m) && styles.bellAlarm]}>
+                <Icon name={isAlarm(m) ? 'alarm-clock' : 'bell'} size={15} color={isAlarm(m) ? colors.onPrimary : colors.primary} />
               </View>
               <Text style={styles.itemText}>{label(m)}</Text>
             </Pressable>
+            {onAlarmsChange ? (
+              <Pressable
+                onPress={() => toggleAlarm(m)}
+                hitSlop={6}
+                style={({ pressed }) => [styles.alarmToggle, isAlarm(m) && styles.alarmToggleOn, pressed && styles.pressed]}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: isAlarm(m) }}
+                accessibilityLabel={`Ring like an alarm, ${label(m)}`}
+              >
+                <Icon name="alarm-clock" size={13} color={isAlarm(m) ? colors.onPrimary : colors.textMuted} />
+                <Text style={[styles.alarmToggleText, isAlarm(m) && styles.alarmToggleTextOn]}>Alarm</Text>
+              </Pressable>
+            ) : null}
             <Pressable onPress={() => remove(m)} hitSlop={10} style={styles.remove} accessibilityLabel={`Remove reminder ${label(m)}`}>
               <Icon name="x" size={16} color={colors.textMuted} />
             </Pressable>
@@ -166,7 +192,21 @@ const useStyles = createStyles((colors) => ({
   },
   itemMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10 },
   bell: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  bellAlarm: { backgroundColor: colors.primary },
   itemText: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.text },
+  alarmToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  alarmToggleOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  alarmToggleText: { fontSize: 12, fontWeight: '700', color: colors.textMuted },
+  alarmToggleTextOn: { color: colors.onPrimary },
   remove: { padding: 12 },
   presets: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingTop: 2 },
   preset: {

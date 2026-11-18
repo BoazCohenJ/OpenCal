@@ -7,7 +7,7 @@ import type { ChangeSet, Deletion, SettingChange, Stamped, SyncKind } from '../m
 import type { EventTemplate } from '../models/Template';
 
 const db = SQLite.openDatabaseSync('calendar.db');
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 type Row = Record<string, any>;
 
@@ -122,6 +122,12 @@ export function initDatabase(): void {
         CREATE INDEX IF NOT EXISTS idx_events_updated ON events(updatedAt);
         CREATE INDEX IF NOT EXISTS idx_templates_updated ON templates(updatedAt);
         CREATE INDEX IF NOT EXISTS idx_tombstones_deleted ON tombstones(deletedAt);
+      `);
+    }
+    if (version < 8) {
+      db.execSync(`
+        ALTER TABLE events ADD COLUMN alarms TEXT;
+        ALTER TABLE events ADD COLUMN alarmsInQuiet INTEGER NOT NULL DEFAULT 0;
       `);
     }
     db.execSync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
@@ -269,9 +275,14 @@ const rowToEvent = (r: Row, pauses: Map<string, PauseWindow[]>): Event => ({
   pauseWindows: pauses.get(r.id) ?? [],
   skippedDates: parseJson<string[]>(r.skippedDates, []),
   reminders: parseJson<number[]>(r.reminders, []),
+  ...alarmFields(parseJson<number[]>(r.alarms, []), r.alarmsInQuiet === 1 || r.alarmsInQuiet === true),
   emoji: orUndef(r.emoji),
   tags: parseJson<string[]>(r.tags, []),
 });
+
+/** Alarm fields are left off events without alarms, so those compare equal to events from older copies. */
+const alarmFields = (alarms: number[], inQuiet: boolean): Pick<Event, 'alarms' | 'alarmsInQuiet'> =>
+  alarms.length ? { alarms, ...(inQuiet ? { alarmsInQuiet: true } : {}) } : {};
 
 /**
  * Changes whenever an event or calendar is added, changed or deleted: every write stamps updatedAt,
@@ -310,15 +321,16 @@ export function loadEvents(ids?: string[]): Event[] {
 
 function writeEvent(e: Event, at = stampNow()): void {
   db.runSync(
-    `INSERT INTO events (id, title, description, startDate, endDate, isAllDay, floating, timeZone, location, calendarId, color, recurrenceRule, skippedDates, reminders, emoji, tags, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO events (id, title, description, startDate, endDate, isAllDay, floating, timeZone, location, calendarId, color, recurrenceRule, skippedDates, reminders, alarms, alarmsInQuiet, emoji, tags, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        title = excluded.title, description = excluded.description, startDate = excluded.startDate,
        endDate = excluded.endDate, isAllDay = excluded.isAllDay, floating = excluded.floating, timeZone = excluded.timeZone,
        location = excluded.location,
        calendarId = excluded.calendarId, color = excluded.color, recurrenceRule = excluded.recurrenceRule,
        skippedDates = excluded.skippedDates,
-       reminders = excluded.reminders, emoji = excluded.emoji, tags = excluded.tags, updatedAt = excluded.updatedAt`,
+       reminders = excluded.reminders, alarms = excluded.alarms, alarmsInQuiet = excluded.alarmsInQuiet,
+       emoji = excluded.emoji, tags = excluded.tags, updatedAt = excluded.updatedAt`,
     [
       e.id,
       e.title,
@@ -334,6 +346,8 @@ function writeEvent(e: Event, at = stampNow()): void {
       orNull(e.recurrenceRule),
       JSON.stringify(e.skippedDates ?? []),
       JSON.stringify(e.reminders),
+      e.alarms?.length ? JSON.stringify(e.alarms) : null,
+      e.alarms?.length && e.alarmsInQuiet ? 1 : 0,
       orNull(e.emoji),
       JSON.stringify(e.tags),
       at,

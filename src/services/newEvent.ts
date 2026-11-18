@@ -59,3 +59,13 @@ export function buildNewEvent(
   }
   return merged;
 }
+
+/** The alarm fields to save: only alarms that are still reminders, and nothing at all without any. */
+export function eventAlarms(
+  reminders: number[],
+  alarms: number[] | undefined,
+  inQuiet: boolean | undefined,
+): Pick<Event, 'alarms' | 'alarmsInQuiet'> {
+  const kept = (alarms ?? []).filter((m) => reminders.includes(m)).sort((a, b) => a - b);
+  return kept.length ? { alarms: kept, alarmsInQuiet: inQuiet === true ? true : undefined } : { alarms: undefined, alarmsInQuiet: undefined };
+}

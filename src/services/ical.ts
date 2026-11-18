@@ -143,10 +143,14 @@ function eventLines(event: Event, calendar: Calendar | undefined, allDayTime: nu
   if (event.tags.length) lines.push(`CATEGORIES:${event.tags.map(escapeText).join(',')}`);
   if (event.color) lines.push(`X-OPENCAL-COLOR:${event.color}`);
   if (event.emoji) lines.push(`X-OPENCAL-ICON:${escapeText(event.emoji)}`);
+  const alarms = new Set(event.alarms ?? []);
+  if (alarms.size && event.alarmsInQuiet) lines.push('X-OPENCAL-ALARM-IN-QUIET:TRUE');
   for (const minutes of event.reminders) {
     // All-day reminders count back from the all-day reminder time, not midnight.
-    const trigger = event.isAllDay ? allDayTime - minutes : -minutes;
-    lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${escapeText(event.title)}`, `TRIGGER:${icsDuration(trigger)}`, 'END:VALARM');
+    const trigger = `TRIGGER:${icsDuration(event.isAllDay ? allDayTime - minutes : -minutes)}`;
+    // Alarms are AUDIO alarms; the X- marker lets OpenCal tell its own alarms from other apps' sound alerts.
+    if (alarms.has(minutes)) lines.push('BEGIN:VALARM', 'ACTION:AUDIO', trigger, 'X-OPENCAL-ALARM:TRUE', 'END:VALARM');
+    else lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${escapeText(event.title)}`, trigger, 'END:VALARM');
   }
   lines.push('END:VEVENT');
   return lines;
@@ -371,12 +375,18 @@ export function parseICS(text: string, allDayTime: number): ICSImport | null {
       }
 
       const reminders = new Set<number>();
+      const alarms = new Set<number>();
       for (const alarm of vevent.children.filter((c) => c.type === 'VALARM')) {
         const trigger = alarm.props.find((p) => p.name === 'TRIGGER');
         if (!trigger || trigger.params.VALUE === 'DATE-TIME' || trigger.params.RELATED === 'END') continue;
         const offset = parseDuration(trigger.value);
         if (offset === null) continue;
-        reminders.add(Math.max(0, start.allDay ? allDayTime - offset : -offset));
+        const minutes = Math.max(0, start.allDay ? allDayTime - offset : -offset);
+        reminders.add(minutes);
+        // Only OpenCal's own alarms come back as alarms: many apps write AUDIO for any alert with a sound.
+        const action = alarm.props.find((p) => p.name === 'ACTION')?.value.trim().toUpperCase();
+        const ours = alarm.props.find((p) => p.name === 'X-OPENCAL-ALARM')?.value.trim().toUpperCase() === 'TRUE';
+        if (action === 'AUDIO' && ours) alarms.add(minutes);
       }
 
       // Which clock this event's dates are on (for EXDATE and RECURRENCE-ID days).
@@ -413,6 +423,12 @@ export function parseICS(text: string, allDayTime: number): ICSImport | null {
         pauseWindows: [],
         skippedDates: rule ? [...skippedDays].sort() : [],
         reminders: [...reminders].sort((a, b) => a - b),
+        ...(alarms.size
+          ? {
+              alarms: [...alarms].sort((a, b) => a - b),
+              ...(one('X-OPENCAL-ALARM-IN-QUIET')?.value.trim().toUpperCase() === 'TRUE' ? { alarmsInQuiet: true } : {}),
+            }
+          : {}),
         emoji: one('X-OPENCAL-ICON') ? unescapeText(one('X-OPENCAL-ICON')!.value).trim() || undefined : undefined,
         tags: [...new Set(all('CATEGORIES').flatMap((p) => splitList(p.value).map(unescapeText)))],
       };

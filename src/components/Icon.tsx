@@ -1,5 +1,6 @@
 // Each icon is imported from its own module: importing from the package root would bundle all
 // ~3,700 lucide icons (about 1.6 MB of JS), since Metro doesn't tree-shake.
+import AlarmClock from 'lucide-react-native/icons/alarm-clock';
 import ArrowDown from 'lucide-react-native/icons/arrow-down';
 import ArrowUp from 'lucide-react-native/icons/arrow-up';
 import Baby from 'lucide-react-native/icons/baby';
@@ -104,6 +105,7 @@ function CalendarWeek({ size = 24, color = 'currentColor', strokeWidth = 2 }: Ic
 
 /** Interface icons. */
 const UI_ICONS = {
+  'alarm-clock': AlarmClock,
   'arrow-down': ArrowDown,
   'arrow-up': ArrowUp,
   bell: Bell,

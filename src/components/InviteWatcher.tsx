@@ -49,10 +49,20 @@ export function InviteWatcher({ navigation }: { navigation: NavigationContainerR
         navigation.navigate('ImportExport', { incoming: { name, text } });
         return true;
       }
-      const { id, calendarId: _none, reminders, tags, pauseWindows: _p, skippedDates: _s, ...fields } = data.events[0]!;
+      // Alarms are personal: an invite never brings the sender's, and an update keeps the ones set here.
+      const { id, calendarId: _none, reminders, tags, pauseWindows: _p, skippedDates: _s, alarms: _a, alarmsInQuiet: _q, ...fields } = data.events[0]!;
       const earlier = latest.current.events.find((e) => e.id === id);
       const draft: EventDraft = earlier
-        ? { ...fields, calendarId: earlier.calendarId, reminders: earlier.reminders, tags: earlier.tags, color: earlier.color, emoji: earlier.emoji }
+        ? {
+            ...fields,
+            calendarId: earlier.calendarId,
+            reminders: earlier.reminders,
+            alarms: earlier.alarms,
+            alarmsInQuiet: earlier.alarmsInQuiet,
+            tags: earlier.tags,
+            color: earlier.color,
+            emoji: earlier.emoji,
+          }
         : // Leave reminders and tags to the calendar's defaults unless the invite sets them.
           { ...fields, reminders: reminders.length ? reminders : undefined, tags: tags.length ? tags : undefined };
       navigation.navigate('EventEdit', { draft, importId: id });

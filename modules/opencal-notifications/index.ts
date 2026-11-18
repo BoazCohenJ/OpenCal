@@ -14,6 +14,10 @@ export interface ReminderInput {
   body: string;
   /** Quiet reminders post to a channel without sound or vibration. */
   silent: boolean;
+  /** Rings on the alarm channel, looping until dismissed, snoozed or `ringMinutes` pass. */
+  alarm?: boolean;
+  ringMinutes?: number;
+  snoozeMinutes?: number;
 }
 
 export interface ScheduledReminder {
@@ -21,6 +25,9 @@ export interface ScheduledReminder {
   title: string;
   body: string;
   silent: boolean;
+  alarm?: boolean;
+  ringMinutes?: number;
+  snoozeMinutes?: number;
 }
 
 interface Native {
@@ -29,7 +36,7 @@ interface Native {
   requestPermissions(): Promise<Permissions>;
   getScheduled(): Promise<ScheduledReminder[]>;
   schedule(items: ReminderInput[]): Promise<void>;
-  cancelAll(): Promise<void>;
+  cancelAll(keepSnoozedFor: string[] | null): Promise<void>;
   scheduleWidgetRefresh(): Promise<void>;
 }
 
@@ -48,7 +55,11 @@ export const getPermissions = () => need().getPermissions();
 export const requestPermissions = () => need().requestPermissions();
 export const getScheduled = () => need().getScheduled();
 export const scheduleReminders = (items: ReminderInput[]) => need().schedule(items);
-export const cancelAllReminders = () => need().cancelAll();
+/**
+ * Cancels every scheduled reminder. Snoozed alarms survive when their event id is in `keepSnoozedFor`
+ * (they aren't rebuilt from events); without the list they all survive.
+ */
+export const cancelAllReminders = (keepSnoozedFor?: string[]) => need().cancelAll(keepSnoozedFor ?? null);
 
 /**
  * Arms the alarm that redraws the home-screen widgets at the start of each day, so they never keep showing
