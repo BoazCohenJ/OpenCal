@@ -22,17 +22,17 @@ const ADDING: Feature[] = [
   {
     icon: 'plus',
     title: 'Tap an empty time',
-    text: 'An event appears where you tapped. Drag it to move it, drag its round handles to change the length.',
+    text: 'An event appears there. Drag it to move it, or its handles to change the length.',
   },
   {
     icon: 'sparkles',
     title: 'Quick Add',
-    text: 'Type “Lunch with Dana Fri 1pm at Cafe X” and check what OpenCal understood before saving.',
+    text: 'Type “Lunch with Dana Fri 1pm at Cafe X” and OpenCal fills in the rest.',
   },
   {
     icon: 'stamp',
     title: 'Stamps',
-    text: 'Save the events you add by hand all the time (coffee, gym, calls) and drop one on any free slot.',
+    text: 'Save events you add often, like coffee or gym, and drop one on any free slot.',
   },
 ];
 
@@ -40,12 +40,12 @@ const DIFFERENT: Feature[] = [
   {
     icon: 'pause',
     title: 'Pause a repeat',
-    text: 'Skip a holiday or a school break for one repeating event or a whole calendar. It picks up again on its own.',
+    text: 'Skip a holiday or school break. The repeat picks up again on its own.',
   },
   {
     icon: 'moon',
     title: 'Quiet time',
-    text: 'Schedule silent or Do Not Disturb windows like events, such as every Monday 17:00–18:00.',
+    text: 'Schedule silent or Do Not Disturb windows like events.',
   },
   {
     icon: 'alarm-clock',
@@ -129,14 +129,12 @@ export function OnboardingScreen({ navigation }: ScreenProps<'Onboarding'>) {
       <Logo size={132} variant="tile" />
       <Text style={styles.hero}>Welcome to OpenCal</Text>
       <Text style={styles.lead}>
-        A calendar that lives on your phone. No account to make, no ads, no Google services, and nothing leaves this device
-        unless you connect a server of your own.
+        A calendar that lives on your phone. No account, no ads, no Google services.
       </Text>
     </View>,
-    <FeaturePage key="adding" kicker="The basics" title="Add events your way" features={ADDING} />,
-    <FeaturePage key="different" kicker="Only in OpenCal" title="Things most calendars don’t do" features={DIFFERENT} />,
+    <FeaturePage key="adding" title="Add events your way" features={ADDING} />,
+    <FeaturePage key="different" title="Things most calendars don’t do" features={DIFFERENT} />,
     <View key="yours" style={styles.page}>
-      <Text style={styles.kicker}>Make it yours</Text>
       <Text style={styles.title}>Pick a look</Text>
       <Segmented<ThemeMode>
         options={[
@@ -157,20 +155,18 @@ export function OnboardingScreen({ navigation }: ScreenProps<'Onboarding'>) {
           </View>
           <Text style={styles.featureText}>
             {status === 'granted'
-              ? 'Notifications are on. Reminders are scheduled on this phone, with no Google services involved.'
+              ? 'Notifications are on.'
               : status === 'denied'
-                ? 'Notifications are blocked. You can allow them for OpenCal in your phone’s settings any time.'
-                : 'OpenCal needs permission to show notifications so your reminders and alarms can reach you.'}
+                ? 'Notifications are blocked. Allow them for OpenCal in your phone’s settings.'
+                : 'Allow notifications so reminders and alarms can reach you.'}
           </Text>
           {status !== 'granted' && status !== 'denied' ? (
             <Button title={asking ? 'Asking…' : 'Allow notifications'} variant="secondary" disabled={asking} onPress={askForReminders} />
           ) : null}
         </View>
       ) : null}
-      <Text style={styles.note}>Both can be changed later in Settings.</Text>
     </View>,
     <View key="start" style={styles.page}>
-      <Text style={styles.kicker}>Last step</Text>
       <Text style={styles.title}>Bring your calendar along</Text>
       <ChoiceCard
         icon="calendar"
@@ -181,10 +177,9 @@ export function OnboardingScreen({ navigation }: ScreenProps<'Onboarding'>) {
       <ChoiceCard
         icon="repeat"
         title="Sync with your own server"
-        text="Keep several devices in step, and let an AI assistant add events for you. Optional."
+        text="Keep several devices in step, and let an AI assistant add events for you."
         onPress={() => finish('Sync')}
       />
-      <Text style={styles.note}>You can do either of these later from Settings → Data.</Text>
     </View>,
   ];
 
@@ -238,12 +233,11 @@ export function OnboardingScreen({ navigation }: ScreenProps<'Onboarding'>) {
   );
 }
 
-function FeaturePage({ kicker, title, features }: { kicker: string; title: string; features: Feature[] }) {
+function FeaturePage({ title, features }: { title: string; features: Feature[] }) {
   const styles = useStyles();
   const { colors } = useTheme();
   return (
     <View style={styles.page}>
-      <Text style={styles.kicker}>{kicker}</Text>
       <Text style={styles.title}>{title}</Text>
       {features.map((f) => (
         <View key={f.title} style={styles.feature}>
@@ -289,8 +283,7 @@ const useStyles = createStyles((colors) => ({
   centerPage: { alignItems: 'center', gap: spacing.lg },
   hero: { fontFamily: fonts.displayBold, fontSize: 34, lineHeight: 40, color: colors.text, textAlign: 'center', marginTop: spacing.md },
   lead: { fontSize: 17, lineHeight: 25, color: colors.textMuted, textAlign: 'center' },
-  kicker: { fontFamily: fonts.displayItalic, fontSize: 17, color: colors.primary },
-  title: { fontFamily: fonts.display, fontSize: 30, lineHeight: 36, color: colors.text, marginTop: -spacing.md },
+  title: { fontFamily: fonts.display, fontSize: 30, lineHeight: 36, color: colors.text },
   feature: { flexDirection: 'row', gap: spacing.lg, alignItems: 'flex-start' },
   featureIcon: {
     width: 44,
@@ -313,7 +306,6 @@ const useStyles = createStyles((colors) => ({
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   choice: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
-  note: { fontSize: 14, color: colors.textFaint, textAlign: 'center' },
   bottomBar: { paddingHorizontal: spacing.xl, paddingTop: spacing.sm, paddingBottom: spacing.lg, gap: spacing.lg },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: spacing.md },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
