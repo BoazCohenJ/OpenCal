@@ -6,7 +6,7 @@ import { Icon, type IconName } from '../components/Icon';
 import { ReminderEditor } from '../components/ReminderEditor';
 import { Sheet } from '../components/Sheet';
 import { TimePicker } from '../components/DateTimeField';
-import { Button, ColorDot, Divider, InfoButton, InfoCard, Row, Section, Segmented, SwitchRow } from '../components/ui';
+import { Button, ColorDot, Divider, InfoButton, InfoCard, Row, Section, Segmented, SwitchRow, useWebPointerDown } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { FocusKind, FocusWindow } from '../models/NotificationPrefs';
 import type { ScreenProps } from '../navigation/types';
@@ -61,6 +61,7 @@ export function NotificationsScreen({ navigation }: ScreenProps<'Notifications'>
     infoWasOpen.current = alarmInfoOpen;
     if (alarmInfoOpen) setAlarmInfoOpen(false);
   };
+  useWebPointerDown(closeInfoOnTouch);
 
   useFocusEffect(
     useCallback(() => {

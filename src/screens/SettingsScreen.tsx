@@ -6,7 +6,7 @@ import { Logo } from '../components/Logo';
 import { CalendarSelector } from '../components/Selectors';
 import { useSyncStatus } from '../components/SyncWatcher';
 import { useToast } from '../components/Toast';
-import { Divider, InfoButton, InfoCard, PressableScale, Row, Section, Segmented, SwitchRow, TextField } from '../components/ui';
+import { Divider, InfoButton, InfoCard, PressableScale, Row, Section, Segmented, SwitchRow, TextField, useWebPointerDown } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
 import { notificationsSupported } from '../services/notifications';
@@ -88,6 +88,7 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
     infoWasOpen.current = openInfo;
     if (openInfo) setOpenInfo(null);
   };
+  useWebPointerDown(closeInfoOnTouch);
   const infoFor = (key: InfoKey, text: string) => ({
     text,
     open: openInfo === key,

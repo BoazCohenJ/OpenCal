@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  Platform,
   Pressable,
   type PressableProps,
   StyleProp,
@@ -265,6 +266,23 @@ export function TextField(props: TextInputProps) {
       style={[styles.input, props.multiline && styles.inputMultiline, props.style]}
     />
   );
+}
+
+/**
+ * Web only: runs `handler` on every mouse or pen press anywhere in the page, before the press reaches its
+ * target. Phones get this from `onTouchStart` on the screen, which react-native-web doesn't fire for a mouse.
+ */
+export function useWebPointerDown(handler: () => void) {
+  const latest = useRef(handler);
+  useEffect(() => {
+    latest.current = handler;
+  });
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const onDown = () => latest.current();
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, []);
 }
 
 /** The (i) button that sits beside a label and shows or hides an `InfoCard`. */

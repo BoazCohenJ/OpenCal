@@ -5,7 +5,7 @@ import { PauseWindowsEditor } from '../components/PauseWindowsEditor';
 import { RecurrenceEditor } from '../components/RecurrenceEditor';
 import { ReminderEditor } from '../components/ReminderEditor';
 import { TagEditor } from '../components/Selectors';
-import { Button, Divider, Field, HeaderButton, Section, Segmented, SwitchRow, TextField } from '../components/ui';
+import { Button, Divider, Field, HeaderButton, Section, Segmented, SwitchRow, TextField, useWebPointerDown } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import { DEFAULT_FOLD, type Calendar, type CalendarDefaults, type CalendarFold } from '../models/Calendar';
 import type { ScreenProps } from '../navigation/types';
@@ -55,6 +55,7 @@ export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarE
     infoWasOpen.current = foldInfoOpen;
     if (foldInfoOpen) setFoldInfoOpen(false);
   };
+  useWebPointerDown(closeInfoOnTouch);
 
   const save = () => {
     const name = form.name.trim();
