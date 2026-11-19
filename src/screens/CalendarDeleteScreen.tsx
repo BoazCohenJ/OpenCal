@@ -87,7 +87,7 @@ export function CalendarDeleteScreen({ navigation, route }: ScreenProps<'Calenda
       </View>
       {own.length > 0 ? (
         <>
-          <Text style={styles.help}>Choose what happens to each event. Select events, then move or delete them together.</Text>
+          <Text style={styles.help}>Select events to move or delete them together.</Text>
           <View style={styles.bulk}>
             <Pressable
               onPress={() => setSelected(allSelected ? new Set() : new Set(own.map((e) => e.id)))}
@@ -125,7 +125,7 @@ export function CalendarDeleteScreen({ navigation, route }: ScreenProps<'Calenda
         data={own}
         keyExtractor={(e) => e.id}
         ListHeaderComponent={header}
-        ListEmptyComponent={<EmptyState icon="calendar" title="No events here" subtitle="Deleting this calendar won’t remove anything else." />}
+        ListEmptyComponent={<EmptyState icon="calendar" title="No events here" />}
         contentContainerStyle={styles.list}
         renderItem={({ item: e }) => {
           const fate = fates[e.id] ?? null;

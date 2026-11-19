@@ -109,7 +109,7 @@ export function IconPicker({
           value={typed}
           onChangeText={setTyped}
           onSubmitEditing={() => typed.trim() && pickEmoji(typed.trim())}
-          placeholder="Or use your keyboard's emoji button…"
+          placeholder="Type an emoji…"
           autoCorrect={false}
           maxLength={16}
           returnKeyType="done"

@@ -200,7 +200,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
     const event = normalized();
     if (!event) return;
     saveTemplate({ ...templateFromEvent(event), id: stampId.current });
-    notify('Saved as stamp', `“${event.title}” is now in Settings › Stamps and can be dropped onto any date.`);
+    notify('Saved as stamp', `“${event.title}” is now in Settings › Stamps.`);
   };
 
   return (
@@ -276,7 +276,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
       </Section>
 
       {form.recurrenceRule ? (
-        <Section title="Pauses" footer="Occurrences inside a pause are skipped and the series resumes automatically afterwards.">
+        <Section title="Pauses">
           <PauseWindowsEditor value={form.pauseWindows} onChange={(pauseWindows) => update({ pauseWindows })} />
           {calendar && calendar.pauseWindows.length > 0 ? (
             <Text style={styles.inherited}>
@@ -287,10 +287,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
       ) : null}
 
       {form.recurrenceRule && form.skippedDates?.length ? (
-        <Section
-          title="Deleted occurrences"
-          footer="Days removed from this series one at a time. Restore puts the occurrence back when you save."
-        >
+        <Section title="Deleted occurrences">
           {form.skippedDates.map((day, i) => (
             <View key={day}>
               {i > 0 ? <Divider /> : null}
@@ -322,11 +319,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
             <Divider />
             <SwitchRow
               label="Ring during quiet times"
-              subtitle={
-                form.alarmsInQuiet
-                  ? 'Alarms ring even in quiet time. Do Not Disturb still skips them.'
-                  : 'In quiet time, alarms arrive as silent notifications'
-              }
+              subtitle={form.alarmsInQuiet ? 'Do Not Disturb still skips them' : undefined}
               value={form.alarmsInQuiet === true}
               onValueChange={(alarmsInQuiet) => update({ alarmsInQuiet })}
             />
@@ -336,17 +329,17 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
 
       <Section title="Details">
         <Field label="Location">
-          <TextField value={form.location ?? ''} onChangeText={(location) => edit({ location })} placeholder="Add a place" />
+          <TextField value={form.location ?? ''} onChangeText={(location) => edit({ location })} />
         </Field>
         <Field label="Notes">
-          <TextField value={form.description ?? ''} onChangeText={(description) => update({ description })} placeholder="Add a description" multiline />
+          <TextField value={form.description ?? ''} onChangeText={(description) => update({ description })} multiline />
         </Field>
         <Field label="Tags">
           <TagEditor value={form.tags} onChange={(tags) => edit({ tags })} suggestions={allTags} />
         </Field>
       </Section>
 
-      <Section title="Color" footer="Overrides the calendar color for this event only.">
+      <Section title="Color">
         <ColorPicker value={form.color} inheritColor={calendar?.color} onChange={(color) => update({ color })} />
       </Section>
 

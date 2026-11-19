@@ -36,7 +36,7 @@ async function loadPlaced(): Promise<PlacedWidget[]> {
 
 type InfoKey = 'length' | 'floating';
 const LENGTH_INFO =
-  'In minutes (5 to 1440): how long a new event lasts when you tap an empty time or press New event. You can still drag its ends to change it. New events go to the default calendar unless you pick another.';
+  'How long a new event lasts when you tap an empty time or press New event, from 5 to 1440 minutes.';
 const FLOATING_INFO =
   'Floating events keep their clock time in any time zone: a 9:00 run stays at 9:00 when you travel. Fixed events keep the same moment: a 14:00 call at home shows at its local time abroad. You can change this on each event; all-day events always float.';
 
@@ -137,7 +137,7 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
         <Divider />
         <Row label="Color rules" subtitle="Color events by a word in their title" value={String(colorRules.length)} onPress={() => navigation.navigate('ColorRules')} />
         <Divider />
-        <Row label="Event list" subtitle="Find and edit any event with filters" value={String(events.length)} onPress={() => navigation.navigate('HiddenEvents')} />
+        <Row label="Event list" value={String(events.length)} onPress={() => navigation.navigate('HiddenEvents')} />
       </Section>
       <Section title="New events">
         <MinutesRow
@@ -169,7 +169,7 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
           onPress={() => navigation.navigate('Sync')}
         />
         <Divider />
-        <Row label="Import & export" subtitle="Backups and calendar files (.ics)" onPress={() => navigation.navigate('ImportExport')} />
+        <Row label="Import & export" onPress={() => navigation.navigate('ImportExport')} />
       </Section>
       <Section title="Appearance">
         <View style={styles.segment}>
@@ -185,7 +185,7 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
         </View>
       </Section>
       {widgetsSupported ? (
-        <Section title="Home-screen widgets" footer="You can also add them from your home screen: long-press an empty spot, then Widgets → OpenCal.">
+        <Section title="Home-screen widgets">
           <View style={styles.widgetGrid} onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}>
             {WIDGETS.map((w) => (
               <PressableScale
@@ -224,7 +224,7 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
         footer={
           syncing
             ? 'Your data is stored on this device and synced only with your own server.'
-            : 'Your data is stored on this device. It only leaves it if you connect your own server under Sync.'
+            : 'Your data is stored on this device unless you connect your own server under Sync.'
         }
       >
         <Row label="OpenCal" value={APP_VERSION} subtitle={updateInfo()} left={<Logo size={34} variant="tile" />} />

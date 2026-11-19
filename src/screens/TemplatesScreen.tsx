@@ -22,8 +22,8 @@ export function TemplatesScreen({ navigation }: ScreenProps<'Templates'>) {
       <View style={styles.screen}>
         <EmptyState
           icon="stamp"
-          title="Save events you repeat often"
-          subtitle="A stamp stores title, duration, color, reminders, calendar and location. Drop it on any date and confirm the time."
+          title="No stamps yet"
+          subtitle="A stamp is a reusable event, like “Coffee with John”. Drop it on any date and confirm the time."
         >
           <Button title="Create your first stamp" onPress={() => navigation.navigate('TemplateEdit')} />
         </EmptyState>
@@ -73,7 +73,6 @@ export function TemplatesScreen({ navigation }: ScreenProps<'Templates'>) {
           </View>
         );
       })}
-      <Text style={styles.footer}>Tip: tap an empty time slot in Day or Week view to drop a stamp right there.</Text>
     </ScrollView>
   );
 }
@@ -98,5 +97,4 @@ const useStyles = createStyles((colors) => ({
   actions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   order: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
   disabled: { opacity: 0.3 },
-  footer: { fontSize: 13, color: colors.textMuted, textAlign: 'center', marginTop: 8 },
 }));

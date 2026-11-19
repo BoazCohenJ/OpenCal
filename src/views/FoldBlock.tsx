@@ -97,7 +97,7 @@ export function FoldBlock({
             {occ.event.title}
           </Text>
           <Text numberOfLines={compact ? 2 : 1} style={[styles.middleHint, compact && styles.middleHintCompact, { color: fg }]}>
-            {compact ? plural(count) : `Tap to show ${plural(count)}`}
+            {plural(count)}
           </Text>
         </View>
       ) : null}

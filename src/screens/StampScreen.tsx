@@ -33,14 +33,13 @@ export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
           <EmptyState
             icon="stamp"
             title="No stamps yet"
-            subtitle="Stamps are reusable events for things that happen often but not on a schedule, like “Coffee with John”."
+            subtitle="A stamp is a reusable event, like “Coffee with John”."
           >
             <Button title="Create a stamp" onPress={() => navigation.replace('TemplateEdit')} />
           </EmptyState>
         ) : (
           <>
             <Text style={styles.heading}>Choose a stamp for {format(start, 'EEE, MMM d · h:mm a')}</Text>
-            <Text style={styles.subheading}>Hold a stamp to delete it.</Text>
             {templates.map((t) => {
               const cal = calendarsById[t.calendarId];
               const color = t.color ?? cal?.color ?? colors.primary;
@@ -137,7 +136,6 @@ const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: 48 },
   heading: { fontSize: 15, color: colors.textMuted, fontWeight: '500' },
-  subheading: { fontSize: 13, color: colors.textFaint, marginTop: 2, marginBottom: spacing.md },
   card: {
     flexDirection: 'row',
     alignItems: 'center',

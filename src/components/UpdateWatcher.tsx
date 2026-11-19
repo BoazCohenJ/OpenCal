@@ -31,7 +31,7 @@ export function UpdateWatcher() {
         offered.current = id;
         showToast({
           icon: 'sparkles',
-          message: 'A new version of OpenCal is ready',
+          message: 'Update ready',
           actionLabel: 'Restart',
           duration: 15000,
           onAction: () => void Updates.reloadAsync(),

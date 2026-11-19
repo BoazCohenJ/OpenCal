@@ -41,7 +41,7 @@ export function PauseWindowsEditor({ value, onChange }: { value: PauseWindow[]; 
 
   return (
     <View style={styles.container}>
-      {sorted.length === 0 ? <Text style={styles.empty}>No pauses. Occurrences run as scheduled.</Text> : null}
+      {sorted.length === 0 ? <Text style={styles.empty}>No pauses.</Text> : null}
       {sorted.map((w) => {
         const status = w.endDate < today ? 'Past' : w.startDate <= today ? 'Active now' : 'Upcoming';
         return (

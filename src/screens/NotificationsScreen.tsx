@@ -1,12 +1,12 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { format, isSameDay } from 'date-fns';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Linking, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { Icon, type IconName } from '../components/Icon';
 import { ReminderEditor } from '../components/ReminderEditor';
 import { Sheet } from '../components/Sheet';
 import { TimePicker } from '../components/DateTimeField';
-import { Button, ColorDot, Divider, Row, Section, Segmented, SwitchRow } from '../components/ui';
+import { Button, ColorDot, Divider, InfoButton, InfoCard, Row, Section, Segmented, SwitchRow } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { FocusKind, FocusWindow } from '../models/NotificationPrefs';
 import type { ScreenProps } from '../navigation/types';
@@ -21,6 +21,8 @@ import { describeRRule } from '../utils/recurrence';
 const HORIZONS = ['7', '14', '30', '60'] as const;
 const RING_LENGTHS = ['1', '5', '10', '15', '30'] as const;
 const SNOOZE_LENGTHS = ['5', '10', '15', '30'] as const;
+const ALARM_INFO =
+  'Tap Alarm on any reminder of an event to make it ring until you dismiss or snooze it. Alarms use your alarm volume. In quiet time they arrive silently unless the event says to ring.';
 /** The listed choice matching `value`, or the closest one when a stored value isn't in the list. */
 const nearest = <T extends string>(options: readonly T[], value: number): T =>
   options.reduce((best, o) => (Math.abs(Number(o) - value) < Math.abs(Number(best) - value) ? o : best), options[0]!);
@@ -51,6 +53,14 @@ export function NotificationsScreen({ navigation }: ScreenProps<'Notifications'>
   const { notificationPrefs: prefs, updateNotificationPrefs, reminderStatus, refreshReminders, calendars, events, calendarsById } =
     useCalendarContext();
   const [editingAllDayTime, setEditingAllDayTime] = useState(false);
+  // Which touch began with the card open, so tapping the (i) of an open card closes it instead of reopening it.
+  const [alarmInfoOpen, setAlarmInfoOpen] = useState(false);
+  const [alarmRowHeight, setAlarmRowHeight] = useState(0);
+  const infoWasOpen = useRef(false);
+  const closeInfoOnTouch = () => {
+    infoWasOpen.current = alarmInfoOpen;
+    if (alarmInfoOpen) setAlarmInfoOpen(false);
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -86,14 +96,13 @@ export function NotificationsScreen({ navigation }: ScreenProps<'Notifications'>
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content} onTouchStart={closeInfoOnTouch}>
       <StatusCard
         status={status}
         enabled={prefs.enabled}
         scheduled={reminderStatus?.scheduled ?? 0}
         upcoming={upcoming.length}
         next={reminderStatus?.next ?? upcoming[0]?.date ?? null}
-        truncated={reminderStatus?.truncated ?? false}
         horizonDays={prefs.horizonDays}
         focus={activeFocus ? { kind: activeFocus.kind, until: activeFocus.end } : null}
         onEnable={() => void refreshReminders({ askPermission: true, askAlways: true })}
@@ -102,7 +111,6 @@ export function NotificationsScreen({ navigation }: ScreenProps<'Notifications'>
       <Section>
         <SwitchRow
           label="Event reminders"
-          subtitle={prefs.enabled ? 'On for events that have reminders' : 'All reminders are paused'}
           value={prefs.enabled}
           onValueChange={(enabled) => updateNotificationPrefs({ enabled })}
         />
@@ -114,10 +122,7 @@ export function NotificationsScreen({ navigation }: ScreenProps<'Notifications'>
         />
       </Section>
 
-      <Section
-        title="Quiet & Do Not Disturb"
-        footer="Quiet time delivers reminders silently. Do Not Disturb skips them entirely. Both can repeat like events."
-      >
+      <Section title="Quiet & Do Not Disturb">
         {windows.length === 0 ? <Text style={styles.emptyWindows}>No quiet times scheduled.</Text> : null}
         {windows.map((w, i) => (
           <View key={w.id}>
@@ -150,7 +155,7 @@ export function NotificationsScreen({ navigation }: ScreenProps<'Notifications'>
         </View>
       </Section>
 
-      <Section title="Defaults for new events" footer="Existing events keep their own reminders.">
+      <Section title="Defaults for new events">
         <Text style={styles.subhead}>Timed events</Text>
         <ReminderEditor value={prefs.defaultReminders} onChange={(defaultReminders) => updateNotificationPrefs({ defaultReminders })} />
         <Divider />
@@ -164,17 +169,17 @@ export function NotificationsScreen({ navigation }: ScreenProps<'Notifications'>
         <Divider />
         <Row
           label="All-day reminder time"
-          subtitle="All-day reminders count back from this time"
           value={formatMinutes(prefs.allDayTime)}
           onPress={() => setEditingAllDayTime(true)}
         />
       </Section>
 
-      <Section
-        title="Alarms"
-        footer="Tap Alarm on any reminder of an event to make it ring until you dismiss or snooze it. Alarms use your alarm volume. In quiet time they arrive silently unless the event says to ring."
-      >
-        <Text style={styles.subhead}>Ring for</Text>
+      <Section title="Alarms" allowOverflow style={{ zIndex: 3 }}>
+        <View style={styles.subheadRow} onLayout={(e) => setAlarmRowHeight(e.nativeEvent.layout.height)}>
+          <Text style={styles.subheadText}>Ring for</Text>
+          <InfoButton label="Alarms" open={alarmInfoOpen} onPress={() => setAlarmInfoOpen(!infoWasOpen.current)} />
+          {alarmInfoOpen ? <InfoCard text={ALARM_INFO} top={alarmRowHeight} /> : null}
+        </View>
         <View style={styles.segmentWrap}>
           <Segmented
             options={RING_LENGTHS.map((m) => ({ value: m, label: `${m} min` }))}
@@ -199,7 +204,7 @@ export function NotificationsScreen({ navigation }: ScreenProps<'Notifications'>
 
       <Section
         title="Schedule ahead"
-        footer="Phones limit how many reminders an app can queue. OpenCal queues the soonest ones and tops up each time you open it."
+        footer="Phones limit queued reminders, so OpenCal schedules the soonest and refills when you open it."
       >
         <View style={styles.segmentWrap}>
           <Segmented
@@ -211,7 +216,7 @@ export function NotificationsScreen({ navigation }: ScreenProps<'Notifications'>
       </Section>
 
       {calendars.length > 0 ? (
-        <Section title="Calendars" footer="Turn a calendar off to silence all of its reminders.">
+        <Section title="Calendars">
           {calendars.map((c, i) => (
             <View key={c.id}>
               {i > 0 ? <Divider /> : null}
@@ -250,7 +255,6 @@ function StatusCard({
   scheduled,
   upcoming,
   next,
-  truncated,
   horizonDays,
   focus,
   onEnable,
@@ -260,7 +264,6 @@ function StatusCard({
   scheduled: number;
   upcoming: number;
   next: Date | null;
-  truncated: boolean;
   horizonDays: number;
   focus: { kind: FocusKind; until: Date } | null;
   onEnable: () => void;
@@ -269,7 +272,7 @@ function StatusCard({
   const { colors } = useTheme();
   let icon: IconName = 'bell-ring';
   let title = 'Reminders are on';
-  let body = next
+  let body: string | null = next
     ? `${scheduled || upcoming} queued for the next ${horizonDays} days. Next: ${format(next, 'EEE, MMM d')} at ${formatTime(next)}.`
     : `Nothing due in the next ${horizonDays} days.`;
   let action: React.ReactNode = null;
@@ -278,12 +281,12 @@ function StatusCard({
   if (status === 'unsupported') {
     icon = 'bell-off';
     title = 'Not available here';
-    body = 'Reminders work in the iOS and Android apps. Your settings are saved and apply there.';
+    body = 'Reminders work in the iOS and Android apps.';
     tone = 'warn';
   } else if (!enabled) {
     icon = 'bell-off';
     title = 'Reminders are paused';
-    body = 'Turn event reminders back on below.';
+    body = null;
     tone = 'warn';
   } else if (status === 'denied') {
     icon = 'bell-off';
@@ -298,7 +301,6 @@ function StatusCard({
     action = <Button small title="Enable" onPress={onEnable} />;
     tone = 'warn';
   } else {
-    if (truncated) body += ' More are waiting and will be queued as these pass.';
     if (focus) {
       icon = focus.kind === 'dnd' ? 'bell-off' : 'moon';
       const until = format(focus.until, isSameDay(focus.until, new Date()) ? 'h:mm a' : 'EEE h:mm a');
@@ -313,7 +315,7 @@ function StatusCard({
       </View>
       <View style={styles.flex}>
         <Text style={[styles.statusTitle, tone === 'ok' && styles.statusTitleOk]}>{title}</Text>
-        <Text style={[styles.statusBody, tone === 'ok' && styles.statusBodyOk]}>{body}</Text>
+        {body ? <Text style={[styles.statusBody, tone === 'ok' && styles.statusBodyOk]}>{body}</Text> : null}
         {action ? <View style={styles.statusAction}>{action}</View> : null}
       </View>
     </View>
@@ -334,6 +336,16 @@ const useStyles = createStyles((colors) => ({
   windowMeta: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
   windowActions: { flexDirection: 'row', gap: 8, padding: spacing.md },
   subhead: { fontSize: 13, fontWeight: '600', color: colors.textMuted, paddingHorizontal: spacing.lg, paddingTop: spacing.md, marginBottom: -8 },
+  subheadRow: {
+    zIndex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    marginBottom: -8,
+  },
+  subheadText: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
   segmentWrap: { padding: spacing.md },
   calendarRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: spacing.lg },
   status: {

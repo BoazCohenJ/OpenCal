@@ -95,7 +95,6 @@ export function ViewMenu({
         </View>
       ) : null}
 
-      <Text style={styles.heading}>CALENDARS</Text>
       <ScrollView style={styles.list} bounces={false}>
         {rows.map((c) => {
           const on = visibleCalendarIds.includes(c.id);
@@ -159,8 +158,7 @@ const useStyles = createStyles((colors) => ({
   viewLabel: { fontSize: 13, fontWeight: '600', color: colors.text },
   viewLabelActive: { color: colors.onInk },
   pressed: { opacity: 0.7 },
-  heading: { fontSize: 11, fontWeight: '700', color: colors.textMuted, letterSpacing: 1.4, marginTop: spacing.lg, marginBottom: 4 },
-  list: { maxHeight: 300 },
+  list: { maxHeight: 300, marginTop: spacing.lg },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 6, borderRadius: radius.md },
   dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2 },
   seg: { flexDirection: 'row', backgroundColor: colors.surfaceAlt, borderRadius: radius.pill, padding: 2 },

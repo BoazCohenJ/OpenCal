@@ -368,8 +368,7 @@ export function SelectionToolbar({
         {showDayNudges
           ? 'Drag a checked event up or down to change the time, sideways to change the day.'
           : 'Drag a checked event to move all of them together.'}
-        {' Nothing is saved until you tap Done.'}
-        {hasRecurring ? ' A moved day of a repeating event becomes its own event; edit the event to move the whole series.' : ''}
+        {hasRecurring ? ' Moving one day of a repeating event makes it a separate event.' : ''}
       </Text>
       {showDayNudges ? (
         <View style={styles.toolbarActions}>

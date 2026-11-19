@@ -6,7 +6,6 @@ import { Button, Chip, HeaderButton, Section } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
 import { parseEventText } from '../services/naturalLanguage';
-import { Icon, type IconName } from '../components/Icon';
 import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { formatRange, nextRoundedHour } from '../utils/dates';
 
@@ -63,25 +62,21 @@ export function QuickAddScreen({ navigation, route }: ScreenProps<'QuickAdd'>) {
       </View>
 
       {!hasInput ? (
-        <View style={styles.examples}>
-          <Text style={styles.examplesTitle}>TRY</Text>
-          <View style={styles.wrap}>
-            {EXAMPLES.map((e) => (
-              <Chip key={e} label={e} onPress={() => setText(e)} />
-            ))}
-          </View>
+        <View style={styles.wrap}>
+          {EXAMPLES.map((e) => (
+            <Chip key={e} label={e} onPress={() => setText(e)} />
+          ))}
         </View>
       ) : (
-        <Section title="Preview" footer="You can fix anything on the next screen before saving.">
-          <PreviewRow icon="title" label="Title" value={parsed.title || 'Untitled'} muted={!parsed.title} />
+        <Section title="Preview">
+          <PreviewRow label="Title" value={parsed.title || 'Untitled'} muted={!parsed.title} />
           <PreviewRow
-            icon="calendar"
             label="When"
             value={parsed.start && parsed.end ? formatRange(parsed.start, parsed.end, parsed.isAllDay) : 'No date found, defaults to the next hour'}
             muted={!parsed.start}
             hint={parsed.dateText ? `from “${parsed.dateText}”` : undefined}
           />
-          <PreviewRow icon="map-pin" label="Where" value={parsed.location ?? 'No location'} muted={!parsed.location} />
+          <PreviewRow label="Where" value={parsed.location ?? 'No location'} muted={!parsed.location} />
         </Section>
       )}
 
@@ -94,19 +89,13 @@ export function QuickAddScreen({ navigation, route }: ScreenProps<'QuickAdd'>) {
   );
 }
 
-function PreviewRow({ icon, label, value, muted, hint }: { icon: IconName; label: string; value: string; muted?: boolean; hint?: string }) {
+function PreviewRow({ label, value, muted, hint }: { label: string; value: string; muted?: boolean; hint?: string }) {
   const styles = useStyles();
-  const { colors } = useTheme();
   return (
     <View style={styles.row}>
-      <View style={styles.rowIcon}>
-        <Icon name={icon} size={16} color={colors.primary} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rowLabel}>{label}</Text>
-        <Text style={[styles.rowValue, muted && styles.muted]}>{value}</Text>
-        {hint ? <Text style={styles.hint}>{hint}</Text> : null}
-      </View>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <Text style={[styles.rowValue, muted && styles.muted]}>{value}</Text>
+      {hint ? <Text style={styles.hint}>{hint}</Text> : null}
     </View>
   );
 }
@@ -123,11 +112,8 @@ const useStyles = createStyles((colors) => ({
     marginBottom: spacing.lg,
   },
   input: { fontSize: 22, fontFamily: fonts.display, color: colors.text, minHeight: 60 },
-  examples: { marginBottom: spacing.lg, gap: 8 },
-  examplesTitle: { fontSize: 11, fontWeight: '700', color: colors.textMuted, letterSpacing: 1.4 },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  row: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
-  rowIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.lg },
+  row: { paddingHorizontal: 16, paddingVertical: 12 },
   rowLabel: { fontSize: 12, fontWeight: '600', color: colors.textMuted },
   rowValue: { fontSize: 16, color: colors.text, marginTop: 2 },
   muted: { color: colors.textFaint },

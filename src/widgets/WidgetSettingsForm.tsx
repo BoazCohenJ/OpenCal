@@ -57,12 +57,11 @@ export function WidgetSettingsForm({
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.kicker}>{WIDGET_LABELS[widgetName] ?? widgetName} widget</Text>
         {embedded ? null : <Text style={styles.title}>Widget settings</Text>}
-        <Text style={styles.lead}>These apply to this widget only. Change them later in OpenCal’s Settings, or by long-pressing the widget.</Text>
+        <Text style={styles.lead}>These apply to this widget only.</Text>
 
         <Section title="Calendars">
           <SwitchRow
             label="Same as the app"
-            subtitle="Follows Show and Hide in the app's View menu"
             value={followApp}
             onValueChange={(on) => setSettings((s) => ({ ...s, calendarIds: on ? undefined : appShown }))}
           />
@@ -95,11 +94,7 @@ export function WidgetSettingsForm({
 
         <Section
           title="Folded calendars"
-          footer={
-            anyFolded
-              ? 'Folded calendars show one block per day, like on the calendar.'
-              : 'None of the calendars on this widget is folded right now. Turn folding on in a calendar’s settings.'
-          }
+          footer={anyFolded ? undefined : 'No calendar on this widget is folded. Turn folding on in a calendar’s settings.'}
         >
           <SwitchRow
             label="Show all events"

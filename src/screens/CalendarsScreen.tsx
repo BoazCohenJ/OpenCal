@@ -17,7 +17,7 @@ export function CalendarsScreen({ navigation }: ScreenProps<'Calendars'>) {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Section footer="Every event belongs to a calendar and inherits its color unless the event has its own. Show or hide calendars from the chips on the main screen.">
+      <Section>
         {calendars.map((c, i) => {
           const count = events.filter((e) => e.calendarId === c.id).length;
           const activePause = c.pauseWindows.find((w) => w.startDate <= today && w.endDate >= today);

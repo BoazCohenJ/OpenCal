@@ -1,6 +1,6 @@
 import { addDays, differenceInCalendarDays, format, startOfDay } from 'date-fns';
 import React, { useLayoutEffect, useMemo } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { EventGlyph } from '../components/Icon';
 import { Button, Divider, EmptyState, HeaderButton, Row, Section } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
@@ -30,8 +30,8 @@ export function BirthdaysScreen({ navigation }: ScreenProps<'Birthdays'>) {
       <View style={styles.screen}>
         <EmptyState
           icon="cake"
-          title="Never miss a birthday"
-          subtitle="Add a name and date of birth, and every year the calendar shows it as “Dana's 30th birthday”. The year is optional."
+          title="No birthdays yet"
+          subtitle="Add a name and date, and the calendar shows “Dana's 30th birthday” every year. The year is optional."
         >
           <Button title="Add a birthday" onPress={() => navigation.navigate('BirthdayEdit')} />
         </EmptyState>
@@ -42,9 +42,7 @@ export function BirthdaysScreen({ navigation }: ScreenProps<'Birthdays'>) {
   const today = startOfDay(new Date());
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Section
-        footer={`${visibleCalendarIds.includes(BIRTHDAYS_CALENDAR_ID) ? 'Shown' : 'Hidden'} on the calendar. Show or hide birthdays with the Birthdays chip on the main screen.`}
-      >
+      <Section footer={`${visibleCalendarIds.includes(BIRTHDAYS_CALENDAR_ID) ? 'Shown' : 'Hidden'} on the calendar.`}>
         {upcoming.map(({ birthday: b, next }, i) => {
           const birth = parseBirthDate(b.birthDate);
           const days = next ? differenceInCalendarDays(next, today) : null;
@@ -57,7 +55,7 @@ export function BirthdaysScreen({ navigation }: ScreenProps<'Birthdays'>) {
                 subtitle={
                   hasNoYear(b.birthDate)
                     ? `${format(birth, 'MMMM d')} every year`
-                    : `Born ${format(birth, 'MMM d, yyyy')}${next ? ` · turns ${next.getFullYear() - birth.getFullYear()} on ${format(next, 'MMM d')}` : ''}`
+                    : `Born ${format(birth, 'MMM d, yyyy')}${next ? ` · turns ${next.getFullYear() - birth.getFullYear()}` : ''}`
                 }
                 value={when}
                 left={
@@ -71,7 +69,6 @@ export function BirthdaysScreen({ navigation }: ScreenProps<'Birthdays'>) {
           );
         })}
       </Section>
-      <Text style={styles.hint}>Tap a birthday on the calendar to edit it.</Text>
     </ScrollView>
   );
 }
@@ -80,5 +77,4 @@ const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg },
   glyph: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  hint: { fontSize: 13, color: colors.textMuted, textAlign: 'center' },
 }));

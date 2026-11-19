@@ -71,7 +71,7 @@ export function SyncScreen(_props: ScreenProps<'Sync'>) {
   const onDisconnect = async () => {
     const ok = await confirmAsync(
       'Stop syncing?',
-      'Everything stays on this device, and the server keeps its copy. You can connect again any time.',
+      'Everything stays on this device, and the server keeps its copy.',
       'Stop syncing',
       true,
     );
@@ -82,10 +82,9 @@ export function SyncScreen(_props: ScreenProps<'Sync'>) {
     return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.intro}>
-          Keep your calendar on more than one device with an OpenCal server you run yourself, at home or on any computer
-          that stays on. Your data never goes anywhere else.
+          Keep your calendar on more than one device through an OpenCal server you run yourself.
         </Text>
-        <Section title="Your server" footer="The server address and key are shown when you set up the server.">
+        <Section title="Your server">
           <Field label="Address">
             <TextField
               value={url}
@@ -119,7 +118,7 @@ export function SyncScreen(_props: ScreenProps<'Sync'>) {
             />
           </View>
         </Section>
-        <Section footer={WHAT_SYNCS}>
+        <Section>
           <Row label="How to set up a server" subtitle="Docker, one command" onPress={() => void Linking.openURL(SERVER_DOCS)} />
         </Section>
       </ScrollView>
@@ -129,7 +128,7 @@ export function SyncScreen(_props: ScreenProps<'Sync'>) {
   const statusLine = status.syncing ? 'Syncing…' : status.error ? `Last sync failed: ${status.error}` : (ago ?? 'Not synced yet');
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Section title="Server" footer="Syncs when the app opens, when you come back to it, and a few seconds after each change.">
+      <Section title="Server">
         <Row label={config.url.replace(/^https?:\/\//i, '')} subtitle={statusLine} />
         <Divider />
         <View style={styles.action}>

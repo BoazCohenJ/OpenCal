@@ -40,8 +40,8 @@ export function ColorRulesScreen(_: ScreenProps<'ColorRules'>) {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Section footer="An event containing the word gets the color, whatever its calendar. The first rule that matches wins, so put more specific words higher. A color set on an event itself always wins.">
-        {colorRules.length === 0 ? <Text style={styles.empty}>No rules yet. Try “Break” or “Gym”.</Text> : null}
+      <Section footer="The first matching rule wins, so put specific words higher. A color set on an event always wins.">
+        {colorRules.length === 0 ? <Text style={styles.empty}>No rules yet.</Text> : null}
         {colorRules.map((r, i) => (
           <View key={r.id}>
             {i > 0 ? <Divider /> : null}

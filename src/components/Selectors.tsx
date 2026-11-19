@@ -76,7 +76,7 @@ export function TagEditor({
         onChangeText={(t) => (t.endsWith(',') ? add(t) : setText(t))}
         onSubmitEditing={() => add(text)}
         onBlur={() => text.trim() && add(text)}
-        placeholder="Add a tag and press return"
+        placeholder="Add a tag"
         returnKeyType="done"
         autoCapitalize="none"
         submitBehavior="submit"

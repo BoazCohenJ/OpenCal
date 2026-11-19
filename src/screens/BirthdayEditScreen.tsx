@@ -170,8 +170,8 @@ export function BirthdayEditScreen({ navigation, route }: ScreenProps<'BirthdayE
             {yearError && yearTyped.length === 4
               ? yearError
               : year !== null
-                ? `Born ${year} · the event shows the age`
-                : 'Leave empty to show just the date, with no age'}
+                ? 'The event shows the age'
+                : 'Without a year, no age is shown'}
           </Text>
         </Field>
       </Section>

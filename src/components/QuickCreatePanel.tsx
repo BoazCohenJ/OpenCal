@@ -107,7 +107,7 @@ export function QuickCreatePanel({
           {format(start, 'EEEE, MMMM d')}
           <Text style={styles.rowTextStrong}>{`   ${formatTime(start)} – ${formatTime(end)}`}</Text>
         </Text>
-        <Text style={styles.rowSub}>{formatDuration(differenceInMinutes(end, start))} · drag the event to change it</Text>
+        <Text style={styles.rowSub}>{formatDuration(differenceInMinutes(end, start))}</Text>
       </PanelRow>
       <PanelRow icon="map-pin">
         <TextInput

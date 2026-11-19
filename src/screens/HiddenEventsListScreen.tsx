@@ -130,7 +130,6 @@ export function HiddenEventsListScreen({ navigation }: ScreenProps<'HiddenEvents
           <EmptyState
             icon="search"
             title={events.length === 0 ? 'No events yet' : 'No events match these filters'}
-            subtitle={events.length === 0 ? 'Create one from the calendar screen.' : 'Try removing a filter.'}
           />
         }
         renderItem={({ item }) => {

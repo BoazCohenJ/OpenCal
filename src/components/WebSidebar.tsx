@@ -62,7 +62,6 @@ export function WebSidebar({
         <MiniMonth month={month} onChangeMonth={setMonth} onSelectDay={(d) => onSelectDay(startOfDay(d))} selected={cursor} compact />
       </View>
 
-      <Text style={styles.heading}>CALENDARS</Text>
       <ScrollView style={styles.list}>
         {rows.map((c) => {
           const on = visibleCalendarIds.includes(c.id);
@@ -124,7 +123,6 @@ const useStyles = createStyles((colors) => ({
   newText: { flex: 1, fontSize: 15, fontWeight: '700', color: colors.onPrimary },
   newKey: { fontSize: 11, fontWeight: '700', color: colors.onPrimary, opacity: 0.7 },
   mini: { marginBottom: spacing.md },
-  heading: { fontSize: 11, fontWeight: '700', color: colors.textMuted, letterSpacing: 1.4, marginTop: spacing.sm, marginBottom: 4, paddingLeft: 8 },
   list: { flex: 1, minHeight: 90 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 8, borderRadius: radius.sm },
   rowHover: { backgroundColor: colors.surfaceAlt },

@@ -169,7 +169,6 @@ export function ReminderEditor({
               value={editing.unit}
               onChange={(unit) => setEditing({ ...editing, unit, amount: Math.min(editing.amount, UNIT_MAX[unit]) })}
             />
-            <Text style={styles.hint}>Tap the number to type it. Hold − or + to change it quickly.</Text>
             <Button title={editing.original === null ? 'Add reminder' : 'Save reminder'} onPress={saveDraft} />
           </View>
         ) : null}
@@ -226,5 +225,4 @@ const useStyles = createStyles((colors) => ({
   preview: { fontFamily: fonts.display, fontSize: 24, color: colors.text, textAlign: 'center' },
   amountRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
   unitLabel: { fontSize: 16, color: colors.textMuted, fontWeight: '600' },
-  hint: { fontSize: 12, color: colors.textMuted, textAlign: 'center' },
 }));

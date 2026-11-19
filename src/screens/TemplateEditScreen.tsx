@@ -110,9 +110,9 @@ export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateE
         ) : null}
       </View>
 
-      <Section footer="Shown in the stamp list. Defaults to the event title.">
+      <Section>
         <Field label="Stamp name">
-          <TextField value={form.name} onChangeText={(name) => update({ name })} placeholder={form.title || 'Stamp name'} />
+          <TextField value={form.name} onChangeText={(name) => update({ name })} placeholder={form.title || undefined} />
         </Field>
       </Section>
 
@@ -149,10 +149,10 @@ export function TemplateEditScreen({ navigation, route }: ScreenProps<'TemplateE
 
       <Section title="Details">
         <Field label="Location">
-          <TextField value={form.location ?? ''} onChangeText={(location) => update({ location })} placeholder="Add a place" />
+          <TextField value={form.location ?? ''} onChangeText={(location) => update({ location })} />
         </Field>
         <Field label="Notes">
-          <TextField value={form.description ?? ''} onChangeText={(description) => update({ description })} placeholder="Add a description" multiline />
+          <TextField value={form.description ?? ''} onChangeText={(description) => update({ description })} multiline />
         </Field>
         <Field label="Tags">
           <TagEditor value={form.tags} onChange={(tags) => update({ tags })} suggestions={allTags} />

@@ -142,8 +142,8 @@ export function ImportExportScreen({ navigation, route }: ScreenProps<'ImportExp
               ].join(', ')}
             </Text>
             <Text style={styles.hint}>
-              Merge adds the backup to what’s here (items already on this device are updated, nothing is deleted). Replace
-              makes this device an exact copy of the backup, settings included.
+              Merge adds the backup and updates items already here; nothing is deleted. Replace makes this device an
+              exact copy, settings included.
             </Text>
             <Button title="Merge into this device" onPress={() => void restore('merge')} />
             <Button variant="danger" title="Replace everything…" onPress={() => void restore('replace')} />
@@ -175,7 +175,7 @@ export function ImportExportScreen({ navigation, route }: ScreenProps<'ImportExp
         </Section>
       ) : null}
 
-      <Section title="Back up" footer="One file with everything on this device. Keep it somewhere safe, or use it to move OpenCal to a new phone.">
+      <Section title="Back up">
         <Row
           label="Export full backup"
           subtitle={`${plural(calendars.length, 'calendar')}, ${plural(events.length, 'event')}, ${plural(templates.length, 'stamp')}, ${plural(birthdays.length, 'birthday')} and settings (.json)`}
@@ -185,7 +185,7 @@ export function ImportExportScreen({ navigation, route }: ScreenProps<'ImportExp
 
       <Section
         title="Export to other apps"
-        footer="A standard calendar file (.ics) that Google Calendar, Apple Calendar and Outlook can import. Stamps, birthdays and settings are only in the full backup."
+        footer="Opens in Google Calendar, Apple Calendar and Outlook. Stamps, birthdays and settings are only in the full backup."
       >
         <Field label="Calendars">
           <View style={styles.chips}>
@@ -210,16 +210,13 @@ export function ImportExportScreen({ navigation, route }: ScreenProps<'ImportExp
         </View>
       </Section>
 
-      <Section title="Import" footer="Pick an OpenCal backup (.json), a calendar file (.ics) exported from any calendar app, or an invitation email (.eml). You'll see what's in it before anything changes.">
+      <Section title="Import" footer="Accepts an OpenCal backup (.json), a calendar file (.ics) or an invitation email (.eml). You'll see what's in it before anything changes.">
         <View style={styles.action}>
           <Button variant="secondary" title={busy ? 'Opening…' : 'Choose a file…'} disabled={busy} onPress={() => void choose()} />
         </View>
       </Section>
 
-      <Text style={styles.tip}>
-        Tip: to export only some events, filter them in Settings → Event list and tap Export there.
-      </Text>
-      <Button variant="ghost" title="Open event list" onPress={() => navigation.navigate('HiddenEvents')} />
+      <Button variant="ghost" title="Export only some events" onPress={() => navigation.navigate('HiddenEvents')} />
     </ScrollView>
   );
 }
@@ -234,5 +231,4 @@ const useStyles = createStyles((colors) => ({
   label: { fontSize: 11, fontWeight: '700', letterSpacing: 1.4, color: colors.textMuted, marginTop: 4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   action: { padding: spacing.md },
-  tip: { fontSize: 13, color: colors.textMuted, textAlign: 'center', marginBottom: 4, paddingHorizontal: spacing.md },
 }));

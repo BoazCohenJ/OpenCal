@@ -15,6 +15,9 @@ import { notify } from '../utils/confirm';
 import { newId } from '../utils/id';
 import { animateNextLayout } from '../utils/motion';
 
+const FOLD_INFO =
+  'Back-to-back events show as one block named after this calendar. Good for a school day of lessons or a day of meetings. Tap a block to see its events, or use Show all events in the View menu. Reminders still come for every event.';
+
 /** Gap choices for joining events into one folded block, in minutes. */
 const FOLD_GAPS = ['15', '30', '60', '120'] as const;
 const gapLabel = (m: string) => (m === '60' ? '1 hour' : m === '120' ? '2 hours' : `${m} min`);
@@ -45,6 +48,13 @@ export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarE
   const fold: CalendarFold = { ...DEFAULT_FOLD, enabled: false, ...form.fold };
   const setFold = (patch: Partial<CalendarFold>) => setForm((f) => ({ ...f, fold: { ...DEFAULT_FOLD, enabled: false, ...f.fold, ...patch } }));
   const [keywordText, setKeywordText] = useState(() => fold.keywords.join(', '));
+  // Which touch began with the card open, so tapping the (i) of an open card closes it instead of reopening it.
+  const [foldInfoOpen, setFoldInfoOpen] = useState(false);
+  const infoWasOpen = useRef(false);
+  const closeInfoOnTouch = () => {
+    infoWasOpen.current = foldInfoOpen;
+    if (foldInfoOpen) setFoldInfoOpen(false);
+  };
 
   const save = () => {
     const name = form.name.trim();
@@ -74,21 +84,18 @@ export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarE
   }, [navigation, existing]);
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" onTouchStart={closeInfoOnTouch}>
       <Section>
         <Field label="Name">
           <TextField value={form.name} onChangeText={(name) => setForm((f) => ({ ...f, name }))} placeholder="e.g. Work" autoFocus={!existing} />
         </Field>
       </Section>
 
-      <Section title="Default color" footer="Events in this calendar use this color unless they set their own.">
+      <Section title="Default color">
         <ColorPicker value={form.color} onChange={(color) => color && setForm((f) => ({ ...f, color }))} />
       </Section>
 
-      <Section
-        title="Defaults for new events"
-        footer="New events in this calendar start with these. Anything you change on an event stays with that event."
-      >
+      <Section title="Defaults for new events">
         <SwitchRow
           label="Custom reminders"
           subtitle={defaults.reminders ? undefined : 'Using the defaults from Notifications'}
@@ -113,21 +120,18 @@ export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarE
         </Field>
       </Section>
 
-      <Section
-        title="Folding"
-        footer={
-          fold.enabled
-            ? 'Tap a block to see its events, or use Show all events in the View menu. Reminders still come for every event.'
-            : 'Useful for a school day of lessons or a day of meetings: one block from the first to the last, instead of every event.'
-        }
-      >
+      <Section title="Folding" allowOverflow style={{ zIndex: 3 }}>
         <SwitchRow
           label="Fold into one block"
-          subtitle="Back-to-back events show as one block named after this calendar"
           value={fold.enabled}
           onValueChange={(enabled) => {
             animateNextLayout();
             setFold({ enabled });
+          }}
+          info={{
+            text: FOLD_INFO,
+            open: foldInfoOpen,
+            onToggle: () => setFoldInfoOpen(!infoWasOpen.current),
           }}
         />
         {fold.enabled ? (
@@ -157,9 +161,11 @@ export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarE
 
       <Section
         title="Pause calendar"
-        footer={`Pausing skips every repeating event in this calendar during these dates${
-          recurringCount ? ` (${recurringCount} repeating event${recurringCount === 1 ? '' : 's'})` : ''
-        }. It combines with each event's own pauses, and the events resume automatically afterwards.`}
+        footer={
+          recurringCount
+            ? `Skips ${recurringCount} repeating event${recurringCount === 1 ? '' : 's'} in this calendar during these dates.`
+            : 'Skips repeating events in this calendar during these dates.'
+        }
       >
         <PauseWindowsEditor value={form.pauseWindows} onChange={(pauseWindows) => setForm((f) => ({ ...f, pauseWindows }))} />
       </Section>

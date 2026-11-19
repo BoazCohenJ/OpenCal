@@ -905,7 +905,6 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
               <Button small variant="ghost" title="Cancel" onPress={closeDraft} />
               <Button small title="Done" onPress={openDraftEditor} />
             </View>
-            <Text style={styles.draftHint}>Drag it to move it, or drag the round handles to change the length.</Text>
             {templates.length ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stampChips}>
                 {templates.map((t) => {
@@ -1105,7 +1104,6 @@ const useStyles = createStyles((colors) => ({
   draftTop: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   draftDay: { fontSize: 18, fontFamily: fonts.display, color: colors.text },
   draftTime: { fontSize: 13, fontWeight: '700', color: colors.primary, marginTop: 1 },
-  draftHint: { fontSize: 12, color: colors.textMuted, lineHeight: 17 },
   stampChips: { gap: 6 },
   stampChip: {
     flexDirection: 'row',

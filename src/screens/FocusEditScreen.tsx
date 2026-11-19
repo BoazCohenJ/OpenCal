@@ -13,8 +13,8 @@ import { confirmAsync } from '../utils/confirm';
 import { newId } from '../utils/id';
 
 const KIND_COPY: Record<FocusKind, { title: string; body: string }> = {
-  quiet: { title: 'Quiet', body: 'Reminders still arrive during this time, just without sound.' },
-  dnd: { title: 'Do Not Disturb', body: 'No reminders at all during this time. Anything due is skipped.' },
+  quiet: { title: 'Quiet', body: 'Reminders still arrive, without sound.' },
+  dnd: { title: 'Do Not Disturb', body: 'Reminders are skipped.' },
 };
 
 const at = (day: Date, hours: number, minutes = 0) => new Date(setHours(startOfDay(day), hours).getTime() + minutes * 60000);
