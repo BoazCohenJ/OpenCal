@@ -46,9 +46,6 @@ export function parseBirthDate(birthDate: string): Date {
   return hasNoYear(birthDate) ? parseDayKey(`2000-${birthDate.slice(YEARLESS_PREFIX.length)}`) : parseDayKey(birthDate);
 }
 
-/** A picked date → its stored form, dropping the year when `withYear` is false. */
-export const toBirthDate = (key: string, withYear: boolean): string => (withYear ? key : `${YEARLESS_PREFIX}${key.slice(5)}`);
-
 /** All-day occurrences for every birthday (from the 1st onwards) on a day overlapping [rangeStart, rangeEnd). */
 export function expandBirthdays(birthdays: Birthday[], rangeStart: Date, rangeEnd: Date): Occurrence[] {
   const out: Occurrence[] = [];

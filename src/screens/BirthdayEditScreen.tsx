@@ -1,57 +1,74 @@
-import { addDays, format, startOfDay, startOfMonth } from 'date-fns';
+import { addDays, format, startOfDay } from 'date-fns';
 import React, { useLayoutEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Keyboard, Pressable, ScrollView, Text, View } from 'react-native';
 import { EventGlyph } from '../components/Icon';
-import { MiniMonth } from '../components/MiniMonth';
-import { MonthYearGrid } from '../components/MonthYearPicker';
-import { Sheet } from '../components/Sheet';
-import { Button, Field, HeaderButton, Section, SwitchRow, TextField } from '../components/ui';
+import { Button, Field, HeaderButton, Section, TextField } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { Birthday } from '../models/Birthday';
 import type { ScreenProps } from '../navigation/types';
-import { BIRTHDAY_COLOR, expandBirthdays, hasNoYear, parseBirthDate, toBirthDate } from '../services/birthdays';
+import { BIRTHDAY_COLOR, expandBirthdays, hasNoYear, parseBirthDate, YEARLESS_PREFIX } from '../services/birthdays';
 import { createStyles, radius, spacing } from '../theme';
 import { deepText, softBg } from '../utils/color';
 import { confirmAsync, notify } from '../utils/confirm';
-import { dayKey, parseDayKey } from '../utils/dates';
 import { newId } from '../utils/id';
 
 const MIN_YEAR = 1900;
+const MONTH_LABELS = Array.from({ length: 12 }, (_, m) => format(new Date(2000, m, 1), 'MMM'));
+const pad = (n: number) => String(n).padStart(2, '0');
+const isLeap = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
 
+/** Days in `month` (0–11); February has 29 unless `year` is known and not a leap year. */
+function daysIn(month: number | null, year: number | null): number {
+  if (month === null) return 31;
+  if (month === 1) return year === null || isLeap(year) ? 29 : 28;
+  return [3, 5, 8, 10].includes(month) ? 30 : 31;
+}
+
+/**
+ * New or edited birthday. The date is picked inline: tap a month, tap a day, and optionally type
+ * the birth year (no year means the event shows without an age).
+ */
 export function BirthdayEditScreen({ navigation, route }: ScreenProps<'BirthdayEdit'>) {
   const styles = useStyles();
   const { birthdays, saveBirthday, deleteBirthday } = useCalendarContext();
   const existing = birthdays.find((b) => b.id === route.params?.birthdayId);
+  const initial = existing ? parseBirthDate(existing.birthDate) : null;
   const [name, setName] = useState(existing?.name ?? '');
-  // Always a full `yyyy-MM-dd` while editing; the year is dropped on save when `withYear` is off.
-  const [pickedDate, setPickedDate] = useState<string | null>(existing ? dayKey(parseBirthDate(existing.birthDate)) : null);
-  const [withYear, setWithYear] = useState(existing ? !hasNoYear(existing.birthDate) : true);
-  const birthDate = pickedDate ? toBirthDate(pickedDate, withYear) : null;
-  // The date sheet starts on the month grid when there's no date yet, since birth years are far back.
-  const [picker, setPicker] = useState<'month' | 'day' | null>(null);
-  const [pickerMonth, setPickerMonth] = useState(() => startOfMonth(pickedDate ? parseDayKey(pickedDate) : new Date(1990, 0, 1)));
-
-  // A yearless birthday loads with the placeholder year 2000; turning the year on asks for the real one.
-  const placeholderYear = useRef(!!existing && hasNoYear(existing.birthDate));
-  const toggleYear = (on: boolean) => {
-    setWithYear(on);
-    if (on && pickedDate && placeholderYear.current) {
-      setPickerMonth(startOfMonth(parseDayKey(pickedDate)));
-      setPicker('month');
-    }
-  };
+  const [month, setMonth] = useState<number | null>(initial ? initial.getMonth() : null);
+  const [day, setDay] = useState<number | null>(initial ? initial.getDate() : null);
+  const [yearText, setYearText] = useState(existing && !hasNoYear(existing.birthDate) && initial ? String(initial.getFullYear()) : '');
   const today = startOfDay(new Date());
+  const thisYear = today.getFullYear();
+
+  const yearTyped = yearText.trim();
+  const year = /^\d{4}$/.test(yearTyped) ? Number(yearTyped) : null;
+  let yearError: string | null = null;
+  if (yearTyped && year === null) yearError = 'Type the full year, like 1990';
+  else if (year !== null && (year < MIN_YEAR || year > thisYear)) yearError = `Pick a year between ${MIN_YEAR} and ${thisYear}`;
+  else if (year !== null && month === 1 && day === 29 && !isLeap(year)) yearError = `${year} had no February 29`;
+  else if (year !== null && month !== null && day !== null && new Date(year, month, day) > today) yearError = "That date hasn't happened yet";
+
+  const maxDay = daysIn(month, yearError ? null : year);
+  const birthDate =
+    month !== null && day !== null && !yearError
+      ? year !== null
+        ? `${year}-${pad(month + 1)}-${pad(day)}`
+        : `${YEARLESS_PREFIX}${pad(month + 1)}-${pad(day)}`
+      : null;
+
+  const pickMonth = (m: number) => {
+    Keyboard.dismiss();
+    setMonth(m);
+    // Keep the day when it still exists in the new month (Mar 31 → Apr becomes Apr 30).
+    if (day !== null) setDay(Math.min(day, daysIn(m, null)));
+  };
 
   const save = () => {
     const trimmed = name.trim();
-    if (!trimmed) {
-      notify('Add a name');
-      return;
-    }
-    if (!birthDate) {
-      notify('Add a date of birth');
-      return;
-    }
+    if (!trimmed) return notify('Add a name');
+    if (month === null) return notify('Pick the birthday month');
+    if (day === null) return notify('Pick the day of the month');
+    if (yearError || !birthDate) return notify(yearError ?? 'Check the date');
     saveBirthday({ id: existing?.id ?? newId(), name: trimmed, birthDate });
     navigation.goBack();
   };
@@ -81,23 +98,82 @@ export function BirthdayEditScreen({ navigation, route }: ScreenProps<'BirthdayE
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Section>
         <Field label="Name">
-          <TextField value={name} onChangeText={setName} placeholder="e.g. Dana" autoFocus={!existing} autoCapitalize="words" />
+          <TextField
+            value={name}
+            onChangeText={setName}
+            placeholder="e.g. Dana"
+            autoFocus={!existing}
+            autoCapitalize="words"
+            returnKeyType="done"
+            onSubmitEditing={() => Keyboard.dismiss()}
+          />
         </Field>
-        <Field label="Date of birth">
-          <Pressable
-            style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
-            onPress={() => {
-              // Without a year there's no far-back year to hunt for, so go straight to the days.
-              if (!pickedDate && !withYear) setPickerMonth(startOfMonth(new Date(2000, today.getMonth(), 1)));
-              setPicker(pickedDate || !withYear ? 'day' : 'month');
-            }}
-          >
-            <Text style={[styles.pillText, !pickedDate && styles.placeholder]}>
-              {pickedDate ? format(parseDayKey(pickedDate), withYear ? 'MMMM d, yyyy' : 'MMMM d') : 'Choose a date'}
-            </Text>
-          </Pressable>
+      </Section>
+
+      <Section title="Birthday">
+        <Field label="Month">
+          <View style={styles.grid}>
+            {MONTH_LABELS.map((label, m) => {
+              const selected = m === month;
+              return (
+                <Pressable
+                  key={m}
+                  onPress={() => pickMonth(m)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={format(new Date(2000, m, 1), 'MMMM')}
+                  style={({ pressed }) => [styles.monthCell, pressed && styles.pressed]}
+                >
+                  <View style={[styles.chip, selected && styles.chipSelected]}>
+                    <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
         </Field>
-        <SwitchRow label="Include birth year" subtitle="Off: just the date, with no age in the event title." value={withYear} onValueChange={toggleYear} />
+        <Field label="Day">
+          <View style={styles.grid}>
+            {Array.from({ length: maxDay }, (_, i) => i + 1).map((d) => {
+              const selected = d === day;
+              return (
+                <Pressable
+                  key={d}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setDay(d);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={String(d)}
+                  style={({ pressed }) => [styles.dayCell, pressed && styles.pressed]}
+                >
+                  <View style={[styles.chip, selected && styles.chipSelected]}>
+                    <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{d}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Field>
+        <Field label="Year (optional)">
+          <TextField
+            value={yearText}
+            onChangeText={(t) => setYearText(t.replace(/\D/g, ''))}
+            placeholder="e.g. 1990"
+            keyboardType="number-pad"
+            maxLength={4}
+            returnKeyType="done"
+            style={styles.yearInput}
+          />
+          <Text style={[styles.hint, yearError && yearTyped.length === 4 ? styles.hintError : null]}>
+            {yearError && yearTyped.length === 4
+              ? yearError
+              : year !== null
+                ? `Born ${year} · the event shows the age`
+                : 'Leave empty to show just the date, with no age'}
+          </Text>
+        </Field>
       </Section>
 
       {next ? (
@@ -115,45 +191,6 @@ export function BirthdayEditScreen({ navigation, route }: ScreenProps<'BirthdayE
       ) : null}
 
       {existing ? <Button variant="danger" title="Delete birthday" onPress={remove} /> : null}
-
-      <Sheet
-        visible={picker !== null}
-        onClose={() => {
-          setPicker(null);
-          // Dismissed without choosing the real year: stay yearless rather than keep the placeholder 2000.
-          if (placeholderYear.current) setWithYear(false);
-        }}
-        title="Date of birth"
-        actionLabel={picker === 'month' && pickedDate ? 'Back' : 'Close'}
-        onAction={picker === 'month' && pickedDate ? () => setPicker('day') : undefined}
-      >
-        {picker === 'month' ? (
-          <MonthYearGrid
-            value={pickerMonth}
-            minYear={MIN_YEAR}
-            maxYear={today.getFullYear()}
-            max={today}
-            showSelection={!!pickedDate}
-            onSelect={(m) => {
-              setPickerMonth(m);
-              setPicker('day');
-            }}
-          />
-        ) : (
-          <MiniMonth
-            month={pickerMonth}
-            onChangeMonth={setPickerMonth}
-            onPressTitle={() => setPicker('month')}
-            selected={pickedDate ? parseDayKey(pickedDate) : undefined}
-            onSelectDay={(d) => {
-              if (d > today) return;
-              placeholderYear.current = false;
-              setPickedDate(dayKey(d));
-              setPicker(null);
-            }}
-          />
-        )}
-      </Sheet>
     </ScrollView>
   );
 }
@@ -161,10 +198,17 @@ export function BirthdayEditScreen({ navigation, route }: ScreenProps<'BirthdayE
 const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: 48 },
-  pill: { alignSelf: 'flex-start', backgroundColor: colors.surfaceAlt, borderRadius: radius.sm, paddingVertical: 9, paddingHorizontal: 12 },
-  pillText: { fontSize: 15, color: colors.text, fontWeight: '500' },
-  placeholder: { color: colors.textFaint },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -3 },
+  monthCell: { width: '25%', padding: 3 },
+  dayCell: { width: `${100 / 7}%`, padding: 3 },
+  chip: { height: 38, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceAlt },
+  chipSelected: { backgroundColor: colors.primary },
+  chipText: { fontSize: 15, fontWeight: '600', color: colors.text },
+  chipTextSelected: { color: colors.onPrimary, fontWeight: '800' },
   pressed: { opacity: 0.7 },
+  yearInput: { maxWidth: 160 },
+  hint: { fontSize: 13, color: colors.textMuted },
+  hintError: { color: colors.danger },
   preview: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: spacing.lg },
   glyph: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   previewTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
