@@ -18,6 +18,20 @@ export interface PositionedOccurrence {
   /** Horizontal start and width as fractions of the day column. */
   x: number;
   w: number;
+  /** Over a fold block: room to leave free on each side, as fractions of the column (see placeX). */
+  inset?: { left: number; right: number };
+}
+
+/** Largest inset (px) beside events drawn over a fold block, so wide columns (web) don't open big gaps. */
+const INSET_CAP = { folded: 20, expanded: 12 };
+
+/** Horizontal position (px) of an occurrence in a day column `inner` px wide. */
+export function placeX(pos: PositionedOccurrence, inner: number): { left: number; width: number } {
+  const cap = pos.inset && pos.inset.right === 0 ? INSET_CAP.expanded : INSET_CAP.folded;
+  const left = pos.inset ? Math.min(pos.inset.left * inner, cap) : 0;
+  const right = pos.inset ? Math.min(pos.inset.right * inner, cap) : 0;
+  const span = inner - left - right;
+  return { left: left + pos.x * span, width: pos.w * span };
 }
 
 /**
@@ -74,9 +88,7 @@ function layoutWithFolds(occs: Occurrence[], day: Date, minHeight: number): Posi
     if (!under) continue;
     const inset = foldOf(under.occ)!.expanded ? EXPANDED_INSET : FOLDED_INSET;
     const right = foldOf(under.occ)!.expanded ? 0 : FOLDED_INSET;
-    const span = 1 - inset - right;
-    pos.x = inset + pos.x * span;
-    pos.w = pos.w * span;
+    pos.inset = { left: inset, right };
   }
   return [...blocks, ...events];
 }

@@ -121,12 +121,12 @@ const useStyles = createStyles(() => ({
   middleTitleCompact: { fontSize: 11, fontWeight: '800' },
   middleHint: { fontSize: 13, fontWeight: '600', marginTop: 2 },
   middleHintCompact: { fontSize: 9.5, textAlign: 'center' },
-  expanded: { position: 'absolute' },
+  expanded: { position: 'absolute', zIndex: 3 },
   rail: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, borderRadius: 2 },
   foldButton: {
     position: 'absolute',
     right: 4,
-    top: -11,
+    top: -20,
     zIndex: 2,
     flexDirection: 'row',
     alignItems: 'center',
@@ -135,6 +135,6 @@ const useStyles = createStyles(() => ({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  foldButtonCompact: { right: 1, top: -8, paddingHorizontal: 3, paddingVertical: 2 },
+  foldButtonCompact: { right: 1, top: -15, paddingHorizontal: 3, paddingVertical: 2 },
   foldText: { fontSize: 10.5, fontWeight: '700' },
 }));

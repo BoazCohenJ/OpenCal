@@ -11,7 +11,7 @@ import { atMinutes, dayKey, formatTime, minutesSinceMidnight } from '../utils/da
 import { eventLabel } from '../utils/format';
 import { DraftBlock, type DraftProps } from './draft';
 import { FoldBlock } from './FoldBlock';
-import { layoutTimed, PX_PER_MIN, slotMinutesFromPress, spanInfo, type PositionedOccurrence } from './layout';
+import { layoutTimed, placeX, PX_PER_MIN, slotMinutesFromPress, spanInfo, type PositionedOccurrence } from './layout';
 import { SelectableBlock, SelectionCheckbox, SelectionToolbar, TOOLBAR_CLEARANCE, useEventSelection, type PendingMove, type SelectedOccurrence } from './selection';
 import { GRID_HEIGHT, HourGutter, HourLines, NowLine, type TimeGridHandle } from './TimeGrid';
 
@@ -178,8 +178,8 @@ export function DayView({
                       {
                         top: pos.top,
                         height: pos.height - 2,
-                        left: 2 + pos.x * inner,
-                        width: pos.w * inner - 3,
+                        left: 2 + placeX(pos, inner).left,
+                        width: placeX(pos, inner).width - 3,
                         backgroundColor: pos.occ.color,
                         borderLeftColor: pos.occ.color,
                       },

@@ -11,7 +11,7 @@ import { atMinutes, dayKey, minutesSinceMidnight } from '../utils/dates';
 import { eventLabel } from '../utils/format';
 import { DraftBlock, type DraftProps } from './draft';
 import { FoldBlock } from './FoldBlock';
-import { layoutSpans, layoutTimed, PX_PER_MIN, slotMinutesFromPress } from './layout';
+import { layoutSpans, layoutTimed, placeX, PX_PER_MIN, slotMinutesFromPress } from './layout';
 import { SelectableBlock, SelectionCheckbox, SelectionToolbar, TOOLBAR_CLEARANCE, useEventSelection, type PendingMove, type SelectedOccurrence } from './selection';
 import { GRID_HEIGHT, GUTTER_WIDTH, HourGutter, HourLines, NowLine, type TimeGridHandle } from './TimeGrid';
 
@@ -197,8 +197,8 @@ export function WeekView({
                             {
                               top: pos.top,
                               height: pos.height - 1,
-                              left: 1 + pos.x * inner,
-                              width: pos.w * inner - 1,
+                              left: 1 + placeX(pos, inner).left,
+                              width: placeX(pos, inner).width - 1,
                               backgroundColor: pos.occ.color,
                               borderLeftColor: pos.occ.color,
                             },
