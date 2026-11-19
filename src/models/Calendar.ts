@@ -13,6 +13,23 @@ export interface CalendarDefaults {
   tags?: string[];
 }
 
+/**
+ * Folding: on Day, Week and Schedule, back-to-back events of this calendar (a school day of lessons,
+ * a day of meetings) show as one block named after the calendar until it's tapped open. Kept even
+ * while `enabled` is off, so turning folding back on restores the same choices.
+ */
+export interface CalendarFold {
+  enabled: boolean;
+  /** Events this close (or overlapping) join the same block. */
+  maxGapMinutes: number;
+  /** One-off events (not part of a repeat) stay visible on top of the block. */
+  showOneOffs: boolean;
+  /** Events whose title contains one of these (case ignored) stay visible on top of the block. */
+  keywords: string[];
+}
+
+export const DEFAULT_FOLD: CalendarFold = { enabled: true, maxGapMinutes: 60, showOneOffs: false, keywords: [] };
+
 export interface Calendar {
   id: string;
   name: string;
@@ -22,4 +39,5 @@ export interface Calendar {
   /** Pauses every recurring event in this calendar. Composes with per-event pauses. */
   pauseWindows: PauseWindow[];
   defaults?: CalendarDefaults;
+  fold?: CalendarFold;
 }

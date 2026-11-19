@@ -50,4 +50,6 @@ export interface Event {
   alarmsInQuiet?: boolean;
   emoji?: string;
   tags: string[];
+  /** Stays visible on its own when its calendar is folded into one block (an exam among lessons). */
+  alwaysShow?: boolean;
 }

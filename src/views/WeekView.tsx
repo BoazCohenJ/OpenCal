@@ -3,12 +3,14 @@ import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SpanBar, SPAN_LANE_HEIGHT } from '../components/SpanBar';
 import { EventGlyph, eventIconKey } from '../components/Icon';
+import { foldOf, isFoldBlock, type FoldInfo } from '../services/fold';
 import { occurrencesByDay, type Occurrence } from '../services/occurrences';
 import { createStyles, fonts } from '../theme';
 import { readableOn } from '../utils/color';
 import { atMinutes, dayKey, minutesSinceMidnight } from '../utils/dates';
 import { eventLabel } from '../utils/format';
 import { DraftBlock, type DraftProps } from './draft';
+import { FoldBlock } from './FoldBlock';
 import { layoutSpans, layoutTimed, PX_PER_MIN, slotMinutesFromPress } from './layout';
 import { SelectableBlock, SelectionCheckbox, SelectionToolbar, TOOLBAR_CLEARANCE, useEventSelection, type PendingMove, type SelectedOccurrence } from './selection';
 import { GRID_HEIGHT, GUTTER_WIDTH, HourGutter, HourLines, NowLine, type TimeGridHandle } from './TimeGrid';
@@ -21,6 +23,7 @@ export function WeekView({
   onPressEvent,
   onPressSlot,
   onPressDay,
+  onToggleFold,
   onCommitMoves,
   onDeleteEvents,
   onSelectionModeChange,
@@ -37,6 +40,8 @@ export function WeekView({
   /** The new-event pill, drawn when it falls in this week. */
   draft?: DraftProps | null;
   onPressDay: (d: Date) => void;
+  /** Unfolds or folds a calendar's block (see services/fold). */
+  onToggleFold: (fold: FoldInfo) => void;
   /** Saves moves staged in selection mode (on Done, or when leaving the page). */
   onCommitMoves: (moves: PendingMove[]) => void;
   onDeleteEvents: (picked: SelectedOccurrence[]) => void;
@@ -170,6 +175,19 @@ export function WeekView({
                     />
                     {timed.map((pos) => {
                       const inner = colWidth - 2;
+                      if (isFoldBlock(pos.occ)) {
+                        const fold = foldOf(pos.occ)!;
+                        return (
+                          <FoldBlock
+                            key={pos.occ.key}
+                            occ={pos.occ}
+                            height={pos.height}
+                            compact
+                            onToggle={() => onToggleFold(fold)}
+                            style={{ top: pos.top, height: pos.height - 1, left: 1, width: inner - 1 }}
+                          />
+                        );
+                      }
                       const isSelected = selected.includes(pos.occ.key);
                       return (
                         <SelectableBlock

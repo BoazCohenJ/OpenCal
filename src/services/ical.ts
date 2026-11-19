@@ -145,6 +145,7 @@ function eventLines(event: Event, calendar: Calendar | undefined, allDayTime: nu
   if (event.emoji) lines.push(`X-OPENCAL-ICON:${escapeText(event.emoji)}`);
   const alarms = new Set(event.alarms ?? []);
   if (alarms.size && event.alarmsInQuiet) lines.push('X-OPENCAL-ALARM-IN-QUIET:TRUE');
+  if (event.alwaysShow) lines.push('X-OPENCAL-ALWAYS-SHOW:TRUE');
   for (const minutes of event.reminders) {
     // All-day reminders count back from the all-day reminder time, not midnight.
     const trigger = `TRIGGER:${icsDuration(event.isAllDay ? allDayTime - minutes : -minutes)}`;
@@ -430,6 +431,7 @@ export function parseICS(text: string, allDayTime: number): ICSImport | null {
             }
           : {}),
         emoji: one('X-OPENCAL-ICON') ? unescapeText(one('X-OPENCAL-ICON')!.value).trim() || undefined : undefined,
+        ...(one('X-OPENCAL-ALWAYS-SHOW')?.value.trim().toUpperCase() === 'TRUE' ? { alwaysShow: true } : {}),
         tags: [...new Set(all('CATEGORIES').flatMap((p) => splitList(p.value).map(unescapeText)))],
       };
       for (const prop of all('RDATE')) {

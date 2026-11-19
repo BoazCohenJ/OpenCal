@@ -1,4 +1,5 @@
-import React, { useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '../components/Icon';
 import { Logo } from '../components/Logo';
@@ -13,7 +14,7 @@ import { getSyncConfig } from '../services/sync';
 import { APP_VERSION, updateInfo } from '../services/appInfo';
 import { createStyles, radius, spacing, useTheme, type ThemeMode } from '../theme';
 import { deviceTimeZone } from '../utils/dates';
-import { addWidgetToHomeScreen, widgetsSupported } from '../widgets/homeScreen';
+import { addWidgetToHomeScreen, placedWidgetIds, widgetsSupported } from '../widgets/homeScreen';
 
 const WIDGETS: { name: string; label: string; icon: IconName }[] = [
   { name: 'Schedule', label: 'Schedule', icon: 'view-schedule' },
@@ -23,6 +24,15 @@ const WIDGETS: { name: string; label: string; icon: IconName }[] = [
 ];
 
 const WIDGET_GAP = spacing.sm;
+/** How long to keep looking for a widget the launcher was asked to place. */
+const PLACE_WAIT_MS = 60_000;
+
+type PlacedWidget = { name: string; label: string; id: number };
+
+async function loadPlaced(): Promise<PlacedWidget[]> {
+  const lists = await Promise.all(WIDGETS.map(async (w) => (await placedWidgetIds(w.name)).map((id) => ({ name: w.name, label: w.label, id }))));
+  return lists.flat();
+}
 
 type InfoKey = 'length' | 'floating';
 const LENGTH_INFO =
@@ -38,6 +48,39 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
   // Four squares across: the grid's width minus its padding and the gaps between them.
   const tile = Math.max(0, Math.floor((gridWidth - WIDGET_GAP * (WIDGETS.length + 1)) / WIDGETS.length));
   const [openInfo, setOpenInfo] = useState<InfoKey | null>(null);
+  const [placed, setPlaced] = useState<PlacedWidget[]>([]);
+  useFocusEffect(
+    useCallback(() => {
+      if (widgetsSupported) void loadPlaced().then(setPlaced);
+    }, []),
+  );
+  // Android doesn't open a widget's settings window when the app places it, so after asking the
+  // launcher to place one, watch for the new widget and open its settings here.
+  const placeWatch = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopWatching = () => {
+    if (placeWatch.current) clearInterval(placeWatch.current);
+    placeWatch.current = null;
+  };
+  useEffect(() => stopWatching, []);
+  const addWidget = async (name: string) => {
+    stopWatching();
+    const before = new Set(await placedWidgetIds(name));
+    const asked = await addWidgetToHomeScreen(name);
+    if (!asked) {
+      showToast({ message: 'Your home screen can’t add widgets from here. Long-press it, then Widgets → OpenCal.' });
+      return;
+    }
+    let ticks = PLACE_WAIT_MS / 1000;
+    placeWatch.current = setInterval(() => {
+      if (--ticks < 0) return stopWatching();
+      void placedWidgetIds(name).then((ids) => {
+        const added = ids.find((id) => !before.has(id));
+        if (added === undefined || !placeWatch.current) return;
+        stopWatching();
+        navigation.navigate('WidgetSettings', { widgetName: name, widgetId: added });
+      });
+    }, 1000);
+  };
   // Which card was open when the current touch began, so tapping the (i) of an open card closes it
   // instead of closing and reopening it.
   const infoWasOpen = useRef<InfoKey | null>(null);
@@ -150,17 +193,23 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
                 style={[styles.widgetTile, { width: tile, height: tile }]}
                 accessibilityRole="button"
                 accessibilityLabel={`Add ${w.label} widget`}
-                onPress={() =>
-                  void addWidgetToHomeScreen(w.name).then((asked) => {
-                    if (!asked) showToast({ message: 'Your home screen can’t add widgets from here. Long-press it, then Widgets → OpenCal.' });
-                  })
-                }
+                onPress={() => void addWidget(w.name)}
               >
                 <Icon name={w.icon} size={28} color={colors.primary} />
                 <Text style={styles.widgetLabel}>{w.label}</Text>
               </PressableScale>
             ))}
           </View>
+          {placed.map((w) => (
+            <React.Fragment key={`${w.name}-${w.id}`}>
+              <Divider />
+              <Row
+                label={`${w.label} widget${placed.filter((p) => p.name === w.name).length > 1 ? ` ${placed.filter((p) => p.name === w.name).indexOf(w) + 1}` : ''}`}
+                value="Settings"
+                onPress={() => navigation.navigate('WidgetSettings', { widgetName: w.name, widgetId: w.id })}
+              />
+            </React.Fragment>
+          ))}
         </Section>
       ) : null}
       <Section title="Reminders">

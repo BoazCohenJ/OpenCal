@@ -1,11 +1,12 @@
 import type { WidgetTaskHandlerProps } from 'react-native-android-widget';
-import { getWidgetPage, setWidgetPage } from './data';
+import { getWidgetPage, setWidgetPage, setWidgetSettings } from './data';
 import { renderCalendarWidget } from './render';
 
 /** Runs in the background whenever Android asks a widget to draw, or one of its buttons is tapped. */
 export async function widgetTaskHandler({ widgetInfo, widgetAction, clickAction, renderWidget }: WidgetTaskHandlerProps) {
   if (widgetAction === 'WIDGET_DELETED') {
     setWidgetPage(widgetInfo.widgetId, null);
+    setWidgetSettings(widgetInfo.widgetId, null);
     return;
   }
   if (widgetAction === 'WIDGET_CLICK') {

@@ -10,3 +10,5 @@ export const DEFAULT_EVENT_MINUTES_KEY = 'defaultEventMinutes';
 export const DEFAULT_CALENDAR_KEY = 'defaultCalendarId';
 /** True once this device has finished or skipped the welcome tour (OnboardingScreen). Per device, never synced. */
 export const ONBOARDING_DONE_KEY = 'onboardingDone';
+/** "Show all events" in the View menu: unfolds every folded calendar. Per device, never synced. */
+export const SHOW_ALL_EVENTS_KEY = 'showAllEvents';

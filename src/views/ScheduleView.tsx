@@ -2,8 +2,10 @@ import { addDays, format, isSameDay, isSameMonth, startOfDay } from 'date-fns';
 import React, { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, SectionList, Text, View } from 'react-native';
 import { EventGlyph, eventIconKey, Icon } from '../components/Icon';
+import { foldOf, inFoldOf, type FoldInfo } from '../services/fold';
 import { occurrencesByDay, type Occurrence } from '../services/occurrences';
 import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
+import { deepText, softBg } from '../utils/color';
 import { dayKey, formatTime } from '../utils/dates';
 import { eventLabel } from '../utils/format';
 
@@ -58,11 +60,14 @@ export function ScheduleView({
   getOccurrences,
   onPressEvent,
   onPressDay,
+  onToggleFold,
 }: {
   start: Date;
   getOccurrences: (from: Date, to: Date) => Occurrence[];
   onPressEvent: (o: Occurrence) => void;
   onPressDay: (d: Date) => void;
+  /** Unfolds or folds a calendar's block (see services/fold). */
+  onToggleFold: (fold: FoldInfo) => void;
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
@@ -132,10 +137,46 @@ export function ScheduleView({
       renderItem={({ item: o }) => {
         const allDay = o.event.isAllDay;
         const past = o.end < now;
+        const fold = foldOf(o);
+        if (fold) {
+          const count = fold.members.length;
+          const extra = fold.expanded ? 'Tap to fold' : fold.shown ? `${fold.shown} shown below` : 'Tap to show them';
+          return (
+            <Pressable
+              onPress={() => onToggleFold(fold)}
+              accessibilityRole="button"
+              accessibilityLabel={`${o.event.title}, ${count} events. ${extra}`}
+              style={({ pressed }) => [
+                styles.item,
+                styles.foldItem,
+                { backgroundColor: softBg(o.color), borderColor: o.color },
+                past && styles.past,
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.time}>
+                <Text style={styles.timeMain}>{formatTime(o.start)}</Text>
+                <Text style={styles.timeSub}>{formatTime(o.end)}</Text>
+              </View>
+              <View style={[styles.bar, { backgroundColor: o.color }]} />
+              <View style={styles.body}>
+                <Text style={[styles.title, { color: deepText(o.color) }]} numberOfLines={1}>
+                  {o.event.title}
+                </Text>
+                <Text style={styles.meta} numberOfLines={1}>
+                  {count} events · {extra}
+                </Text>
+              </View>
+              <View style={styles.foldIcon}>
+                <Icon name={fold.expanded ? 'chevron-up' : 'chevron-down'} size={18} color={deepText(o.color)} />
+              </View>
+            </Pressable>
+          );
+        }
         return (
           <Pressable
             onPress={() => onPressEvent(o)}
-            style={({ pressed }) => [styles.item, past && styles.past, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.item, inFoldOf(o) && [styles.inFold, { borderLeftColor: o.color }], past && styles.past, pressed && styles.pressed]}
           >
             <View style={styles.time}>
               {allDay ? (
@@ -203,6 +244,10 @@ const useStyles = createStyles((colors) => ({
     borderRadius: radius.md,
   },
   past: { opacity: 0.5 },
+  foldItem: { borderWidth: 1.5 },
+  foldIcon: { justifyContent: 'center' },
+  // Events drawn on a block hang off it, indented, like a branch.
+  inFold: { marginLeft: 62, borderLeftWidth: 2 },
   pressed: { opacity: 0.7 },
   time: { width: 56 },
   timeMain: { fontSize: 13, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] },

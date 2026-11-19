@@ -1,5 +1,6 @@
 import { addDays, differenceInCalendarDays, startOfDay } from 'date-fns';
 import type { GestureResponderEvent } from 'react-native';
+import { foldOf, isFoldBlock } from '../services/fold';
 import type { Occurrence } from '../services/occurrences';
 import { isMultiDay, minutesSinceMidnight } from '../utils/dates';
 
@@ -40,6 +41,47 @@ export const isAllDayLike = (o: Occurrence): boolean => o.event.isAllDay || isMu
  * (keeping its true end) instead of being squeezed beside it.
  */
 export function layoutTimed(occs: Occurrence[], day: Date, minHeight = MIN_BLOCK_PX): PositionedOccurrence[] {
+  if (!occs.some(isFoldBlock)) return layoutEvents(occs, day, minHeight);
+  return layoutWithFolds(occs, day, minHeight);
+}
+
+/** Share of the column a folded block keeps visible on each side of the events drawn on it. */
+const FOLDED_INSET = 0.07;
+/** Share of the column the rail of an unfolded block takes on the left. */
+const EXPANDED_INSET = 0.05;
+
+/**
+ * Fold blocks (see services/fold) are drawn full width behind everything, at their true size. The
+ * other events are laid out among themselves as usual, then the ones over a block are pulled in so
+ * the block still shows around them: on both sides of a folded block, past the rail of an open one.
+ */
+function layoutWithFolds(occs: Occurrence[], day: Date, minHeight: number): PositionedOccurrence[] {
+  const dayStart = startOfDay(day).getTime();
+  const dayEnd = addDays(startOfDay(day), 1).getTime();
+  const clockMinutes = (ms: number) => (ms <= dayStart ? 0 : ms >= dayEnd ? 24 * 60 : minutesSinceMidnight(new Date(ms)));
+  const blocks = occs.filter(isFoldBlock).map((occ): PositionedOccurrence => {
+    const top = clockMinutes(occ.start.getTime()) * PX_PER_MIN;
+    const height = Math.max(minHeight, clockMinutes(occ.end.getTime()) * PX_PER_MIN - top);
+    return { occ, top, height, column: 0, columns: 1, x: 0, w: 1 };
+  });
+  const events = layoutEvents(
+    occs.filter((o) => !isFoldBlock(o)),
+    day,
+    minHeight,
+  );
+  for (const pos of events) {
+    const under = blocks.find((b) => pos.occ.start < b.occ.end && pos.occ.end > b.occ.start);
+    if (!under) continue;
+    const inset = foldOf(under.occ)!.expanded ? EXPANDED_INSET : FOLDED_INSET;
+    const right = foldOf(under.occ)!.expanded ? 0 : FOLDED_INSET;
+    const span = 1 - inset - right;
+    pos.x = inset + pos.x * span;
+    pos.w = pos.w * span;
+  }
+  return [...blocks, ...events];
+}
+
+function layoutEvents(occs: Occurrence[], day: Date, minHeight: number): PositionedOccurrence[] {
   const dayStart = startOfDay(day).getTime();
   const dayEnd = addDays(startOfDay(day), 1).getTime();
   const items = occs

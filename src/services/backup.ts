@@ -78,6 +78,7 @@ function readCalendar(o: Obj, i: number): Calendar | null {
     sortOrder: typeof o.sortOrder === 'number' ? o.sortOrder : i,
     pauseWindows: pauses(o.pauseWindows),
     defaults: isObj(o.defaults) ? (o.defaults as Calendar['defaults']) : undefined,
+    ...readFold(o.fold),
   };
 }
 
@@ -104,7 +105,15 @@ function readEvent(o: Obj): Event | null {
     ...readAlarms(numList(o.reminders), numList(o.alarms), o.alarmsInQuiet === true),
     emoji: str(o.emoji),
     tags: strList(o.tags),
+    ...(o.alwaysShow === true ? { alwaysShow: true } : {}),
   };
+}
+
+function readFold(v: unknown): Pick<Calendar, 'fold'> {
+  if (!isObj(v)) return {};
+  const o = v as Obj;
+  const gap = typeof o.maxGapMinutes === 'number' && o.maxGapMinutes >= 0 ? o.maxGapMinutes : 60;
+  return { fold: { enabled: o.enabled === true, maxGapMinutes: gap, showOneOffs: o.showOneOffs === true, keywords: strList(o.keywords) } };
 }
 
 /** Only reminders the event actually has can be alarms. */

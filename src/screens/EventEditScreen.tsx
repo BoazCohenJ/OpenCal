@@ -126,6 +126,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
       pauseWindows: form.recurrenceRule ? form.pauseWindows : [],
       skippedDates: form.recurrenceRule ? form.skippedDates : [],
       ...eventAlarms(form.reminders, form.alarms, form.alarmsInQuiet),
+      alwaysShow: form.alwaysShow ? true : undefined,
     };
   };
 
@@ -234,6 +235,14 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
 
       <Section title="Calendar">
         <CalendarSelector calendars={calendars} value={form.calendarId} onChange={changeCalendar} />
+        {calendar?.fold?.enabled || form.alwaysShow ? (
+          <SwitchRow
+            label="Always show"
+            subtitle={`Stays visible when ${calendar?.name ?? 'its calendar'} is folded into one block`}
+            value={!!form.alwaysShow}
+            onValueChange={(alwaysShow) => update({ alwaysShow })}
+          />
+        ) : null}
       </Section>
 
       <Section title="When">

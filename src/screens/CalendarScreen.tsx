@@ -33,6 +33,7 @@ import type { Event } from '../models/Event';
 import type { EventTemplate } from '../models/Template';
 import type { ScreenProps } from '../navigation/types';
 import { BIRTHDAYS_CALENDAR_ID, birthdayIdOf } from '../services/birthdays';
+import { foldKey, foldOccurrences, type FoldInfo } from '../services/fold';
 import { occurrenceDayKey } from '../services/eventTimes';
 import { buildNewEvent } from '../services/newEvent';
 import type { Occurrence } from '../services/occurrences';
@@ -162,6 +163,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     notificationPrefs,
     defaultEventMinutes,
     defaultCalendarId,
+    showAllEvents,
   } = useCalendarContext();
   const showToast = useToast();
   const [mode, setMode] = useState<ViewMode>(() => fromLink(route.params).mode ?? 'month');
@@ -191,6 +193,24 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     });
   };
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  // Folded calendars (see services/fold): the calendar/day pairs tapped open. Month always shows
+  // blocks folded, since a tap there opens the day.
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleFold = useCallback((fold: FoldInfo) => {
+    setUnfolded((prev) => {
+      const key = foldKey(fold.calendarId, fold.day);
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+  const monthMode = mode === 'month';
+  const viewOccurrences = useCallback(
+    (start: Date, end: Date) =>
+      foldOccurrences(getOccurrences(start, end), calendarsById, { unfoldAll: showAllEvents, expanded: monthMode ? undefined : unfolded }),
+    [getOccurrences, calendarsById, showAllEvents, unfolded, monthMode],
+  );
   // Bulk delete waiting on answers for its repeating events (one sheet per event).
   const [repeatQueue, setRepeatQueue] = useState<{ plain: Event[]; repeating: RepeatItem[]; choices: RepeatDeleteChoice[] } | null>(
     null,
@@ -219,15 +239,15 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     if (!cursors.some((c) => pageKey(mode, c) === pageKey(mode, cursor))) cursors.push(cursor);
     const built = cursors.map((c) => {
       const key = pageKey(mode, c);
-      const page = pageCache.get(getOccurrences, `${mode}:${key}`, () => {
+      const page = pageCache.get(viewOccurrences, `${mode}:${key}`, () => {
         const r = rangeFor(mode, c);
-        return { cursor: c, range: r, occurrences: mode === 'schedule' ? [] : getOccurrences(r.start, r.end) };
+        return { cursor: c, range: r, occurrences: mode === 'schedule' ? [] : viewOccurrences(r.start, r.end) };
       });
       return { offset: pagePosition(mode, c, cursor), position: pagePosition(mode, c, pageOrigin), key, ...page };
     });
     pageCache.keepOnly(built.map((p) => `${mode}:${p.key}`));
     return built;
-  }, [pageCache, paging, mode, cursor, deferredCursor, pageOrigin, getOccurrences]);
+  }, [pageCache, paging, mode, cursor, deferredCursor, pageOrigin, viewOccurrences]);
   const currentKey = `${mode}:${pageKey(mode, cursor)}`;
   const position = pagePosition(mode, cursor, pageOrigin);
   const sliding = useRef(false);
@@ -723,6 +743,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
           onPressEvent={openEvent}
           onPressSlot={pressSlot}
           onPressDay={openDay}
+          onToggleFold={toggleFold}
           draft={active ? draftProps : null}
           onCommitMoves={commitMoves}
           onDeleteEvents={removeEvents}
@@ -739,6 +760,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
         occurrences={page.occurrences}
         onPressEvent={openEvent}
         onPressSlot={pressSlot}
+        onToggleFold={toggleFold}
         draft={active ? draftProps : null}
         onCommitMoves={commitMoves}
         onDeleteEvents={removeEvents}
@@ -852,7 +874,7 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
 
       <Animated.View style={[styles.body, desktop && styles.bodyDesktop, bodyMotion]} {...swipeResponder.panHandlers}>
         {mode === 'schedule' ? (
-          <ScheduleView start={cursor} getOccurrences={getOccurrences} onPressEvent={openEvent} onPressDay={openDay} />
+          <ScheduleView start={cursor} getOccurrences={viewOccurrences} onPressEvent={openEvent} onPressDay={openDay} onToggleFold={toggleFold} />
         ) : (
           <View style={styles.flex} onLayout={(e) => setPageWidth(e.nativeEvent.layout.width)}>
             {paging ? (

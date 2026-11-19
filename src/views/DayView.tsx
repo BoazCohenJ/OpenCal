@@ -3,12 +3,14 @@ import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from
 import { GestureResponderEvent, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { EventPill } from '../components/EventPill';
 import { EventGlyph, eventIconKey, Icon } from '../components/Icon';
+import { foldOf, isFoldBlock, type FoldInfo } from '../services/fold';
 import type { Occurrence } from '../services/occurrences';
 import { createStyles } from '../theme';
 import { readableOn } from '../utils/color';
 import { atMinutes, dayKey, formatTime, minutesSinceMidnight } from '../utils/dates';
 import { eventLabel } from '../utils/format';
 import { DraftBlock, type DraftProps } from './draft';
+import { FoldBlock } from './FoldBlock';
 import { layoutTimed, PX_PER_MIN, slotMinutesFromPress, spanInfo, type PositionedOccurrence } from './layout';
 import { SelectableBlock, SelectionCheckbox, SelectionToolbar, TOOLBAR_CLEARANCE, useEventSelection, type PendingMove, type SelectedOccurrence } from './selection';
 import { GRID_HEIGHT, HourGutter, HourLines, NowLine, type TimeGridHandle } from './TimeGrid';
@@ -45,6 +47,7 @@ export function DayView({
   occurrences,
   onPressEvent,
   onPressSlot,
+  onToggleFold,
   onCommitMoves,
   onDeleteEvents,
   onSelectionModeChange,
@@ -58,6 +61,8 @@ export function DayView({
   onPressEvent: (o: Occurrence) => void;
   /** `point` is where the tap landed in the window. */
   onPressSlot: (start: Date, point: { x: number; y: number }) => void;
+  /** Unfolds or folds a calendar's block (see services/fold). */
+  onToggleFold: (fold: FoldInfo) => void;
   /** The new-event pill, drawn when it falls on this day. */
   draft?: DraftProps | null;
   /** Saves moves staged in selection mode (on Done, or when leaving the page). */
@@ -152,6 +157,18 @@ export function DayView({
             {columnWidth > 0 &&
               timed.map((pos) => {
                 const inner = columnWidth - 8;
+                if (isFoldBlock(pos.occ)) {
+                  const fold = foldOf(pos.occ)!;
+                  return (
+                    <FoldBlock
+                      key={pos.occ.key}
+                      occ={pos.occ}
+                      height={pos.height}
+                      onToggle={() => onToggleFold(fold)}
+                      style={{ top: pos.top, height: pos.height - 2, left: 2, width: inner - 1 }}
+                    />
+                  );
+                }
                 const isSelected = selected.includes(pos.occ.key);
                 return (
                   <SelectableBlock

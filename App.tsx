@@ -36,6 +36,7 @@ import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { QuickAddScreen } from './src/screens/QuickAddScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { StampScreen } from './src/screens/StampScreen';
+import { WidgetSettingsScreen } from './src/screens/WidgetSettingsScreen';
 import { SyncScreen } from './src/screens/SyncScreen';
 import { TemplateEditScreen } from './src/screens/TemplateEditScreen';
 import { TemplatesScreen } from './src/screens/TemplatesScreen';
@@ -152,6 +153,7 @@ const narrowed = {
   QuickAddScreen: dialog(narrow(QuickAddScreen)),
   FocusEditScreen: dialog(narrow(FocusEditScreen)),
   StampScreen: dialog(narrow(StampScreen)),
+  WidgetSettingsScreen: dialog(narrow(WidgetSettingsScreen)),
   BirthdayEditScreen: dialog(narrow(BirthdayEditScreen)),
 };
 
@@ -242,6 +244,7 @@ function RootNavigator() {
         <Stack.Screen name="FocusEdit" component={narrowed.FocusEditScreen} options={{ title: 'Quiet time' }} />
         <Stack.Screen name="Stamp" component={narrowed.StampScreen} options={{ title: 'Add from Stamp' }} />
         <Stack.Screen name="BirthdayEdit" component={narrowed.BirthdayEditScreen} options={{ title: 'Birthday' }} />
+        <Stack.Screen name="WidgetSettings" component={narrowed.WidgetSettingsScreen} options={{ title: 'Widget settings' }} />
       </Stack.Group>
     </Stack.Navigator>
   );

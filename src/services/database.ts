@@ -7,7 +7,7 @@ import type { ChangeSet, Deletion, SettingChange, Stamped, SyncKind } from '../m
 import type { EventTemplate } from '../models/Template';
 
 const db = SQLite.openDatabaseSync('calendar.db');
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 type Row = Record<string, any>;
 
@@ -130,6 +130,12 @@ export function initDatabase(): void {
         ALTER TABLE events ADD COLUMN alarmsInQuiet INTEGER NOT NULL DEFAULT 0;
       `);
     }
+    if (version < 9) {
+      db.execSync(`
+        ALTER TABLE calendars ADD COLUMN fold TEXT;
+        ALTER TABLE events ADD COLUMN alwaysShow INTEGER NOT NULL DEFAULT 0;
+      `);
+    }
     db.execSync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
   });
 }
@@ -208,14 +214,15 @@ const rowToCalendar = (r: Row, pauses: Map<string, PauseWindow[]>): Calendar => 
   sortOrder: r.sortOrder ?? 0,
   pauseWindows: pauses.get(r.id) ?? [],
   defaults: parseJson<Calendar['defaults']>(r.defaults, undefined),
+  ...(r.fold ? { fold: parseJson<Calendar['fold']>(r.fold, undefined) } : {}),
 });
 
 function writeCalendar(c: Calendar, at = stampNow()): void {
   db.runSync(
-    `INSERT INTO calendars (id, name, color, sortOrder, defaults, updatedAt) VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO calendars (id, name, color, sortOrder, defaults, fold, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET name = excluded.name, color = excluded.color, sortOrder = excluded.sortOrder,
-       defaults = excluded.defaults, updatedAt = excluded.updatedAt`,
-    [c.id, c.name, c.color, c.sortOrder, c.defaults ? JSON.stringify(c.defaults) : null, at],
+       defaults = excluded.defaults, fold = excluded.fold, updatedAt = excluded.updatedAt`,
+    [c.id, c.name, c.color, c.sortOrder, c.defaults ? JSON.stringify(c.defaults) : null, c.fold ? JSON.stringify(c.fold) : null, at],
   );
   unbury('calendar', c.id);
   db.runSync('DELETE FROM calendar_pause_windows WHERE calendarId = ?', [c.id]);
@@ -278,6 +285,7 @@ const rowToEvent = (r: Row, pauses: Map<string, PauseWindow[]>): Event => ({
   ...alarmFields(parseJson<number[]>(r.alarms, []), r.alarmsInQuiet === 1 || r.alarmsInQuiet === true),
   emoji: orUndef(r.emoji),
   tags: parseJson<string[]>(r.tags, []),
+  ...(r.alwaysShow === 1 || r.alwaysShow === true ? { alwaysShow: true } : {}),
 });
 
 /** Alarm fields are left off events without alarms, so those compare equal to events from older copies. */
@@ -321,8 +329,8 @@ export function loadEvents(ids?: string[]): Event[] {
 
 function writeEvent(e: Event, at = stampNow()): void {
   db.runSync(
-    `INSERT INTO events (id, title, description, startDate, endDate, isAllDay, floating, timeZone, location, calendarId, color, recurrenceRule, skippedDates, reminders, alarms, alarmsInQuiet, emoji, tags, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO events (id, title, description, startDate, endDate, isAllDay, floating, timeZone, location, calendarId, color, recurrenceRule, skippedDates, reminders, alarms, alarmsInQuiet, emoji, tags, alwaysShow, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        title = excluded.title, description = excluded.description, startDate = excluded.startDate,
        endDate = excluded.endDate, isAllDay = excluded.isAllDay, floating = excluded.floating, timeZone = excluded.timeZone,
@@ -330,7 +338,7 @@ function writeEvent(e: Event, at = stampNow()): void {
        calendarId = excluded.calendarId, color = excluded.color, recurrenceRule = excluded.recurrenceRule,
        skippedDates = excluded.skippedDates,
        reminders = excluded.reminders, alarms = excluded.alarms, alarmsInQuiet = excluded.alarmsInQuiet,
-       emoji = excluded.emoji, tags = excluded.tags, updatedAt = excluded.updatedAt`,
+       emoji = excluded.emoji, tags = excluded.tags, alwaysShow = excluded.alwaysShow, updatedAt = excluded.updatedAt`,
     [
       e.id,
       e.title,
@@ -350,6 +358,7 @@ function writeEvent(e: Event, at = stampNow()): void {
       e.alarms?.length && e.alarmsInQuiet ? 1 : 0,
       orNull(e.emoji),
       JSON.stringify(e.tags),
+      e.alwaysShow ? 1 : 0,
       at,
     ],
   );

@@ -1,4 +1,4 @@
-import { requestPinWidget, requestWidgetUpdate, type WidgetInfo } from 'react-native-android-widget';
+import { getWidgetInfo, requestPinWidget, requestWidgetUpdate, requestWidgetUpdateById, type WidgetInfo } from 'react-native-android-widget';
 import { renderCalendarWidget, WIDGET_NAMES } from './render';
 
 export const widgetsSupported = true;
@@ -33,4 +33,20 @@ export async function addWidgetToHomeScreen(widgetName: string): Promise<boolean
   } catch {
     return false;
   }
+}
+
+/** Ids of the placed widgets of one kind. */
+export async function placedWidgetIds(widgetName: string): Promise<number[]> {
+  try {
+    return (await getWidgetInfo(widgetName)).map((w) => w.widgetId);
+  } catch {
+    return [];
+  }
+}
+
+/** Redraws one widget, e.g. after its settings changed. */
+export async function refreshWidget(widgetName: string, widgetId: number): Promise<void> {
+  await requestWidgetUpdateById({ widgetName, widgetId, renderWidget: renderInTurn }).catch((error: unknown) =>
+    console.warn(`Couldn't update the ${widgetName} widget`, error),
+  );
 }

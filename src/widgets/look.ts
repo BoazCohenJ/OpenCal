@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import type { ColorProp } from 'react-native-android-widget';
 import { birthdayIdOf } from '../services/birthdays';
+import { isFoldBlock } from '../services/fold';
 import type { Occurrence } from '../services/occurrences';
 import { palettes, type ColorScheme } from '../theme';
 import { mix } from '../utils/color';
@@ -56,6 +57,8 @@ export const links = {
   view: (mode: 'schedule' | 'day' | 'week' | 'month', date: Date) => `opencal://calendar?mode=${mode}&date=${dayKey(date)}`,
   quickAdd: () => 'opencal://quick-add',
   occurrence: (o: Occurrence) => {
+    // A folded block isn't an event: open its day instead.
+    if (isFoldBlock(o)) return `opencal://calendar?mode=day&date=${dayKey(o.start)}`;
     const birthdayId = birthdayIdOf(o.event);
     return birthdayId ? `opencal://birthday/${encodeURIComponent(birthdayId)}` : `opencal://event/${encodeURIComponent(o.event.id)}?occurrenceStart=${encodeURIComponent(o.start.toISOString())}`;
   },

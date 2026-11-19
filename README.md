@@ -38,6 +38,7 @@ https://github.com/user-attachments/assets/96c68291-76bc-4ca8-a030-11c235435344
 The things OpenCal does that most calendars don't:
 
 - **Your own sync server, with an AI assistant on top.** Run the small [OpenCal server](server/README.md) at home (one Docker command, great with Tailscale), enter its address and key in Settings → Sync, and every phone stays in step: calendars, events, stamps, birthdays and color rules. The same server offers calendar tools over MCP, so an assistant like Claude, ChatGPT or Hermes can read your schedule and add, move or delete events ("only this one" for repeats included). Forward it a message and the events appear on your phone, and every change it makes can be undone. Entirely optional, and your calendar only ever leaves the phone for your own server.
+- **Fold a calendar into one block.** A school day of lessons or a day of back-to-back meetings shows as one block named after its calendar, so the rest of your day stays readable. Tap the block to open it up. Events you mark Always show, titles with words you pick, and optionally one-off events stay visible on top of it. Show all events in the View menu unfolds everything at once. Reminders still fire for every event.
 - **Pause a repeat.** Skip a date range (a holiday, a school break) for one repeating event or a whole calendar, and it resumes on its own. No deleting and re-creating the series.
 - **Alarms, not just notifications.** Turn any reminder into an alarm and it rings on your alarm volume until you dismiss or snooze it, then stops on its own after the time you set. Mix both on one event (a quiet heads-up an hour before, an alarm ten minutes before). In quiet time alarms arrive silently unless that event is set to ring anyway.
 - **Quiet time and Do Not Disturb, scheduled like events.** Add "every Monday 17:00–18:00" and reminders arrive silently (quiet) or are skipped (DND) for that window.
@@ -47,12 +48,12 @@ The things OpenCal does that most calendars don't:
 - **Color rules.** Color every event whose title contains a word (all your "Break" events amber, all "Gym" green) in Settings → Color rules, instead of coloring each one by hand.
 - **Quick Add that understands a sentence.** Type "Lunch with John Fri 1pm at Cafe X" and review the parsed event before saving.
 - **Share events both ways.** Send any event as an `.ics` invite every calendar app understands, and open invites, calendar files, invitation emails (including Google Calendar's "share event" emails, which have no `.ics`) or a plain shared message straight in OpenCal. A plain message goes through Quick Add, which finds the date and time in it; opening an updated invite updates the same event.
-- **Home-screen widgets that stay current.** Schedule, Today, Week and Month widgets follow the app's colors and light/dark theme, page back and forward right on the home screen, resize freely, and roll over to the new day at midnight on their own (a native alarm redraws them).
+- **Home-screen widgets that stay current.** Schedule, Today, Week and Month widgets follow the app's colors and light/dark theme, page back and forward right on the home screen, resize freely, and roll over to the new day at midnight on their own (a native alarm redraws them). Each widget has its own settings: which calendars it shows and whether folded calendars stay folded.
 - **No Google services, anywhere.** Reminders are scheduled on the device with a small local module, not Firebase or Google Play services. The F-Droid variant also contains no remote-code library and never loads code from the network. No account, no ads, no tracking.
 
 ## Also included
 
-- **Four views:** Schedule (agenda), Day, Week and Month, with swipe navigation and a header that says where you are ("Tomorrow", "In 3 weeks"). The View button also shows or hides each calendar.
+- **Four views:** Schedule (agenda), Day, Week and Month, with swipe navigation and a header that says where you are ("Tomorrow", "In 3 weeks"). The View button also shows, folds or hides each calendar.
 - **Reminders down to the minute,** with presets and custom values; all-day reminders fire at a time you choose.
 - **Calendars with defaults:** a color plus default reminders, repeat, location and tags that new events inherit.
 - **Multi-select in Day and Week view:** long-press events, then drag them together or nudge by 15 minutes / 1 hour / 1 day. Delete a selection at once, with Undo; for repeating events it asks whether to delete only that occurrence, it and the following ones, or the whole series.

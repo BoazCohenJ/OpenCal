@@ -29,6 +29,8 @@ export type RootStackParamList = {
   ImportExport: { incoming?: { name: string; text: string } } | undefined;
   Sync: undefined;
   BirthdayEdit: { birthdayId?: string } | undefined;
+  /** One home-screen widget's settings (Android). */
+  WidgetSettings: { widgetName: string; widgetId: number };
 };
 
 export type ScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<RootStackParamList, T>;

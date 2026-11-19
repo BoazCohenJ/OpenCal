@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { scheduleWidgetRefresh } from '../../modules/opencal-notifications';
 import { useCalendarContext } from '../context/CalendarContext';
+import type { Calendar } from '../models/Calendar';
+import { BIRTHDAYS_CALENDAR_ID } from '../services/birthdays';
 import { setLiveWidgetSource } from './data';
 import { refreshWidgets } from './homeScreen';
 
@@ -16,10 +18,17 @@ const LAUNCH_DELAY_MS = 5000;
  * re-reading the database.
  */
 export function WidgetWatcher() {
-  const { events, calendars, visibleCalendarIds, birthdays, colorRules, themeMode, getOccurrences } = useCalendarContext();
+  const { events, calendars, calendarsById, visibleCalendarIds, birthdays, colorRules, themeMode, getOccurrences } = useCalendarContext();
   useEffect(() => {
-    setLiveWidgetSource({ occurrences: getOccurrences, themeMode });
-  }, [getOccurrences, themeMode]);
+    const visible = new Set(visibleCalendarIds);
+    const hidden = new Set([...calendars.map((c) => c.id), BIRTHDAYS_CALENDAR_ID].filter((id) => !visible.has(id)));
+    setLiveWidgetSource({
+      allOccurrences: (start, end) => getOccurrences(start, end, { includeHidden: true }),
+      calendarsById: calendarsById as Record<string, Calendar>,
+      hidden,
+      themeMode,
+    });
+  }, [getOccurrences, calendars, calendarsById, visibleCalendarIds, themeMode]);
   useEffect(() => () => setLiveWidgetSource(null), []);
 
   // Android only redraws idle widgets on a slow timer, so also ask for a redraw at every midnight.
