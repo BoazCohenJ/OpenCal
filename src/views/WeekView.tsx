@@ -91,7 +91,14 @@ export function WeekView({
   const hiddenSpans = spans.segments.filter((s) => s.lane >= MAX_SPAN_LANES).length;
   const selectedHasRecurring = occurrences.some((o) => selected.includes(o.key) && o.event.recurrenceRule);
 
-  useImperativeHandle(ref, () => ({ scrollToY: (y) => scrollRef.current?.scrollTo({ y, animated: false }) }), []);
+  useImperativeHandle(ref, () => ({
+    scrollToY: (y) => scrollRef.current?.scrollTo({ y, animated: false }),
+    endSelection: () => {
+      if (!selectionMode) return false;
+      done();
+      return true;
+    },
+  }));
 
   useEffect(() => {
     const minutes = Math.max(0, minutesSinceMidnight(new Date()) - 120);

@@ -100,7 +100,7 @@ export const MonthView = React.memo(function MonthView({
                 key={dayKey(d)}
                 onPress={() => onPressDay(d)}
                 style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [styles.cell, isWeekend(d) && styles.cellWeekend, hovered && styles.cellHover, pressed && styles.cellPressed]}
-                accessibilityLabel={`${format(d, 'EEEE, MMMM d')}, ${list.length} events`}
+                accessibilityLabel={`${format(d, 'EEEE, MMMM d')}, ${list.length} ${list.length === 1 ? 'event' : 'events'}`}
               >
                 <View style={[styles.dayBadge, desktop && styles.dayBadgeDesktop, isToday && styles.dayBadgeToday]}>
                   <Text

@@ -221,6 +221,9 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
   // was set for, so it lapses by itself once that slide has landed.
   const [peek, setPeek] = useState({ dir: 0, at: '' });
   const cursorId = `${mode}:${cursor.getTime()}`;
+  // Drop a peek once its page is left, or coming back to that page (back, a tapped day) would
+  // revive it and the header would name the neighbour instead of the page on screen.
+  if (peek.dir && peek.at !== cursorId) setPeek({ dir: 0, at: '' });
   const peekTo = (dir: -1 | 0 | 1) => setPeek((p) => (p.dir === dir && p.at === cursorId ? p : { dir, at: cursorId }));
   const shown = useMemo(() => (peek.at === cursorId && peek.dir ? shiftCursor(mode, cursor, peek.dir) : cursor), [peek, cursorId, mode, cursor]);
   const range = useMemo(() => rangeFor(mode, shown), [mode, shown]);
@@ -291,40 +294,59 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     [transition, direction],
   );
 
-  // Views left by switching (menu, or a tapped day in Month), so Android back returns to them.
-  // Going back to a view already in the list drops everything after it, so back never ping-pongs.
+  // Views left by switching (menu, or a tapped day in Month or Week), so Android back returns to them.
   const viewHistory = useRef<{ mode: ViewMode; cursor: Date }[]>([]);
   const viewNow = useRef({ mode, cursor });
   useLayoutEffect(() => {
     viewNow.current = { mode, cursor };
   });
+  // A widget link starts a fresh trail: back from where it landed leaves the app.
+  useEffect(() => {
+    viewHistory.current = [];
+  }, [seenParams]);
   const rememberView = useCallback((next: ViewMode) => {
     const current = viewNow.current;
     if (next === current.mode) return;
     const history = viewHistory.current;
-    const seen = history.findIndex((v) => v.mode === next);
-    if (seen >= 0) history.length = seen;
-    else history.push(current);
-    if (history.length > 20) history.shift();
+    history.push(current);
+    if (history.length > 30) history.shift();
   }, []);
+  /** A view switch cancels a slide in flight; otherwise its end would shift the new view's date. */
+  const stopSliding = useCallback(() => {
+    pendingStep.current = 0;
+    pan.stopAnimation();
+    sliding.current = false;
+  }, [pan]);
+  // Android back closes what is open on the calendar first (selection, the new-event pill), then
+  // steps back through the views. Read through a ref so the listener always sees this render.
+  const onBack = useRef<() => boolean>(() => false);
+  useLayoutEffect(() => {
+    onBack.current = () => {
+      for (const page of pages) if (page.offset === 0 && pageHandles.get(page.key)?.endSelection()) return true;
+      // Only a pill on the page on screen; one left on another page is already hidden.
+      if (draft?.page === `${mode}:${dayKey(cursor)}`) {
+        setDraft(null);
+        return true;
+      }
+      const previous = viewHistory.current.pop();
+      if (!previous) return false;
+      stopSliding();
+      setDirection(0);
+      setMode(previous.mode);
+      setCursor(previous.cursor);
+      return true;
+    };
+  });
   useFocusEffect(
     useCallback(() => {
       if (Platform.OS !== 'android') return;
-      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        const previous = viewHistory.current.pop();
-        if (!previous) return false;
-        pendingStep.current = 0;
-        setDirection(0);
-        setMode(previous.mode);
-        setCursor(previous.cursor);
-        return true;
-      });
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => onBack.current());
       return () => sub.remove();
     }, []),
   );
 
   const changeMode = (m: ViewMode) => {
-    pendingStep.current = 0;
+    stopSliding();
     rememberView(m);
     setDirection(0);
     setMode(m);
@@ -336,7 +358,11 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
   };
   /** One period back or forward: slides the neighbouring page in, then makes it the current one. */
   const step = (dir: 1 | -1) => {
-    if (sliding.current) return;
+    // A tap on < or > while a slide runs is queued like a swipe, not dropped.
+    if (sliding.current) {
+      pendingStep.current += dir;
+      return;
+    }
     if (!paging) {
       setDirection(dir);
       setCursor((c) => shiftCursor(mode, c, dir));
@@ -510,12 +536,13 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
   );
   const openDay = useCallback(
     (d: Date) => {
+      stopSliding();
       rememberView('day');
       setDirection(0);
       setCursor(startOfDay(d));
       setMode('day');
     },
-    [rememberView],
+    [rememberView, stopSliding],
   );
 
   /** Dropping a stamp on a tapped slot adds the event right away; the toast offers Undo. */

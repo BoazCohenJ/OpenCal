@@ -100,7 +100,14 @@ export function DayView({
   const allDay = useMemo(() => displayed.filter((o) => o.event.isAllDay), [displayed]);
   const timed = useMemo(() => layoutTimed(displayed.filter((o) => !o.event.isAllDay), date), [displayed, date]);
 
-  useImperativeHandle(ref, () => ({ scrollToY: (y) => scrollRef.current?.scrollTo({ y, animated: false }) }), []);
+  useImperativeHandle(ref, () => ({
+    scrollToY: (y) => scrollRef.current?.scrollTo({ y, animated: false }),
+    endSelection: () => {
+      if (!selectionMode) return false;
+      done();
+      return true;
+    },
+  }));
 
   useEffect(() => {
     const minutes = isSameDay(date, new Date()) ? Math.max(0, minutesSinceMidnight(new Date()) - 90) : 7 * 60;

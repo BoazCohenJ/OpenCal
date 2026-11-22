@@ -9,6 +9,8 @@ export const GUTTER_WIDTH = 52;
 /** Lets the calendar screen line up a neighbouring page's scroll with the one on screen. */
 export interface TimeGridHandle {
   scrollToY: (y: number) => void;
+  /** Ends selection mode like Done (staged moves are saved). Returns false when nothing was selected. */
+  endSelection: () => boolean;
 }
 export const GRID_HEIGHT = HOUR_HEIGHT * 24;
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
