@@ -1,0 +1,71 @@
+# Adds OpenCal-X.Y.Z-x86_64.apk to every published GitHub release.
+# Built on EAS from the release tag with the preview-x86_64 profile, so it is signed with the
+# same key as the arm64 APK. For x86_64 devices and emulators (Chromebooks, Android emulators
+# without ARM translation). Needs the EXPO_TOKEN repository secret.
+# Run it by hand for an older release: Actions → Release x86_64 APK → Run workflow → tag.
+name: Release x86_64 APK
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, e.g. v1.9.0
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-x86_64-${{ github.event.release.tag_name || inputs.tag }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Skip if the release already has an x86_64 APK
+        id: gate
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN secret is not set."; exit 1
+          fi
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -q -- '-x86_64\.apk$'; then
+            echo "::notice::$TAG already has an x86_64 APK."; echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.skip != 'true'
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.skip != 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.gate.outputs.skip != 'true'
+        run: npm ci --no-audit --no-fund
+
+      - name: Make sure the tag has the preview-x86_64 profile
+        if: steps.gate.outputs.skip != 'true'
+        # Tags made before the profile existed (v1.9.0 and older) get it added for this build only.
+        run: |
+          jq '.build["preview-x86_64"] //= {"extends":"preview","android":{"gradleCommand":":app:assembleRelease -PreactNativeArchitectures=x86_64"}}' eas.json > eas.tmp && mv eas.tmp eas.json
+
+      - name: Build on EAS and attach to the release
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          out=$(npx eas-cli@latest build -p android --profile preview-x86_64 --non-interactive --wait --json)
+          url=$(printf '%s' "$out" | jq -r '.[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl')
+          [ -n "$url" ] && [ "$url" != null ] || { echo "::error::No APK URL in the EAS result"; printf '%s\n' "$out"; exit 1; }
+          name="OpenCal-${TAG#v}-x86_64.apk"
+          curl -fsSL -o "$name" "$url"
+          gh release upload "$TAG" "$name" -R "$GITHUB_REPOSITORY" --clobber

@@ -21,6 +21,12 @@
     "production": {
       "channel": "production",
       "environment": "production"
+    },
+    "preview-x86_64": {
+      "extends": "preview",
+      "android": {
+        "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=x86_64"
+      }
     }
   }
 }
