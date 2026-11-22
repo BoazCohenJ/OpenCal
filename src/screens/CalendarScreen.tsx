@@ -18,7 +18,8 @@ import {
   startOfWeek,
 } from 'date-fns';
 import React, { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, PanResponder, Platform, Pressable, PressableStateCallbackType, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { Animated, BackHandler, Easing, PanResponder, Platform, Pressable, PressableStateCallbackType, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EventGlyph, Icon } from '../components/Icon';
 import { MonthYearSheet } from '../components/MonthYearPicker';
@@ -290,8 +291,41 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     [transition, direction],
   );
 
+  // Views left by switching (menu, or a tapped day in Month), so Android back returns to them.
+  // Going back to a view already in the list drops everything after it, so back never ping-pongs.
+  const viewHistory = useRef<{ mode: ViewMode; cursor: Date }[]>([]);
+  const viewNow = useRef({ mode, cursor });
+  useLayoutEffect(() => {
+    viewNow.current = { mode, cursor };
+  });
+  const rememberView = useCallback((next: ViewMode) => {
+    const current = viewNow.current;
+    if (next === current.mode) return;
+    const history = viewHistory.current;
+    const seen = history.findIndex((v) => v.mode === next);
+    if (seen >= 0) history.length = seen;
+    else history.push(current);
+    if (history.length > 20) history.shift();
+  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android') return;
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        const previous = viewHistory.current.pop();
+        if (!previous) return false;
+        pendingStep.current = 0;
+        setDirection(0);
+        setMode(previous.mode);
+        setCursor(previous.cursor);
+        return true;
+      });
+      return () => sub.remove();
+    }, []),
+  );
+
   const changeMode = (m: ViewMode) => {
     pendingStep.current = 0;
+    rememberView(m);
     setDirection(0);
     setMode(m);
   };
@@ -474,11 +508,15 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     },
     [navigation],
   );
-  const openDay = useCallback((d: Date) => {
-    setDirection(0);
-    setCursor(startOfDay(d));
-    setMode('day');
-  }, []);
+  const openDay = useCallback(
+    (d: Date) => {
+      rememberView('day');
+      setDirection(0);
+      setCursor(startOfDay(d));
+      setMode('day');
+    },
+    [rememberView],
+  );
 
   /** Dropping a stamp on a tapped slot adds the event right away; the toast offers Undo. */
   const lastDrop = useRef('');
