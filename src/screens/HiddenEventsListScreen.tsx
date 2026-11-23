@@ -20,7 +20,8 @@ interface RowData {
 }
 
 /** "Hidden" events list under Settings: a flat, filterable list of every event (not a grid). */
-export function HiddenEventsListScreen({ navigation }: ScreenProps<'HiddenEvents'>) {
+export function HiddenEventsListScreen({ navigation, route }: ScreenProps<'HiddenEvents'>) {
+  const searching = route.params?.search === true;
   const styles = useStyles();
   const { colors } = useTheme();
   const { events, calendars, calendarsById, allTags, getEffectiveColor, notificationPrefs } = useCalendarContext();
@@ -67,8 +68,11 @@ export function HiddenEventsListScreen({ navigation }: ScreenProps<'HiddenEvents
   });
   const hasRows = rows.length > 0;
   useLayoutEffect(() => {
-    navigation.setOptions({ headerRight: () => (hasRows ? <HeaderButton title="Export" onPress={() => exportRef.current()} /> : null) });
-  }, [navigation, hasRows]);
+    navigation.setOptions({
+      ...(searching ? { title: 'Search' } : {}),
+      headerRight: () => (hasRows ? <HeaderButton title="Export" onPress={() => exportRef.current()} /> : null),
+    });
+  }, [navigation, hasRows, searching]);
 
   const activeFilters = [repeatingOnly, calendarId, tag, from, to, search.trim()].filter(Boolean).length;
   const clearAll = () => {
@@ -90,6 +94,8 @@ export function HiddenEventsListScreen({ navigation }: ScreenProps<'HiddenEvents
           placeholderTextColor={colors.textFaint}
           style={styles.search}
           clearButtonMode="while-editing"
+          autoFocus={searching}
+          returnKeyType="search"
         />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           <Chip label="Repeating only" selected={repeatingOnly} onPress={() => setRepeatingOnly((v) => !v)} />

@@ -59,7 +59,19 @@ const count = (c: ChangeSet): number =>
 
 export const apiUrl = (config: SyncConfig, path: string): string => `${config.url.trim().replace(/\/+$/, '')}${path}`;
 
-async function post(config: SyncConfig, path: string, body: unknown, timeoutMs = 60000): Promise<any> {
+/** Thrown for a server answer that isn't 2xx, with the status and parsed body. */
+export class ServerError extends Error {
+  status: number;
+  body: any;
+  constructor(message: string, status: number, body: any) {
+    super(message);
+    this.status = status;
+    this.body = body;
+  }
+}
+
+/** POSTs JSON to the sync server with the API key. Throws a readable error when it fails. */
+export async function post(config: SyncConfig, path: string, body: unknown, timeoutMs = 60000): Promise<any> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -71,7 +83,7 @@ async function post(config: SyncConfig, path: string, body: unknown, timeoutMs =
     });
     const json = await res.json().catch(() => null);
     if (res.status === 401) throw new Error('The server rejected the API key');
-    if (!res.ok) throw new Error(json?.error ?? `Server error ${res.status}`);
+    if (!res.ok) throw new ServerError(json?.error ?? `Server error ${res.status}`, res.status, json);
     return json;
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') throw new Error('The server took too long to answer');

@@ -1,5 +1,5 @@
 import type { Birthday } from '../models/Birthday';
-import type { Calendar } from '../models/Calendar';
+import { DEFAULT_REFRESH_HOURS, type Calendar } from '../models/Calendar';
 import type { Event } from '../models/Event';
 import type { NotificationPrefs } from '../models/NotificationPrefs';
 import type { PauseWindow } from '../models/PauseWindow';
@@ -79,6 +79,7 @@ function readCalendar(o: Obj, i: number): Calendar | null {
     pauseWindows: pauses(o.pauseWindows),
     defaults: isObj(o.defaults) ? (o.defaults as Calendar['defaults']) : undefined,
     ...readFold(o.fold),
+    ...readSubscription(o.subscription),
   };
 }
 
@@ -107,6 +108,15 @@ function readEvent(o: Obj): Event | null {
     tags: strList(o.tags),
     ...(o.alwaysShow === true ? { alwaysShow: true } : {}),
   };
+}
+
+function readSubscription(v: unknown): Pick<Calendar, 'subscription'> {
+  if (!isObj(v)) return {};
+  const o = v as Obj;
+  const url = str(o.url);
+  if (!url) return {};
+  const hours = typeof o.refreshHours === 'number' && o.refreshHours >= 1 ? o.refreshHours : DEFAULT_REFRESH_HOURS;
+  return { subscription: { url, refreshHours: hours } };
 }
 
 function readFold(v: unknown): Pick<Calendar, 'fold'> {

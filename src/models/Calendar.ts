@@ -30,6 +30,20 @@ export interface CalendarFold {
 
 export const DEFAULT_FOLD: CalendarFold = { enabled: true, maxGapMinutes: 60, showOneOffs: false, keywords: [] };
 
+/**
+ * A calendar that mirrors an iCalendar feed (a school timetable, a team's schedule, public holidays).
+ * Its events are replaced from the feed on every refresh; only per-event extras the user adds here
+ * (reminders, alarms, color, icon, pauses, Always show) are kept.
+ */
+export interface CalendarSubscription {
+  /** `https://…` or `webcal://…` */
+  url: string;
+  /** Hours between automatic refreshes. */
+  refreshHours: number;
+}
+
+export const DEFAULT_REFRESH_HOURS = 6;
+
 export interface Calendar {
   id: string;
   name: string;
@@ -40,4 +54,5 @@ export interface Calendar {
   pauseWindows: PauseWindow[];
   defaults?: CalendarDefaults;
   fold?: CalendarFold;
+  subscription?: CalendarSubscription;
 }

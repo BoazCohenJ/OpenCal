@@ -26,6 +26,7 @@ import { MonthYearSheet } from '../components/MonthYearPicker';
 import { QuickCreatePanel, type QuickCreateValues } from '../components/QuickCreatePanel';
 import { RepeatDeleteSheet, type RepeatDeleteChoice } from '../components/RepeatDeleteSheet';
 import { useToast } from '../components/Toast';
+import { InboxButton } from '../components/InboxButton';
 import { Button, IconButton, PressableScale, Segmented } from '../components/ui';
 import { VIEW_OPTIONS, ViewMenu, type ViewMode } from '../components/ViewMenu';
 import { WebSidebar } from '../components/WebSidebar';
@@ -756,7 +757,8 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
     else if (key === 'm') go(() => changeMode('month'));
     else if (key === 's') go(() => changeMode('schedule'));
     else if (key === 'c') go(() => newEventAt(defaultStart()));
-    else if (key === 'q' || key === '/') go(() => navigation.navigate('QuickAdd'));
+    else if (key === 'q') go(() => navigation.navigate('QuickAdd'));
+    else if (key === '/' || key === 'f') go(() => navigation.navigate('HiddenEvents', { search: true }));
   };
   useLayoutEffect(() => {
     shortcut.current = handleKey;
@@ -870,6 +872,8 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
           </Pressable>
           </View>
           <View style={styles.toolbarRight}>
+          <InboxButton onPress={() => navigation.navigate('Inbox')} />
+          <IconButton icon="search" onPress={() => navigation.navigate('HiddenEvents', { search: true })} accessibilityLabel="Search events (/)" />
           <Pressable
             onPress={() => navigation.navigate('QuickAdd')}
             style={({ hovered }: PressableStateCallbackType & { hovered?: boolean }) => [styles.quickAdd, hovered && styles.quickAddHover]}
@@ -913,6 +917,8 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
                 <Icon name="chevron-right" size={18} />
               </Pressable>
             </View>
+            <InboxButton onPress={() => navigation.navigate('Inbox')} />
+            <IconButton icon="search" onPress={() => navigation.navigate('HiddenEvents', { search: true })} accessibilityLabel="Search events" />
             <IconButton icon="settings" onPress={() => navigation.navigate('Settings')} accessibilityLabel="Settings" />
           </View>
         </View>

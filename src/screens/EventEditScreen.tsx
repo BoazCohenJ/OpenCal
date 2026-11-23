@@ -1,6 +1,7 @@
 import { addDays, differenceInCalendarDays, endOfDay, format, setHours, startOfDay } from 'date-fns';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Icon } from '../components/Icon';
 import { ColorPicker } from '../components/ColorPicker';
 import { DateTimeField } from '../components/DateTimeField';
 import { IconButtonTile, IconPicker, IconPickerLayer, useIconPickerReady } from '../components/IconPicker';
@@ -206,6 +207,14 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" onTouchStart={closePickerOnTouch}>
       <RepeatDeleteSheet item={deletingRepeat && existing ? { event: existing, day: selectedDay } : null} color={eventColor} position={1} total={1} onChoose={removeRepeat} onCancel={() => setDeletingRepeat(false)} />
+      {existing && calendarsById[existing.calendarId]?.subscription ? (
+        <View style={styles.feedNote}>
+          <Icon name="repeat" size={14} color={colors.textMuted} />
+          <Text style={styles.feedNoteText}>
+            From the subscribed calendar “{calendarsById[existing.calendarId]!.name}”. Edits to the title, time or repeat are replaced when it refreshes; reminders, color, icon and pauses stay.
+          </Text>
+        </View>
+      ) : null}
       <View style={styles.titleWrap}>
         <View style={styles.titleCard}>
           <IconButtonTile value={form.emoji} color={eventColor} onPress={() => setShowEmoji(!pickerWasOpen.current)} />
@@ -356,6 +365,8 @@ const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: 48 },
   titleWrap: { zIndex: 5 },
+  feedNote: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', paddingHorizontal: 4, paddingBottom: spacing.md },
+  feedNoteText: { flex: 1, fontSize: 13, color: colors.textMuted, lineHeight: 18 },
   titleCard: {
     flexDirection: 'row',
     alignItems: 'center',

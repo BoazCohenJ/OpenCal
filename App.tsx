@@ -13,6 +13,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Logo } from './src/components/Logo';
 import { DialogHeader, dialog } from './src/components/WebDialog';
 import { InviteWatcher } from './src/components/InviteWatcher';
+import { SubscriptionWatcher } from './src/components/SubscriptionWatcher';
 import { SyncWatcher } from './src/components/SyncWatcher';
 import { ToastProvider } from './src/components/Toast';
 import { PromptHost } from './src/components/PromptHost';
@@ -29,6 +30,7 @@ import { CalendarScreen } from './src/screens/CalendarScreen';
 import { CalendarsScreen } from './src/screens/CalendarsScreen';
 import { EventEditScreen } from './src/screens/EventEditScreen';
 import { ImportExportScreen } from './src/screens/ImportExportScreen';
+import { InboxScreen } from './src/screens/InboxScreen';
 import { HiddenEventsListScreen } from './src/screens/HiddenEventsListScreen';
 import { FocusEditScreen } from './src/screens/FocusEditScreen';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
@@ -149,6 +151,7 @@ const narrowed = {
   ColorRulesScreen: dialog(narrow(ColorRulesScreen)),
   ImportExportScreen: dialog(narrow(ImportExportScreen)),
   SyncScreen: dialog(narrow(SyncScreen)),
+  InboxScreen: dialog(narrow(InboxScreen)),
   EventEditScreen: dialog(narrow(EventEditScreen)),
   QuickAddScreen: dialog(narrow(QuickAddScreen)),
   FocusEditScreen: dialog(narrow(FocusEditScreen)),
@@ -235,6 +238,7 @@ function RootNavigator() {
         <Stack.Screen name="ColorRules" component={narrowed.ColorRulesScreen} options={{ title: 'Color rules' }} />
         <Stack.Screen name="ImportExport" component={narrowed.ImportExportScreen} options={{ title: 'Import & Export' }} />
         <Stack.Screen name="Sync" component={narrowed.SyncScreen} options={{ title: 'Sync' }} />
+        <Stack.Screen name="Inbox" component={narrowed.InboxScreen} options={{ title: 'Assistant changes' }} />
       </Stack.Group>
       <Stack.Group
         screenOptions={desktop ? { ...dialogOptions, animationDuration: 140 } : { presentation: 'modal', animation: 'slide_from_bottom' }}
@@ -301,6 +305,7 @@ function AppShell() {
         </NavigationContainer>
         <UpdateWatcher />
         <SyncWatcher />
+        <SubscriptionWatcher />
         <WidgetWatcher />
         <InviteWatcher navigation={navigationRef} />
         <PromptHost />

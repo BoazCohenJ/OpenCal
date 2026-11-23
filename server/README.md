@@ -47,6 +47,10 @@ Check it with `curl https://<your address>/api/health`.
 | `GET /api/health` | none | `{ ok, app: "opencal", version, serverId }` |
 | `POST /api/sync` | `Authorization: Bearer <key>` | `{ serverId?, cursor, changes }` → `{ serverId, cursor, changes, accepted }` |
 | `POST /mcp` | the key above, or `OPENCAL_AGENT_KEY` | Calendar tools for an AI agent (see below) |
+| `POST /api/inbox` | `OPENCAL_API_KEY` | `{ limit? }` → the agent's changes the app hasn't reviewed, with what each replaced |
+| `POST /api/inbox/review` | `OPENCAL_API_KEY` | `{ ids? }` → keeps those changes (all without `ids`) |
+| `POST /api/inbox/undo` | `OPENCAL_API_KEY` | `{ changeId, force? }` → undoes one; `409` with `conflict: true` if it was edited since |
+| `POST /api/fetch-ics` | `OPENCAL_API_KEY` | `{ url }` → `{ text }`: downloads a subscribed calendar for the web app, which browsers block (CORS) |
 
 `changes` is a `ChangeSet` ([src/models/Sync.ts](../src/models/Sync.ts)): records with the time
 they last changed, and deletions. The server keeps the newer version of each record and returns
@@ -69,7 +73,7 @@ events, which reach your phone on its next sync.
   and lists sent as text are converted.
 - `find_series_copies` and `fold_into_series` repair repeating events that an import broke apart
   (Google exports renamed occurrences as overrides, which arrive as one-off copies).
-- Every change the tools make is logged with what it replaced, so it can be undone.
+- Every change the tools make is logged with what it replaced, so it can be undone, by the agent (`undo`) or in the app's inbox (Settings → Sync → Assistant changes, or the badge in the calendar header).
 - Give the agent its own key: add `OPENCAL_AGENT_KEY=$(openssl rand -hex 24)` to `.env`. It only
   opens `/mcp`, not the sync API, and you can change it without touching your phones.
 - Times are read and written in the server's time zone (`TZ` in `.env`).

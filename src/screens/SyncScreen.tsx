@@ -1,7 +1,7 @@
 import { formatDistance } from 'date-fns';
 import React, { useEffect, useState } from 'react';
 import { Linking, ScrollView, Text, View } from 'react-native';
-import { useSyncStatus } from '../components/SyncWatcher';
+import { useInboxCount, useSyncStatus } from '../components/SyncWatcher';
 import { useToast } from '../components/Toast';
 import { Button, Divider, Field, Row, Section, TextField } from '../components/ui';
 import type { ScreenProps } from '../navigation/types';
@@ -28,10 +28,11 @@ function useAgo(at?: number): string | undefined {
   return now - at < 60000 ? 'Synced just now' : `Synced ${formatDistance(at, now)} ago`;
 }
 
-export function SyncScreen(_props: ScreenProps<'Sync'>) {
+export function SyncScreen({ navigation }: ScreenProps<'Sync'>) {
   const styles = useStyles();
   const showToast = useToast();
   const status = useSyncStatus();
+  const inboxCount = useInboxCount();
   // Re-read on every status change: connecting and disconnecting both update the status.
   const config = getSyncConfig();
   const ago = useAgo(status.lastSyncedAt);
@@ -134,6 +135,14 @@ export function SyncScreen(_props: ScreenProps<'Sync'>) {
         <View style={styles.action}>
           <Button variant="secondary" title={status.syncing ? 'Syncing…' : 'Sync now'} disabled={status.syncing} onPress={() => void onSyncNow()} />
         </View>
+      </Section>
+      <Section>
+        <Row
+          label="Assistant changes"
+          subtitle="Keep or undo what an AI assistant changed through this server"
+          value={inboxCount ? String(inboxCount) : undefined}
+          onPress={() => navigation.navigate('Inbox')}
+        />
       </Section>
       <Section footer={WHAT_SYNCS}>
         <Row label="Stop syncing" destructive onPress={() => void onDisconnect()} />

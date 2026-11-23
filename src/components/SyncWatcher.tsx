@@ -1,6 +1,7 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 import { useCalendarContext } from '../context/CalendarContext';
+import { getInboxCount, refreshInboxCount, subscribeInboxCount } from '../services/inbox';
 import { getSyncConfig, getSyncStatus, subscribeSyncStatus, syncNow, type SyncStatus } from '../services/sync';
 
 /** How long after a local edit to sync, so a burst of edits goes out together. */
@@ -9,6 +10,9 @@ const EDIT_DEBOUNCE_MS = 3000;
 const FOREGROUND_INTERVAL_MS = 30 * 1000;
 
 export const useSyncStatus = (): SyncStatus => useSyncExternalStore(subscribeSyncStatus, getSyncStatus);
+
+/** Assistant changes waiting in the inbox (0 without a server). */
+export const useInboxCount = (): number => useSyncExternalStore(subscribeInboxCount, getInboxCount);
 
 async function syncIfSetUp(): Promise<void> {
   try {
@@ -27,7 +31,7 @@ async function syncIfSetUp(): Promise<void> {
  */
 export function SyncWatcher() {
   const { calendars, events, templates, birthdays, savedColors, colorRules, reloadSyncedData } = useCalendarContext();
-  const { dataVersion } = useSyncStatus();
+  const { dataVersion, lastSyncedAt } = useSyncStatus();
   const lastForegroundSync = useRef(0);
   /** Set while state is being reloaded from a sync, so that reload isn't mistaken for an edit. */
   const reloading = useRef(false);
@@ -44,6 +48,11 @@ export function SyncWatcher() {
     });
     return () => sub.remove();
   }, []);
+
+  // Every sync is a chance the assistant changed something; the server says how many are waiting.
+  useEffect(() => {
+    void refreshInboxCount();
+  }, [lastSyncedAt]);
 
   useEffect(() => {
     if (dataVersion === seenVersion.current) return;

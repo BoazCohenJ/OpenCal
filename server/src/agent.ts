@@ -589,7 +589,7 @@ export class CalendarAgent {
   }
 
   /** Puts back what a change replaced. Refuses records edited since, unless forced. */
-  undo(changeId: number, force = false) {
+  undo(changeId: number, force = false, from: 'agent' | 'app' = 'agent') {
     const change: Change = this.store.change(changeId) ?? fail(`No change ${changeId}.`);
     if (change.undoneBy) fail(`Change ${changeId} was already undone (by change ${change.undoneBy}).`);
     const writes: Write[] = [];
@@ -606,8 +606,10 @@ export class CalendarAgent {
     if (conflicts.length && !force) {
       fail(`Changed again since change ${changeId} (on a phone or by another change): ${conflicts.join(', ')}. Pass force: true to undo anyway.`);
     }
-    const undoId = this.store.write(writes, 'agent', `Undid change ${changeId}: ${change.summary}`);
+    // An undo made in the app's inbox needs no review of its own; one the agent makes does.
+    const undoId = this.store.write(writes, from, `Undid change ${changeId}: ${change.summary}`, from === 'app');
     this.store.markUndone(changeId, undoId);
+    if (from === 'app') this.store.markReviewed([changeId]);
     return { changeId: undoId, undid: change.summary };
   }
 

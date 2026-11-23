@@ -7,7 +7,7 @@ import type { ChangeSet, Deletion, SettingChange, Stamped, SyncKind } from '../m
 import type { EventTemplate } from '../models/Template';
 
 const db = SQLite.openDatabaseSync('calendar.db');
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 
 type Row = Record<string, any>;
 
@@ -136,6 +136,9 @@ export function initDatabase(): void {
         ALTER TABLE events ADD COLUMN alwaysShow INTEGER NOT NULL DEFAULT 0;
       `);
     }
+    if (version < 10) {
+      db.execSync(`ALTER TABLE calendars ADD COLUMN subscription TEXT;`);
+    }
     db.execSync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
   });
 }
@@ -215,14 +218,24 @@ const rowToCalendar = (r: Row, pauses: Map<string, PauseWindow[]>): Calendar => 
   pauseWindows: pauses.get(r.id) ?? [],
   defaults: parseJson<Calendar['defaults']>(r.defaults, undefined),
   ...(r.fold ? { fold: parseJson<Calendar['fold']>(r.fold, undefined) } : {}),
+  ...(r.subscription ? { subscription: parseJson<Calendar['subscription']>(r.subscription, undefined) } : {}),
 });
 
 function writeCalendar(c: Calendar, at = stampNow()): void {
   db.runSync(
-    `INSERT INTO calendars (id, name, color, sortOrder, defaults, fold, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO calendars (id, name, color, sortOrder, defaults, fold, subscription, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET name = excluded.name, color = excluded.color, sortOrder = excluded.sortOrder,
-       defaults = excluded.defaults, fold = excluded.fold, updatedAt = excluded.updatedAt`,
-    [c.id, c.name, c.color, c.sortOrder, c.defaults ? JSON.stringify(c.defaults) : null, c.fold ? JSON.stringify(c.fold) : null, at],
+       defaults = excluded.defaults, fold = excluded.fold, subscription = excluded.subscription, updatedAt = excluded.updatedAt`,
+    [
+      c.id,
+      c.name,
+      c.color,
+      c.sortOrder,
+      c.defaults ? JSON.stringify(c.defaults) : null,
+      c.fold ? JSON.stringify(c.fold) : null,
+      c.subscription ? JSON.stringify(c.subscription) : null,
+      at,
+    ],
   );
   unbury('calendar', c.id);
   db.runSync('DELETE FROM calendar_pause_windows WHERE calendarId = ?', [c.id]);

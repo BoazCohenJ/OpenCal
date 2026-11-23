@@ -42,6 +42,8 @@ export interface Change {
   summary: string;
   items: LoggedItem[];
   undoneBy: number | null;
+  /** Looked at in the app's assistant inbox (kept or undone there). */
+  reviewed: boolean;
 }
 
 const rowToChange = (r: Row): Change => ({
@@ -51,6 +53,7 @@ const rowToChange = (r: Row): Change => ({
   summary: r.summary as string,
   items: JSON.parse(r.items as string) as LoggedItem[],
   undoneBy: (r.undoneBy as number | null) ?? null,
+  reviewed: r.reviewed === 1,
 });
 
 export class Store {
@@ -90,6 +93,9 @@ export class Store {
         undoneBy INTEGER
       );
     `);
+    // Added after the first release: whether the app's assistant inbox has dealt with a change.
+    const changeColumns = (this.db.prepare('PRAGMA table_info(changes)').all() as Row[]).map((r) => r.name);
+    if (!changeColumns.includes('reviewed')) this.db.exec('ALTER TABLE changes ADD COLUMN reviewed INTEGER NOT NULL DEFAULT 0');
     // Identifies this copy, so a client can tell when it's pointed at a new or reset server.
     let id = this.meta('serverId');
     if (!id) {
@@ -196,7 +202,7 @@ export class Store {
    * returns its id. Each gets a stamp newer than the version it replaces, so devices take it on
    * their next sync whatever their clocks say.
    */
-  write(items: Write[], source: string, summary: string): number {
+  write(items: Write[], source: string, summary: string, reviewed = false): number {
     const getStamp = this.db.prepare('SELECT updatedAt, data, deleted FROM records WHERE kind = ? AND id = ?');
     const put = this.db.prepare(
       `INSERT INTO records (kind, id, data, updatedAt, deleted, seq) VALUES (?, ?, ?, ?, ?, ?)
@@ -229,8 +235,8 @@ export class Store {
         logged.push({ kind, id, before, after: record });
       }
       const info = this.db
-        .prepare('INSERT INTO changes (at, source, summary, items) VALUES (?, ?, ?, ?)')
-        .run(Date.now(), source, summary, JSON.stringify(logged));
+        .prepare('INSERT INTO changes (at, source, summary, items, reviewed) VALUES (?, ?, ?, ?, ?)')
+        .run(Date.now(), source, summary, JSON.stringify(logged), reviewed ? 1 : 0);
       this.db.exec('COMMIT');
       return Number(info.lastInsertRowid);
     } catch (e) {
@@ -242,6 +248,24 @@ export class Store {
   /** Logged server-side changes, newest first. */
   changes(limit: number): Change[] {
     return (this.db.prepare('SELECT * FROM changes ORDER BY id DESC LIMIT ?').all(limit) as Row[]).map(rowToChange);
+  }
+
+  /** Changes the app's inbox hasn't dealt with yet, newest first. */
+  unreviewedChanges(limit: number): Change[] {
+    return (this.db.prepare('SELECT * FROM changes WHERE reviewed = 0 ORDER BY id DESC LIMIT ?').all(limit) as Row[]).map(rowToChange);
+  }
+
+  unreviewedCount(): number {
+    return (this.db.prepare('SELECT COUNT(*) AS n FROM changes WHERE reviewed = 0').get() as Row).n as number;
+  }
+
+  /** Marks changes as dealt with in the inbox; with no ids, all of them. */
+  markReviewed(ids?: number[]): number {
+    if (!ids) return Number(this.db.prepare('UPDATE changes SET reviewed = 1 WHERE reviewed = 0').run().changes);
+    const mark = this.db.prepare('UPDATE changes SET reviewed = 1 WHERE id = ?');
+    let n = 0;
+    for (const id of ids) n += Number(mark.run(id).changes);
+    return n;
   }
 
   change(id: number): Change | undefined {

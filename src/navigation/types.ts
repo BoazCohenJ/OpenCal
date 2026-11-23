@@ -18,11 +18,15 @@ export type RootStackParamList = {
   Notifications: undefined;
   FocusEdit: { windowId?: string; kind?: FocusKind } | undefined;
   Calendars: undefined;
-  CalendarEdit: { calendarId?: string } | undefined;
+  /** `subscribe`: a new calendar that follows a feed URL. */
+  CalendarEdit: { calendarId?: string; subscribe?: boolean } | undefined;
   CalendarDelete: { calendarId: string };
   Templates: undefined;
   TemplateEdit: { templateId?: string } | undefined;
-  HiddenEvents: undefined;
+  /** `search`: opened from the calendar's search button, with the search box focused. */
+  HiddenEvents: { search?: boolean } | undefined;
+  /** Changes an AI assistant made through the sync server, to keep or undo. */
+  Inbox: undefined;
   Birthdays: undefined;
   ColorRules: undefined;
   /** `incoming`: a calendar file opened with OpenCal from another app, shown ready to import. */

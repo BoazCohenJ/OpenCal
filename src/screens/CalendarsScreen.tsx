@@ -1,6 +1,7 @@
 import React, { useLayoutEffect } from 'react';
 import { ScrollView, Text, View } from 'react-native';
-import { ColorDot, Divider, HeaderButton, Row, Section } from '../components/ui';
+import { useSubscriptionStatuses } from '../components/SubscriptionWatcher';
+import { Button, ColorDot, Divider, HeaderButton, Row, Section } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
 import { createStyles, spacing } from '../theme';
@@ -10,6 +11,7 @@ export function CalendarsScreen({ navigation }: ScreenProps<'Calendars'>) {
   const styles = useStyles();
   const { calendars, events, visibleCalendarIds } = useCalendarContext();
   const today = dayKey(new Date());
+  const feeds = useSubscriptionStatuses();
 
   useLayoutEffect(() => {
     navigation.setOptions({ headerRight: () => <HeaderButton title="+ New" bold onPress={() => navigation.navigate('CalendarEdit')} /> });
@@ -23,6 +25,7 @@ export function CalendarsScreen({ navigation }: ScreenProps<'Calendars'>) {
           const activePause = c.pauseWindows.find((w) => w.startDate <= today && w.endDate >= today);
           const upcoming = c.pauseWindows.filter((w) => w.startDate > today).length;
           const parts = [`${count} event${count === 1 ? '' : 's'}`];
+          if (c.subscription) parts.push(feeds[c.id]?.error ? 'Subscribed, couldn’t refresh' : 'Subscribed');
           if (activePause) parts.push(`Paused ${formatPauseWindow(activePause)}`);
           else if (upcoming) parts.push(`${upcoming} upcoming pause${upcoming === 1 ? '' : 's'}`);
           if (!visibleCalendarIds.includes(c.id)) parts.push('hidden');
@@ -40,6 +43,8 @@ export function CalendarsScreen({ navigation }: ScreenProps<'Calendars'>) {
         })}
         {calendars.length === 0 ? <Text style={styles.empty}>No calendars yet.</Text> : null}
       </Section>
+      <Button variant="secondary" title="Subscribe to a calendar URL" onPress={() => navigation.navigate('CalendarEdit', { subscribe: true })} />
+      <Text style={styles.hint}>Follow a school timetable, a team schedule or public holidays from a webcal:// or .ics link. It stays up to date on its own.</Text>
     </ScrollView>
   );
 }
@@ -48,4 +53,5 @@ const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg },
   empty: { padding: 16, color: colors.textMuted },
+  hint: { fontSize: 13, color: colors.textMuted, paddingHorizontal: spacing.sm, paddingTop: spacing.sm },
 }));

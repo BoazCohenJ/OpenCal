@@ -7,9 +7,12 @@ import { ReminderEditor } from '../components/ReminderEditor';
 import { TagEditor } from '../components/Selectors';
 import { Button, Divider, Field, HeaderButton, Section, Segmented, SwitchRow, TextField, useWebPointerDown } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
-import { DEFAULT_FOLD, type Calendar, type CalendarDefaults, type CalendarFold } from '../models/Calendar';
+import { SubscriptionSection } from '../components/SubscriptionSection';
+import { useRefreshSubscription } from '../components/SubscriptionWatcher';
+import { DEFAULT_FOLD, DEFAULT_REFRESH_HOURS, type Calendar, type CalendarDefaults, type CalendarFold } from '../models/Calendar';
 import type { ScreenProps } from '../navigation/types';
 import { shareICS } from '../services/exports';
+import { normalizeFeedUrl } from '../services/subscriptions';
 import { createStyles, PALETTE, spacing } from '../theme';
 import { notify } from '../utils/confirm';
 import { newId } from '../utils/id';
@@ -36,8 +39,10 @@ export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarE
         color: PALETTE[calendars.length % PALETTE.length]!,
         sortOrder: calendars.length,
         pauseWindows: [],
+        ...(route.params?.subscribe ? { subscription: { url: '', refreshHours: DEFAULT_REFRESH_HOURS } } : {}),
       },
   );
+  const refreshSubscription = useRefreshSubscription();
   const others = calendars.filter((c) => c.id !== form.id);
   const eventCount = events.filter((e) => e.calendarId === form.id).length;
   const recurringCount = events.filter((e) => e.calendarId === form.id && e.recurrenceRule).length;
@@ -58,7 +63,17 @@ export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarE
   useWebPointerDown(closeInfoOnTouch);
 
   const save = () => {
-    const name = form.name.trim();
+    let subscription = form.subscription;
+    if (subscription) {
+      const url = normalizeFeedUrl(subscription.url);
+      if (!url) {
+        notify('Check the address', 'Paste the calendar’s link, starting with https:// or webcal://.');
+        return;
+      }
+      subscription = { ...subscription, url: subscription.url.trim() };
+    }
+    // A subscription without a name is named after the site it comes from.
+    const name = form.name.trim() || (subscription ? new URL(normalizeFeedUrl(subscription.url)!).hostname.replace(/^www\./, '') : '');
     if (!name) {
       notify('Name your calendar', 'For example “Work” or “Personal”.');
       return;
@@ -69,8 +84,15 @@ export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarE
     const keywords = [...new Set(keywordText.split(',').map((k) => k.trim()).filter(Boolean))];
     // Fold settings are only stored once folding has been turned on, then kept while it's off.
     const nextFold = form.fold ? { ...fold, keywords } : undefined;
-    saveCalendar({ ...form, name, defaults: hasDefaults ? cleaned : undefined, fold: nextFold });
+    const saved: Calendar = { ...form, name, defaults: hasDefaults ? cleaned : undefined, fold: nextFold, subscription };
+    saveCalendar(saved);
     navigation.goBack();
+    // A new feed, or a new address for one, is read right away instead of at the next scheduled refresh.
+    if (subscription && subscription.url !== existing?.subscription?.url) {
+      refreshSubscription(saved).catch((e: unknown) =>
+        notify(`Couldn’t load “${name}”`, `${e instanceof Error ? e.message : String(e)}. It will try again later; check the address in Settings → Calendars.`),
+      );
+    }
   };
   const saveRef = useRef(save);
   useLayoutEffect(() => {
@@ -79,18 +101,36 @@ export function CalendarEditScreen({ navigation, route }: ScreenProps<'CalendarE
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: existing ? 'Edit Calendar' : 'New Calendar',
+      title: existing ? 'Edit Calendar' : route.params?.subscribe ? 'Subscribe' : 'New Calendar',
       headerRight: () => <HeaderButton title="Save" bold onPress={() => saveRef.current()} />,
     });
-  }, [navigation, existing]);
+  }, [navigation, existing, route.params?.subscribe]);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" onTouchStart={closeInfoOnTouch}>
       <Section>
         <Field label="Name">
-          <TextField value={form.name} onChangeText={(name) => setForm((f) => ({ ...f, name }))} placeholder="e.g. Work" autoFocus={!existing} />
+          <TextField
+            value={form.name}
+            onChangeText={(name) => setForm((f) => ({ ...f, name }))}
+            placeholder={form.subscription ? 'e.g. School timetable' : 'e.g. Work'}
+            autoFocus={!existing && !form.subscription}
+          />
         </Field>
       </Section>
+
+      {form.subscription ? (
+        <SubscriptionSection
+          calendar={existing}
+          value={form.subscription}
+          onChange={(subscription) => setForm((f) => ({ ...f, subscription }))}
+          onStop={() => {
+            animateNextLayout();
+            setForm((f) => ({ ...f, subscription: undefined }));
+          }}
+          autoFocus={!existing}
+        />
+      ) : null}
 
       <Section title="Default color">
         <ColorPicker value={form.color} onChange={(color) => color && setForm((f) => ({ ...f, color }))} />
