@@ -95,7 +95,10 @@ export class Store {
     `);
     // Added after the first release: whether the app's assistant inbox has dealt with a change.
     const changeColumns = (this.db.prepare('PRAGMA table_info(changes)').all() as Row[]).map((r) => r.name);
-    if (!changeColumns.includes('reviewed')) this.db.exec('ALTER TABLE changes ADD COLUMN reviewed INTEGER NOT NULL DEFAULT 0');
+    // Changes from before the inbox existed count as kept, so it doesn't open with the whole history.
+    if (!changeColumns.includes('reviewed')) {
+      this.db.exec('ALTER TABLE changes ADD COLUMN reviewed INTEGER NOT NULL DEFAULT 0; UPDATE changes SET reviewed = 1;');
+    }
     // Identifies this copy, so a client can tell when it's pointed at a new or reset server.
     let id = this.meta('serverId');
     if (!id) {
