@@ -7,6 +7,9 @@ import { useDesktop } from '../utils/desktop';
 
 /** Width of the editor dialogs on a desktop browser. */
 export const DIALOG_WIDTH = 640;
+/** Gap above the dialog card, and the height of the card's title bar. */
+const DIALOG_TOP = 40;
+const HEADER_HEIGHT = 54;
 
 /**
  * On a desktop browser the editors (event, quick add, stamp...) open as a dialog over the dimmed
@@ -15,14 +18,13 @@ export const DIALOG_WIDTH = 640;
  */
 export function DialogHeader({ navigation, options, route, back }: NativeStackHeaderProps) {
   const styles = useStyles();
-  const nested = isNested(navigation);
   const { colors } = useTheme();
   const title = getHeaderTitle(options, route.name);
   const tintColor = colors.primary;
   const left = options.headerLeft?.({ tintColor, canGoBack: !!back });
   const right = options.headerRight?.({ tintColor, canGoBack: !!back });
   return (
-    <View style={[styles.headerBackdrop, nested && styles.clear]}>
+    <View style={styles.headerBackdrop}>
       <Pressable style={styles.dismiss} onPress={() => navigation.goBack()} accessibilityLabel="Close" />
       <View style={[styles.headerCard, shadow]}>
         <View style={styles.side}>
@@ -68,7 +70,9 @@ export function dialog<P extends { navigation: NavLike }>(Screen: React.Componen
     }, [desktop, navigation]);
     if (!desktop) return <Screen {...props} />;
     return (
-      <View style={[styles.backdrop, nested && styles.clear]}>
+      <View style={styles.backdrop}>
+        {/* The one dimming layer: reaches up behind the header too, so it never depends on a screen's own header. Dialogs opened from another dialog leave it out. */}
+        {!nested && <View pointerEvents="none" style={styles.dim} />}
         <Pressable style={styles.dismiss} onPress={navigation.goBack} accessibilityLabel="Close" />
         <View style={styles.body}>
           <Screen {...props} />
@@ -80,16 +84,16 @@ export function dialog<P extends { navigation: NavLike }>(Screen: React.Componen
 }
 
 const useStyles = createStyles((colors) => ({
-  headerBackdrop: { alignItems: 'center', backgroundColor: colors.backdrop, paddingTop: 40 },
-  backdrop: { flex: 1, alignItems: 'center', backgroundColor: colors.backdrop, paddingBottom: 40 },
-  clear: { backgroundColor: 'transparent' },
+  headerBackdrop: { alignItems: 'center', paddingTop: DIALOG_TOP },
+  backdrop: { flex: 1, alignItems: 'center', paddingBottom: 40 },
+  dim: { position: 'absolute', top: -(DIALOG_TOP + HEADER_HEIGHT), left: 0, right: 0, bottom: 0, backgroundColor: colors.backdrop },
   dismiss: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   headerCard: {
     width: '100%',
     maxWidth: DIALOG_WIDTH,
     flexDirection: 'row',
     alignItems: 'center',
-    height: 54,
+    height: HEADER_HEIGHT,
     paddingHorizontal: spacing.lg,
     backgroundColor: colors.bg,
     borderTopLeftRadius: radius.xl,
