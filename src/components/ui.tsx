@@ -99,6 +99,8 @@ export function Button({
   );
 }
 
+type PressState = { pressed: boolean; hovered?: boolean };
+
 export function IconButton({
   icon,
   onPress,
@@ -117,10 +119,11 @@ export function IconButton({
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       hitSlop={6}
-      style={({ pressed }) => [
+      style={({ pressed, hovered }: PressState) => [
         styles.iconButton,
         { width: size, height: size, borderRadius: size / 2 },
-        pressed && styles.pressed,
+        hovered && styles.hovered,
+        pressed && styles.iconButtonPressed,
       ]}
     >
       <Icon name={icon} size={Math.round(size * 0.47)} />
@@ -131,7 +134,11 @@ export function IconButton({
 export function HeaderButton({ title, onPress, bold = false }: { title: string; onPress: () => void; bold?: boolean }) {
   const styles = useStyles();
   return (
-    <Pressable onPress={onPress} hitSlop={10} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
+    <Pressable
+      onPress={onPress}
+      hitSlop={10}
+      style={({ pressed, hovered }: PressState) => [styles.headerButton, hovered && styles.headerButtonHover, pressed && styles.pressed]}
+    >
       <Text style={[styles.headerButtonText, bold && styles.bold]}>{title}</Text>
     </Pressable>
   );
@@ -154,9 +161,10 @@ export function Chip({
       onPress={onPress}
       disabled={!onPress}
       accessibilityState={{ selected }}
-      style={({ pressed }) => [
+      style={({ pressed, hovered }: PressState) => [
         styles.chip,
         color && !selected && styles.chipOff,
+        hovered && !selected && onPress && styles.hovered,
         selected && styles.chipSelected,
         selected && color ? { backgroundColor: softBg(color), borderColor: color } : null,
         pressed && styles.pressed,
@@ -235,7 +243,10 @@ export function Row({
   );
   if (!onPress) return <View style={styles.row}>{content}</View>;
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surfaceAlt }]}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed, hovered }: PressState) => [styles.row, (pressed || hovered) && { backgroundColor: colors.surfaceAlt }]}
+    >
       {content}
     </Pressable>
   );
@@ -256,14 +267,23 @@ export function Field({ label, children }: { label: string; children: React.Reac
   );
 }
 
-export function TextField(props: TextInputProps) {
+export function TextField({ onFocus, onBlur, ...props }: TextInputProps) {
   const styles = useStyles();
   const { colors } = useTheme();
+  const [focused, setFocused] = useState(false);
   return (
     <TextInput
       placeholderTextColor={colors.textFaint}
       {...props}
-      style={[styles.input, props.multiline && styles.inputMultiline, props.style]}
+      onFocus={(e) => {
+        setFocused(true);
+        onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocused(false);
+        onBlur?.(e);
+      }}
+      style={[styles.input, props.multiline && styles.inputMultiline, focused && styles.inputFocused, props.style]}
     />
   );
 }
@@ -562,6 +582,8 @@ const useStyles = createStyles((colors) => ({
   },
   infoText: { fontSize: 13, lineHeight: 18, color: colors.textMuted },
   pressed: { opacity: 0.7 },
+  hovered: { backgroundColor: colors.surfaceAlt },
+  iconButtonPressed: { backgroundColor: colors.surfaceAlt, opacity: 0.75 },
   disabled: { opacity: 0.4 },
   bold: { fontWeight: '700' },
   button: {
@@ -581,7 +603,8 @@ const useStyles = createStyles((colors) => ({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
-  headerButton: { paddingHorizontal: 4, paddingVertical: 4 },
+  headerButton: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: radius.sm },
+  headerButtonHover: { backgroundColor: colors.surfaceAlt },
   headerButtonText: { fontSize: 16, color: colors.primary, fontWeight: '500' },
   chip: {
     flexDirection: 'row',
@@ -639,11 +662,15 @@ const useStyles = createStyles((colors) => ({
     fontSize: 16,
     color: colors.text,
     backgroundColor: colors.bg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: 11,
+  },
+  inputFocused: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
   },
   inputMultiline: { minHeight: 88, textAlignVertical: 'top' },
   segmented: { flexDirection: 'row', backgroundColor: colors.surfaceAlt, borderRadius: radius.pill, padding: 3 },

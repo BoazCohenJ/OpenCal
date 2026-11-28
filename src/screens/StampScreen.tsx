@@ -3,6 +3,7 @@ import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { DateTimeField } from '../components/DateTimeField';
 import { EventGlyph, Icon } from '../components/Icon';
+import { useToast } from '../components/Toast';
 import { Button, ColorDot, EmptyState, Field, HeaderButton, Section } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { ScreenProps } from '../navigation/types';
@@ -16,7 +17,8 @@ import { formatDuration, formatReminder } from '../utils/format';
 export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const { templates, calendarsById, saveEvent, deleteTemplate, defaultCalendarId } = useCalendarContext();
+  const showToast = useToast();
+  const { templates, calendarsById, saveEvent, deleteEvent, deleteTemplate, defaultCalendarId } = useCalendarContext();
   const [templateId, setTemplateId] = useState(route.params?.templateId);
   const [start, setStart] = useState(() => (route.params?.start ? new Date(route.params.start) : nextRoundedHour()));
   const template = templates.find((t) => t.id === templateId);
@@ -81,8 +83,15 @@ export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
   const add = () => {
     if (!calendar || added.current) return;
     added.current = true;
-    saveEvent(eventFromTemplate(template, start, calendar.id));
+    const event = eventFromTemplate(template, start, calendar.id);
+    saveEvent(event);
     navigation.goBack();
+    showToast({
+      icon: 'check',
+      message: `Added ${template.title} · ${template.isAllDay ? format(start, 'EEE, MMM d') : format(start, 'EEE h:mm a')}`,
+      actionLabel: 'Undo',
+      onAction: () => deleteEvent(event.id),
+    });
   };
 
   return (
@@ -135,7 +144,7 @@ export function StampScreen({ navigation, route }: ScreenProps<'Stamp'>) {
 const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: 48 },
-  heading: { fontSize: 15, color: colors.textMuted, fontWeight: '500' },
+  heading: { fontSize: 15, color: colors.textMuted, fontWeight: '500', marginBottom: spacing.md },
   card: {
     flexDirection: 'row',
     alignItems: 'center',

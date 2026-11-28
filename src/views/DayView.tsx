@@ -21,7 +21,7 @@ function EventContent({ pos, selectionMode, selected }: { pos: PositionedOccurre
   const tall = pos.height >= 44;
   const fg = readableOn(occ.color);
   return (
-    <View style={styles.blockInner}>
+    <View style={[styles.blockInner, tall && styles.blockInnerTall]}>
       {selectionMode ? <SelectionCheckbox color={occ.color} checked={selected} /> : null}
       <View style={styles.blockBody}>
         <View style={styles.titleRow}>
@@ -29,6 +29,11 @@ function EventContent({ pos, selectionMode, selected }: { pos: PositionedOccurre
           <Text numberOfLines={tall ? 2 : 1} style={[styles.blockTitle, { color: fg }]}>
             {eventLabel(occ.event)}
           </Text>
+          {!tall ? (
+            <Text numberOfLines={1} style={[styles.inlineTime, { color: fg }]}>
+              {formatTime(occ.start)}
+            </Text>
+          ) : null}
         </View>
         {tall ? (
           <Text numberOfLines={1} style={[styles.blockMeta, { color: fg }]}>
@@ -188,7 +193,6 @@ export function DayView({
                         left: 2 + placeX(pos, inner).left,
                         width: placeX(pos, inner).width - 3,
                         backgroundColor: pos.occ.color,
-                        borderLeftColor: pos.occ.color,
                       },
                     ]}
                     selectedStyle={[styles.blockSelected, { borderColor: readableOn(pos.occ.color) }]}
@@ -245,15 +249,17 @@ const useStyles = createStyles((colors) => ({
   block: {
     position: 'absolute',
     borderRadius: 10,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 3,
     justifyContent: 'center',
     overflow: 'hidden',
   },
   blockSelected: { borderWidth: 2 },
-  blockInner: { flexDirection: 'row', gap: 6, flex: 1 },
+  blockInner: { flexDirection: 'row', gap: 6, flex: 1, alignItems: 'center' },
+  blockInnerTall: { alignItems: 'flex-start', paddingVertical: 3 },
   blockBody: { flex: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   blockTitle: { flexShrink: 1, fontSize: 13, fontWeight: '700' },
-  blockMeta: { fontSize: 11, fontWeight: '600', marginTop: 1 },
+  inlineTime: { fontSize: 11, fontWeight: '600', opacity: 0.85, fontVariant: ['tabular-nums'] },
+  blockMeta: { fontSize: 11, fontWeight: '600', marginTop: 2, opacity: 0.9, fontVariant: ['tabular-nums'] },
 }));

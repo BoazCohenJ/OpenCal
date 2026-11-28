@@ -31,18 +31,33 @@ export function MiniMonth({ month, onChangeMonth, onSelectDay, selected, rangeSt
   return (
     <View>
       <View style={styles.header}>
-        <Pressable onPress={() => onChangeMonth(addMonths(month, -1))} hitSlop={12} style={[styles.nav, c?.nav]} accessibilityLabel="Previous month">
+        <Pressable
+          onPress={() => onChangeMonth(addMonths(month, -1))}
+          hitSlop={12}
+          style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [styles.nav, c?.nav, hovered && styles.navHover, pressed && styles.pressed]}
+          accessibilityLabel="Previous month"
+        >
           <Icon name="chevron-left" size={18} />
         </Pressable>
         {onPressTitle ? (
-          <Pressable onPress={onPressTitle} hitSlop={8} style={styles.titleButton} accessibilityLabel={`${format(month, 'MMMM yyyy')}. Choose a month`}>
+          <Pressable
+            onPress={onPressTitle}
+            hitSlop={8}
+            style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [styles.titleButton, hovered && styles.titleHover, pressed && styles.pressed]}
+            accessibilityLabel={`${format(month, 'MMMM yyyy')}. Choose a month`}
+          >
             <Text style={[styles.title, c?.title]}>{format(month, 'MMMM yyyy')}</Text>
             <Icon name="chevron-down" size={16} />
           </Pressable>
         ) : (
           <Text style={[styles.title, c?.title]}>{format(month, 'MMMM yyyy')}</Text>
         )}
-        <Pressable onPress={() => onChangeMonth(addMonths(month, 1))} hitSlop={12} style={[styles.nav, c?.nav]} accessibilityLabel="Next month">
+        <Pressable
+          onPress={() => onChangeMonth(addMonths(month, 1))}
+          hitSlop={12}
+          style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [styles.nav, c?.nav, hovered && styles.navHover, pressed && styles.pressed]}
+          accessibilityLabel="Next month"
+        >
           <Icon name="chevron-right" size={18} />
         </Pressable>
       </View>
@@ -65,19 +80,29 @@ export function MiniMonth({ month, onChangeMonth, onSelectDay, selected, rangeSt
             const isToday = isSameDay(d, today);
             return (
               <Pressable key={dayKey(d)} onPress={() => onSelectDay(d)} style={[styles.cell, c?.cell, inRange && styles.inRange]}>
-                <View style={[styles.circle, c?.circle, isEndpoint && styles.circleSelected]}>
-                  <Text
+                {({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => (
+                  <View
                     style={[
-                      styles.dayText,
-                      c?.dayText,
-                      !isSameMonth(d, month) && styles.outside,
-                      isToday && styles.today,
-                      isEndpoint && styles.selectedText,
+                      styles.circle,
+                      c?.circle,
+                      isToday && !isEndpoint && styles.circleToday,
+                      (pressed || hovered) && !isEndpoint && styles.circleHover,
+                      isEndpoint && styles.circleSelected,
                     ]}
                   >
-                    {format(d, 'd')}
-                  </Text>
-                </View>
+                    <Text
+                      style={[
+                        styles.dayText,
+                        c?.dayText,
+                        !isSameMonth(d, month) && styles.outside,
+                        isToday && styles.today,
+                        isEndpoint && styles.selectedText,
+                      ]}
+                    >
+                      {format(d, 'd')}
+                    </Text>
+                  </View>
+                )}
               </Pressable>
             );
           })}
@@ -99,13 +124,18 @@ const compactStyles = {
 const useStyles = createStyles((colors) => ({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   nav: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: colors.surfaceAlt },
-  titleButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  navHover: { opacity: 0.85 },
+  pressed: { opacity: 0.65 },
+  titleButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  titleHover: { backgroundColor: colors.surfaceAlt },
   title: { fontSize: 18, fontFamily: fonts.display, color: colors.text },
   row: { flexDirection: 'row' },
   dow: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: colors.textFaint, paddingVertical: 6 },
   cell: { flex: 1, alignItems: 'center', paddingVertical: 3 },
   inRange: { backgroundColor: colors.primarySoft },
   circle: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  circleToday: { backgroundColor: colors.primarySoft },
+  circleHover: { backgroundColor: colors.surfaceAlt },
   circleSelected: { backgroundColor: colors.primary },
   dayText: { fontSize: 15, color: colors.text },
   outside: { color: colors.textFaint },

@@ -16,6 +16,7 @@ import { SelectableBlock, SelectionCheckbox, SelectionToolbar, TOOLBAR_CLEARANCE
 import { GRID_HEIGHT, GUTTER_WIDTH, HourGutter, HourLines, NowLine, type TimeGridHandle } from './TimeGrid';
 
 const MAX_SPAN_LANES = 4;
+const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
 
 export function WeekView({
   weekStart,
@@ -113,8 +114,17 @@ export function WeekView({
         {perDay.map(({ day }) => {
           const isToday = isSameDay(day, today);
           return (
-            <Pressable key={dayKey(day)} style={styles.dayHeader} onPress={() => onPressDay(day)}>
-              <Text style={[styles.dow, isToday && styles.todayText]}>{format(day, 'EEE')}</Text>
+            <Pressable
+              key={dayKey(day)}
+              style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+                styles.dayHeader,
+                hovered && styles.dayHeaderHover,
+                pressed && styles.dayHeaderPressed,
+              ]}
+              onPress={() => onPressDay(day)}
+              accessibilityLabel={`Open ${format(day, 'EEEE, MMMM d')}`}
+            >
+              <Text style={[styles.dow, isWeekend(day) && !isToday && styles.dowWeekend, isToday && styles.todayText]}>{format(day, 'EEE')}</Text>
               <View style={[styles.dateBadge, isToday && styles.dateBadgeToday]}>
                 <Text style={[styles.dateText, isToday && styles.dateTextToday]}>{format(day, 'd')}</Text>
               </View>
@@ -169,6 +179,7 @@ export function WeekView({
                     style={[
                       styles.dayColumn,
                       { left: i * colWidth, width: colWidth },
+                      isWeekend(day) && styles.weekendColumn,
                       isSameDay(day, today) && styles.todayColumn,
                       // Keep dragged events above the neighbouring columns they slide over.
                       (hasSelected || hasDraft) && styles.raisedColumn,
@@ -278,8 +289,11 @@ export function WeekView({
 const useStyles = createStyles((colors) => ({
   container: { flex: 1, backgroundColor: colors.surface },
   headerRow: { flexDirection: 'row', paddingTop: 10, paddingBottom: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
-  dayHeader: { flex: 1, alignItems: 'center', gap: 2 },
+  dayHeader: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 2, borderRadius: 8 },
+  dayHeaderHover: { backgroundColor: colors.surfaceAlt },
+  dayHeaderPressed: { opacity: 0.7 },
   dow: { fontSize: 10, fontWeight: '700', color: colors.textFaint, textTransform: 'uppercase', letterSpacing: 1 },
+  dowWeekend: { color: colors.primary, opacity: 0.7 },
   todayText: { color: colors.primary },
   dateBadge: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   dateBadgeToday: { backgroundColor: colors.primary },
@@ -295,6 +309,7 @@ const useStyles = createStyles((colors) => ({
   // Clicking empty time shouldn't leave a focus ring around the whole column.
   slot: { outlineWidth: 0 },
   dayColumn: { position: 'absolute', top: 0, bottom: 0, borderLeftWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
+  weekendColumn: { backgroundColor: colors.weekend },
   todayColumn: { backgroundColor: 'rgba(226, 85, 58, 0.05)' },
   raisedColumn: { zIndex: 5 },
   block: { position: 'absolute', borderRadius: 6, paddingHorizontal: 3, paddingVertical: 2, justifyContent: 'center', overflow: 'hidden' },

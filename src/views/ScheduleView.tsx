@@ -122,7 +122,15 @@ export function ScheduleView({
         return (
           <View>
             {section.newMonth ? <Text style={styles.month}>{format(section.day, 'MMMM yyyy')}</Text> : null}
-            <Pressable onPress={() => onPressDay(section.day)} style={styles.dayHeader} accessibilityLabel={`Open ${format(section.day, 'EEEE, MMMM d')}`}>
+            <Pressable
+              onPress={() => onPressDay(section.day)}
+              style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+                styles.dayHeader,
+                hovered && styles.dayHeaderHover,
+                pressed && styles.pressed,
+              ]}
+              accessibilityLabel={`Open ${format(section.day, 'EEEE, MMMM d')}`}
+            >
               <View style={[styles.dateBadge, isToday && styles.dateBadgeToday]}>
                 <Text style={[styles.dateNum, isToday && styles.dateNumToday]}>{format(section.day, 'd')}</Text>
               </View>
@@ -137,6 +145,7 @@ export function ScheduleView({
       renderItem={({ item: o }) => {
         const allDay = o.event.isAllDay;
         const past = o.end < now;
+        const live = !allDay && o.start <= now && o.end > now;
         const fold = foldOf(o);
         if (fold) {
           const count = fold.members.length;
@@ -155,8 +164,8 @@ export function ScheduleView({
               ]}
             >
               <View style={styles.time}>
-                <Text style={styles.timeMain}>{formatTime(o.start)}</Text>
-                <Text style={styles.timeSub}>{formatTime(o.end)}</Text>
+                <Text style={styles.timeMain} numberOfLines={1}>{formatTime(o.start)}</Text>
+                <Text style={styles.timeSub} numberOfLines={1}>{formatTime(o.end)}</Text>
               </View>
               <View style={[styles.bar, { backgroundColor: o.color }]} />
               <View style={styles.body}>
@@ -176,15 +185,22 @@ export function ScheduleView({
         return (
           <Pressable
             onPress={() => onPressEvent(o)}
-            style={({ pressed }) => [styles.item, inFoldOf(o) && [styles.inFold, { borderLeftColor: o.color }], past && styles.past, pressed && styles.pressed]}
+            style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+              styles.item,
+              live && styles.liveItem,
+              inFoldOf(o) && [styles.inFold, { borderLeftColor: o.color }],
+              past && styles.past,
+              hovered && styles.itemHover,
+              pressed && styles.pressed,
+            ]}
           >
             <View style={styles.time}>
               {allDay ? (
-                <Text style={styles.timeMain}>All day</Text>
+                <Text style={styles.timeMain} numberOfLines={1}>All day</Text>
               ) : (
                 <>
-                  <Text style={styles.timeMain}>{formatTime(o.start)}</Text>
-                  <Text style={styles.timeSub}>{formatTime(o.end)}</Text>
+                  <Text style={styles.timeMain} numberOfLines={1}>{formatTime(o.start)}</Text>
+                  <Text style={styles.timeSub} numberOfLines={1}>{formatTime(o.end)}</Text>
                 </>
               )}
             </View>
@@ -195,6 +211,11 @@ export function ScheduleView({
                 <Text style={styles.title} numberOfLines={1}>
                   {eventLabel(o.event)}
                 </Text>
+                {live ? (
+                  <View style={styles.liveBadge}>
+                    <Text style={styles.liveBadgeText}>NOW</Text>
+                  </View>
+                ) : null}
                 {o.event.recurrenceRule ? <Icon name="repeat" size={12} color={colors.textFaint} /> : null}
               </View>
               {o.event.location ? (
@@ -223,7 +244,8 @@ const useStyles = createStyles((colors) => ({
     marginTop: spacing.lg,
     marginBottom: 2,
   },
-  dayHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 14, paddingBottom: 6 },
+  dayHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 14, paddingBottom: 6, borderRadius: radius.sm },
+  dayHeaderHover: { backgroundColor: colors.surfaceAlt },
   dateBadge: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceAlt },
   dateBadgeToday: { backgroundColor: colors.primary },
   dateNum: { fontFamily: fonts.display, fontSize: 16, color: colors.text },
@@ -243,13 +265,17 @@ const useStyles = createStyles((colors) => ({
     backgroundColor: colors.bg,
     borderRadius: radius.md,
   },
+  itemHover: { backgroundColor: colors.surfaceAlt },
+  liveItem: { borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  liveBadge: { backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1.5 },
+  liveBadgeText: { fontSize: 10, fontWeight: '800', color: colors.onPrimary, letterSpacing: 0.5 },
   past: { opacity: 0.5 },
   foldItem: { borderWidth: 1.5 },
   foldIcon: { justifyContent: 'center' },
   // Events drawn on a block hang off it, indented, like a branch.
   inFold: { marginLeft: 62, borderLeftWidth: 2 },
   pressed: { opacity: 0.7 },
-  time: { width: 56 },
+  time: { width: 64 },
   timeMain: { fontSize: 13, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] },
   timeSub: { fontSize: 12, color: colors.textMuted, marginTop: 2, fontVariant: ['tabular-nums'] },
   bar: { width: 3, borderRadius: 2 },

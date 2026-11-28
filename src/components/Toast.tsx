@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { Animated, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createStyles, radius, shadow, spacing } from '../theme';
+import { useDesktop } from '../utils/desktop';
 import { Icon, type IconName } from './Icon';
 
 interface ToastOptions {
@@ -21,6 +22,7 @@ export const useToast = () => useContext(ToastContext);
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
+  const desktop = useDesktop();
   const [toast, setToast] = useState<(ToastOptions & { id: number }) | null>(null);
   const progress = useState(() => new Animated.Value(0))[0];
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -59,7 +61,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       {toast ? (
-        <View pointerEvents="box-none" style={[styles.host, { bottom: insets.bottom + 96 }]}>
+        <View pointerEvents="box-none" style={[styles.host, { bottom: desktop ? 24 : insets.bottom + 96 }]}>
           <Animated.View
             accessibilityLiveRegion="polite"
             style={[
@@ -74,10 +76,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               },
             ]}
           >
-            {toast.icon ? <Icon name={toast.icon} size={18} color={styles.message.color as string} /> : null}
-            <Text style={styles.message} numberOfLines={2}>
-              {toast.message}
-            </Text>
+            <Pressable onPress={hide} style={styles.toastBody} accessibilityLabel={`${toast.message}. Tap to dismiss`}>
+              {toast.icon ? <Icon name={toast.icon} size={18} color={styles.message.color as string} /> : null}
+              <Text style={styles.message} numberOfLines={2}>
+                {toast.message}
+              </Text>
+            </Pressable>
             {toast.actionLabel ? (
               <Pressable
                 hitSlop={10}
@@ -111,6 +115,7 @@ const useStyles = createStyles((colors) => ({
     borderRadius: radius.lg,
     backgroundColor: colors.ink,
   },
+  toastBody: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   message: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.onInk },
   action: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.primary },
   actionText: { fontSize: 14, fontWeight: '800', color: colors.onPrimary },

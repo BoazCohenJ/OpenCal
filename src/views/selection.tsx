@@ -1,6 +1,7 @@
 import { addDays, addMinutes } from 'date-fns';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Animated, PanResponder, Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Animated, PanResponder, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/ui';
 import type { Occurrence } from '../services/occurrences';
@@ -344,9 +345,10 @@ export function SelectionToolbar({
   onDone: () => void;
 }) {
   const styles = useStyles();
+  const insets = useSafeAreaInsets();
   const moving = summary === 'mixed' ? (hasPending ? 'moved' : '') : describeDelta(summary);
   return (
-    <View style={[styles.toolbar, shadow]}>
+    <View style={[styles.toolbar, shadow, { bottom: insets.bottom + 12 }]}>
       <View style={styles.toolbarTop}>
         <View style={styles.toolbarTitleBlock}>
           <Text style={styles.toolbarTitle} numberOfLines={1}>
@@ -400,6 +402,8 @@ const useStyles = createStyles((colors) => ({
     bottom: 12,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     padding: 14,
     gap: 8,
   },

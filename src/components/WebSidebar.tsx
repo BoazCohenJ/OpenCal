@@ -1,7 +1,8 @@
 import { startOfDay } from 'date-fns';
 import React, { useState } from 'react';
-import { Pressable, PressableStateCallbackType, ScrollView, Text, View } from 'react-native';
+import { Pressable, PressableStateCallbackType, ScrollView, Switch, Text, View } from 'react-native';
 import { useCalendarContext } from '../context/CalendarContext';
+import { DEFAULT_FOLD, type Calendar } from '../models/Calendar';
 import { BIRTHDAY_COLOR, BIRTHDAYS_CALENDAR_ID } from '../services/birthdays';
 import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { Icon, type IconName } from './Icon';
@@ -31,7 +32,7 @@ export function WebSidebar({
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const { calendars, visibleCalendarIds, toggleCalendarVisibility, birthdays } = useCalendarContext();
+  const { calendars, visibleCalendarIds, toggleCalendarVisibility, saveCalendar, birthdays, showAllEvents, setShowAllEvents } = useCalendarContext();
   const [month, setMonth] = useState(cursor);
   const cursorMonth = cursor.getFullYear() * 12 + cursor.getMonth();
   // Follow the main view when it moves to another month.
@@ -40,10 +41,13 @@ export function WebSidebar({
     setSeenMonth(cursorMonth);
     setMonth(cursor);
   }
-  const rows = [
-    ...calendars.map((c) => ({ id: c.id, name: c.name, color: c.color })),
+  const rows: { id: string; name: string; color: string; calendar?: Calendar }[] = [
+    ...calendars.map((c) => ({ id: c.id, name: c.name, color: c.color, calendar: c })),
     ...(birthdays.length ? [{ id: BIRTHDAYS_CALENDAR_ID, name: 'Birthdays', color: BIRTHDAY_COLOR }] : []),
   ];
+  const anyFolded = calendars.some((c) => c.fold?.enabled && visibleCalendarIds.includes(c.id));
+  const toggleFolded = (calendar: Calendar) =>
+    saveCalendar({ ...calendar, fold: { ...DEFAULT_FOLD, ...calendar.fold, enabled: !calendar.fold?.enabled } });
 
   return (
     <View style={styles.root}>
@@ -65,23 +69,47 @@ export function WebSidebar({
       <ScrollView style={styles.list}>
         {rows.map((c) => {
           const on = visibleCalendarIds.includes(c.id);
+          const folded = on && !!c.calendar?.fold?.enabled;
           return (
-            <Pressable
-              key={c.id}
-              onPress={() => toggleCalendarVisibility(c.id)}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: on }}
-              style={({ hovered }: Hover) => [styles.row, hovered && styles.rowHover]}
-            >
-              <View style={[styles.box, { borderColor: c.color, backgroundColor: on ? c.color : 'transparent' }]}>
-                {on ? <Icon name="check" size={11} color="#FFFFFF" strokeWidth={3.5} /> : null}
-              </View>
-              <Text style={[styles.rowName, !on && styles.rowNameOff]} numberOfLines={1}>
-                {c.name}
-              </Text>
-            </Pressable>
+            <View key={c.id} style={styles.calRowWrap}>
+              <Pressable
+                onPress={() => toggleCalendarVisibility(c.id)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: on }}
+                style={({ hovered }: Hover) => [styles.row, styles.calRowMain, hovered && styles.rowHover]}
+              >
+                <View style={[styles.box, { borderColor: c.color, backgroundColor: on ? c.color : 'transparent' }]}>
+                  {on ? <Icon name="check" size={11} color="#FFFFFF" strokeWidth={3.5} /> : null}
+                </View>
+                <Text style={[styles.rowName, !on && styles.rowNameOff]} numberOfLines={1}>
+                  {c.name}
+                </Text>
+              </Pressable>
+              {c.calendar && on && (folded || c.calendar.fold) ? (
+                <Pressable
+                  onPress={() => toggleFolded(c.calendar!)}
+                  hitSlop={4}
+                  accessibilityRole="button"
+                  accessibilityLabel={folded ? `Unfold ${c.name}` : `Fold ${c.name}`}
+                  style={({ hovered }: Hover) => [styles.foldPill, folded && styles.foldPillOn, hovered && styles.foldPillHover]}
+                >
+                  <Text style={[styles.foldPillText, folded && styles.foldPillTextOn]}>{folded ? 'Folded' : 'Fold'}</Text>
+                </Pressable>
+              ) : null}
+            </View>
           );
         })}
+        {anyFolded ? (
+          <View style={styles.showAllRow}>
+            <Text style={styles.showAllText}>Show all events</Text>
+            <Switch
+              value={showAllEvents}
+              onValueChange={setShowAllEvents}
+              trackColor={{ true: colors.primary, false: colors.border }}
+              thumbColor={colors.surface}
+            />
+          </View>
+        ) : null}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -124,11 +152,29 @@ const useStyles = createStyles((colors) => ({
   newKey: { fontSize: 11, fontWeight: '700', color: colors.onPrimary, opacity: 0.7 },
   mini: { marginBottom: spacing.md },
   list: { flex: 1, minHeight: 90 },
+  calRowWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  calRowMain: { flex: 1, minWidth: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 8, borderRadius: radius.sm },
   rowHover: { backgroundColor: colors.surfaceAlt },
   box: { width: 18, height: 18, borderRadius: 5, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   rowName: { flex: 1, fontSize: 14, fontWeight: '500', color: colors.text },
   rowNameOff: { color: colors.textMuted },
+  foldPill: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt },
+  foldPillOn: { backgroundColor: colors.primarySoft },
+  foldPillHover: { opacity: 0.8 },
+  foldPillText: { fontSize: 11, fontWeight: '700', color: colors.textMuted },
+  foldPillTextOn: { color: colors.primary },
+  showAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: colors.hairline,
+  },
+  showAllText: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
   footer: { marginTop: 'auto', paddingTop: spacing.md, paddingBottom: spacing.lg, borderTopWidth: 1, borderTopColor: colors.hairline },
   navText: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
   keys: { fontSize: 11, color: colors.textFaint, marginTop: spacing.md, paddingLeft: 8 },

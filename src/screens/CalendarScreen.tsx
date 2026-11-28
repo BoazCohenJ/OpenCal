@@ -900,20 +900,31 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
           </Pressable>
           <View style={styles.headerActions}>
             <View style={styles.navPill}>
-              <Pressable onPress={() => step(-1)} hitSlop={6} style={styles.navArrow} accessibilityLabel="Previous">
+              <Pressable
+                onPress={() => step(-1)}
+                hitSlop={6}
+                style={({ pressed }) => [styles.navArrow, pressed && styles.navPressed]}
+                accessibilityLabel="Previous"
+              >
                 <Icon name="chevron-left" size={18} />
               </Pressable>
               <Pressable
                 onPress={goToday}
                 disabled={showingToday}
                 hitSlop={4}
+                style={({ pressed }) => [styles.todayPill, pressed && !showingToday && styles.navPressed]}
                 accessibilityLabel={showingToday ? positionLabel : `${positionLabel}. Go to today`}
               >
                 <Text style={[styles.todayText, showingToday && styles.todayTextOn]} numberOfLines={1}>
                   {positionLabel}
                 </Text>
               </Pressable>
-              <Pressable onPress={() => step(1)} hitSlop={6} style={styles.navArrow} accessibilityLabel="Next">
+              <Pressable
+                onPress={() => step(1)}
+                hitSlop={6}
+                style={({ pressed }) => [styles.navArrow, pressed && styles.navPressed]}
+                accessibilityLabel="Next"
+              >
                 <Icon name="chevron-right" size={18} />
               </Pressable>
             </View>
@@ -923,7 +934,11 @@ export function CalendarScreen({ navigation, route }: ScreenProps<'Calendar'>) {
           </View>
         </View>
         <View style={styles.titleRow}>
-          <Pressable onPress={() => setMonthPickerOpen(true)} style={styles.titleButton} accessibilityLabel={`${title}. Choose a month`}>
+          <Pressable
+            onPress={() => setMonthPickerOpen(true)}
+            style={({ pressed }) => [styles.titleButton, pressed && styles.titlePressed]}
+            accessibilityLabel={`${title}. Choose a month`}
+          >
             <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit>
               {title}
             </Text>
@@ -1105,6 +1120,7 @@ const useStyles = createStyles((colors) => ({
   eyebrow: { flexShrink: 1, fontFamily: fonts.displayItalic, fontSize: 17, color: colors.primary },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
   titleButton: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  titlePressed: { opacity: 0.7 },
   viewButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1130,7 +1146,9 @@ const useStyles = createStyles((colors) => ({
     borderColor: colors.border,
     paddingHorizontal: 2,
   },
-  navArrow: { width: 32, height: 34, alignItems: 'center', justifyContent: 'center' },
+  navArrow: { width: 32, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  navPressed: { backgroundColor: colors.surfaceAlt, opacity: 0.8 },
+  todayPill: { height: 32, borderRadius: 16, justifyContent: 'center', paddingHorizontal: 2 },
   todayText: { fontSize: 13, fontWeight: '700', color: colors.primary, paddingHorizontal: 4, maxWidth: 120 },
   todayTextOn: { color: colors.textFaint },
   body: {

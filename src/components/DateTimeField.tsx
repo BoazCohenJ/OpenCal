@@ -1,9 +1,10 @@
 import { format, startOfMonth } from 'date-fns';
 import React, { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { createStyles, fonts, radius, useTheme } from '../theme';
 import { Icon } from './Icon';
 import { MiniMonth } from './MiniMonth';
+import { MonthYearGrid } from './MonthYearPicker';
 import { Sheet } from './Sheet';
 
 const HOURS_12 = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
@@ -115,37 +116,72 @@ export function DateTimeField({
   mode?: 'date' | 'datetime';
 }) {
   const styles = useStyles();
+  const { colors } = useTheme();
   const [open, setOpen] = useState<'date' | 'time' | null>(null);
   const [month, setMonth] = useState(startOfMonth(value));
+  const [pickingMonth, setPickingMonth] = useState(false);
+  const thisYear = new Date().getFullYear();
+
+  const pickDay = (d: Date) => {
+    const next = new Date(d);
+    next.setHours(value.getHours(), value.getMinutes(), 0, 0);
+    onChange(next);
+    setPickingMonth(false);
+    setOpen(null);
+  };
+
   return (
     <View style={styles.row}>
       <Pressable
-        style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
+        style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [styles.pill, hovered && styles.pillHover, pressed && styles.pressed]}
         onPress={() => {
           setMonth(startOfMonth(value));
+          setPickingMonth(false);
           setOpen('date');
         }}
       >
+        <Icon name="calendar" size={15} color={colors.textMuted} />
         <Text style={styles.pillText}>{format(value, 'EEE, MMM d, yyyy')}</Text>
       </Pressable>
       {mode === 'datetime' ? (
-        <Pressable style={({ pressed }) => [styles.pill, pressed && styles.pressed]} onPress={() => setOpen('time')}>
+        <Pressable
+          style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [styles.pill, hovered && styles.pillHover, pressed && styles.pressed]}
+          onPress={() => setOpen('time')}
+        >
+          <Icon name="clock" size={15} color={colors.textMuted} />
           <Text style={styles.pillText}>{format(value, 'h:mm a')}</Text>
         </Pressable>
       ) : null}
 
-      <Sheet visible={open === 'date'} onClose={() => setOpen(null)} title="Pick a date">
-        <MiniMonth
-          month={month}
-          onChangeMonth={setMonth}
-          selected={value}
-          onSelectDay={(d) => {
-            const next = new Date(d);
-            next.setHours(value.getHours(), value.getMinutes(), 0, 0);
-            onChange(next);
-            setOpen(null);
-          }}
-        />
+      <Sheet
+        visible={open === 'date'}
+        onClose={() => {
+          setPickingMonth(false);
+          setOpen(null);
+        }}
+        title={pickingMonth ? 'Jump to month' : 'Pick a date'}
+        actionLabel={pickingMonth ? 'Back' : 'Today'}
+        onAction={() => (pickingMonth ? setPickingMonth(false) : pickDay(new Date()))}
+      >
+        {pickingMonth ? (
+          <MonthYearGrid
+            value={month}
+            minYear={thisYear - 50}
+            maxYear={thisYear + 50}
+            onSelect={(m) => {
+              setMonth(startOfMonth(m));
+              setPickingMonth(false);
+            }}
+          />
+        ) : (
+          <MiniMonth
+            month={month}
+            onChangeMonth={setMonth}
+            onPressTitle={() => setPickingMonth(true)}
+            selected={value}
+            onSelectDay={pickDay}
+          />
+        )}
       </Sheet>
       <Sheet visible={open === 'time'} onClose={() => setOpen(null)} title="Pick a time">
         <TimePicker value={value} onChange={onChange} />
@@ -168,15 +204,24 @@ export function OptionalDateButton({
   const { colors } = useTheme();
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(startOfMonth(value ?? new Date()));
+  const [pickingMonth, setPickingMonth] = useState(false);
+  const thisYear = new Date().getFullYear();
   return (
     <>
       <Pressable
-        style={({ pressed }) => [styles.pill, value && styles.pillActive, pressed && styles.pressed]}
+        style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+          styles.pill,
+          hovered && !value && styles.pillHover,
+          value && styles.pillActive,
+          pressed && styles.pressed,
+        ]}
         onPress={() => {
           setMonth(startOfMonth(value ?? new Date()));
+          setPickingMonth(false);
           setOpen(true);
         }}
       >
+        <Icon name="calendar" size={14} color={value ? colors.primary : colors.textMuted} />
         <Text style={[styles.pillText, value && styles.pillTextActive]}>
           {label}: {value ? format(value, 'MMM d, yyyy') : 'Any'}
         </Text>
@@ -186,16 +231,45 @@ export function OptionalDateButton({
           </Pressable>
         ) : null}
       </Pressable>
-      <Sheet visible={open} onClose={() => setOpen(false)} title={label}>
-        <MiniMonth
-          month={month}
-          onChangeMonth={setMonth}
-          selected={value ?? undefined}
-          onSelectDay={(d) => {
-            onChange(d);
+      <Sheet
+        visible={open}
+        onClose={() => {
+          setPickingMonth(false);
+          setOpen(false);
+        }}
+        title={pickingMonth ? 'Jump to month' : label}
+        actionLabel={pickingMonth ? 'Back' : 'Today'}
+        onAction={() => {
+          if (pickingMonth) {
+            setPickingMonth(false);
+          } else {
+            onChange(new Date());
             setOpen(false);
-          }}
-        />
+          }
+        }}
+      >
+        {pickingMonth ? (
+          <MonthYearGrid
+            value={month}
+            minYear={thisYear - 50}
+            maxYear={thisYear + 50}
+            onSelect={(m) => {
+              setMonth(startOfMonth(m));
+              setPickingMonth(false);
+            }}
+          />
+        ) : (
+          <MiniMonth
+            month={month}
+            onChangeMonth={setMonth}
+            onPressTitle={() => setPickingMonth(true)}
+            selected={value ?? undefined}
+            onSelectDay={(d) => {
+              onChange(d);
+              setOpen(false);
+            }}
+          />
+        )}
       </Sheet>
     </>
   );
@@ -206,13 +280,16 @@ const useStyles = createStyles((colors) => ({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.surfaceAlt,
+    gap: 7,
+    backgroundColor: colors.bg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     borderRadius: radius.sm,
     paddingVertical: 9,
     paddingHorizontal: 12,
   },
-  pillActive: { backgroundColor: colors.primarySoft },
+  pillHover: { backgroundColor: colors.surfaceAlt },
+  pillActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
   pillText: { fontSize: 15, color: colors.text, fontWeight: '500' },
   pillTextActive: { color: colors.primary },
   pressed: { opacity: 0.7 },

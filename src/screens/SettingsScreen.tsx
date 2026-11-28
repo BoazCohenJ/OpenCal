@@ -130,17 +130,17 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
     // Any touch closes the info card without claiming the gesture, so a scroll can still start.
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} onTouchStart={closeInfoOnTouch}>
       <Section title="Organize">
-        <Row label="Calendars" value={String(calendars.length)} onPress={() => navigation.navigate('Calendars')} />
+        <Row label="Calendars" value={String(calendars.length)} left={<SettingIcon name="calendar" />} onPress={() => navigation.navigate('Calendars')} />
         <Divider />
-        <Row label="Stamps" subtitle="Reusable event templates" value={String(templates.length)} onPress={() => navigation.navigate('Templates')} />
+        <Row label="Stamps" subtitle="Reusable event templates" value={String(templates.length)} left={<SettingIcon name="stamp" />} onPress={() => navigation.navigate('Templates')} />
         <Divider />
-        <Row label="Birthdays" value={String(birthdays.length)} onPress={() => navigation.navigate('Birthdays')} />
+        <Row label="Birthdays" value={String(birthdays.length)} left={<SettingIcon name="cake" />} onPress={() => navigation.navigate('Birthdays')} />
         <Divider />
-        <Row label="Color rules" subtitle="Color events by a word in their title" value={String(colorRules.length)} onPress={() => navigation.navigate('ColorRules')} />
+        <Row label="Color rules" subtitle="Color events by a word in their title" value={String(colorRules.length)} left={<SettingIcon name="pipette" />} onPress={() => navigation.navigate('ColorRules')} />
         <Divider />
-        <Row label="Event list" value={String(events.length)} onPress={() => navigation.navigate('HiddenEvents')} />
+        <Row label="Event list" value={String(events.length)} left={<SettingIcon name="view-schedule" />} onPress={() => navigation.navigate('HiddenEvents')} />
       </Section>
-      <Section title="New events">
+      <Section title="New events" allowOverflow style={{ zIndex: 4 }}>
         <MinutesRow
           label="Default length"
           value={defaultEventMinutes}
@@ -167,10 +167,11 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
           label="Sync"
           subtitle="More devices, through your own server"
           value={!syncing ? 'Off' : syncStatus.error ? 'Error' : 'On'}
+          left={<SettingIcon name="repeat" />}
           onPress={() => navigation.navigate('Sync')}
         />
         <Divider />
-        <Row label="Import & export" onPress={() => navigation.navigate('ImportExport')} />
+        <Row label="Import & export" left={<SettingIcon name="arrow-down" />} onPress={() => navigation.navigate('ImportExport')} />
       </Section>
       <Section title="Appearance">
         <View style={styles.segment}>
@@ -217,6 +218,7 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
         <Row
           label="Notifications"
           value={notificationSummary}
+          left={<SettingIcon name="bell" />}
           onPress={() => navigation.navigate('Notifications')}
         />
       </Section>
@@ -230,9 +232,19 @@ export function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
       >
         <Row label="OpenCal" value={APP_VERSION} subtitle={updateInfo()} left={<Logo size={34} variant="tile" />} />
         <Divider />
-        <Row label="Welcome tour" onPress={() => navigation.navigate('Onboarding')} />
+        <Row label="Welcome tour" left={<SettingIcon name="sparkles" />} onPress={() => navigation.navigate('Onboarding')} />
       </Section>
     </ScrollView>
+  );
+}
+
+function SettingIcon({ name }: { name: IconName }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  return (
+    <View style={styles.rowIcon}>
+      <Icon name={name} size={17} color={colors.primary} />
+    </View>
   );
 }
 
@@ -251,6 +263,11 @@ function MinutesRow({
   const styles = useStyles();
   const [rowHeight, setRowHeight] = useState(0);
   const [text, setText] = useState(String(value));
+  const [seenValue, setSeenValue] = useState(value);
+  if (seenValue !== value) {
+    setSeenValue(value);
+    setText(String(value));
+  }
   const commit = () => {
     const minutes = Number.parseInt(text, 10);
     if (Number.isFinite(minutes) && minutes >= 5 && minutes <= 1440) {
@@ -284,7 +301,15 @@ function MinutesRow({
 
 const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: spacing.lg },
+  content: { padding: spacing.lg, paddingBottom: 48 },
+  rowIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   segment: { padding: spacing.md },
   widgetGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: WIDGET_GAP, padding: WIDGET_GAP },
   widgetTile: {

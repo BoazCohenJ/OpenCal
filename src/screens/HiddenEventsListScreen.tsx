@@ -2,7 +2,7 @@ import { addYears, endOfDay, startOfDay } from 'date-fns';
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { OptionalDateButton } from '../components/DateTimeField';
-import { Chip, EmptyState, HeaderButton } from '../components/ui';
+import { Button, Chip, ColorDot, EmptyState, HeaderButton } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { Event } from '../models/Event';
 import type { ScreenProps } from '../navigation/types';
@@ -12,6 +12,7 @@ import { createStyles, radius, spacing, useTheme } from '../theme';
 import { formatRange, parseTimestamp } from '../utils/dates';
 import { eventLabel } from '../utils/format';
 import { EventGlyph, eventIconKey, Icon } from '../components/Icon';
+import { animateNextLayout } from '../utils/motion';
 import { describeRRule } from '../utils/recurrence';
 
 interface RowData {
@@ -26,11 +27,13 @@ export function HiddenEventsListScreen({ navigation, route }: ScreenProps<'Hidde
   const { colors } = useTheme();
   const { events, calendars, calendarsById, allTags, getEffectiveColor, notificationPrefs } = useCalendarContext();
   const [search, setSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(searching);
   const [repeatingOnly, setRepeatingOnly] = useState(false);
   const [calendarId, setCalendarId] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
   const [from, setFrom] = useState<Date | null>(null);
   const [to, setTo] = useState<Date | null>(null);
+  const [showMoreFilters, setShowMoreFilters] = useState(!searching);
 
   const rows = useMemo<RowData[]>(() => {
     const now = new Date();
@@ -74,6 +77,7 @@ export function HiddenEventsListScreen({ navigation, route }: ScreenProps<'Hidde
     });
   }, [navigation, hasRows, searching]);
 
+  const advancedCount = [tag, from, to].filter(Boolean).length;
   const activeFilters = [repeatingOnly, calendarId, tag, from, to, search.trim()].filter(Boolean).length;
   const clearAll = () => {
     setSearch('');
@@ -87,34 +91,62 @@ export function HiddenEventsListScreen({ navigation, route }: ScreenProps<'Hidde
   return (
     <View style={styles.screen}>
       <View style={styles.filters}>
-        <TextInput
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search title, place, notes, tags…"
-          placeholderTextColor={colors.textFaint}
-          style={styles.search}
-          clearButtonMode="while-editing"
-          autoFocus={searching}
-          returnKeyType="search"
-        />
+        <View style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}>
+          <Icon name="search" size={17} color={searchFocused ? colors.primary : colors.textFaint} />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            placeholder="Search title, place, notes, tags…"
+            placeholderTextColor={colors.textFaint}
+            style={styles.searchInput}
+            autoFocus={searching}
+            returnKeyType="search"
+          />
+          {search.length > 0 ? (
+            <Pressable
+              onPress={() => setSearch('')}
+              hitSlop={10}
+              accessibilityLabel="Clear search"
+              style={({ pressed }) => [styles.searchClear, pressed && { opacity: 0.7 }]}
+            >
+              <Icon name="x" size={14} color={colors.textMuted} />
+            </Pressable>
+          ) : null}
+        </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-          <Chip label="Repeating only" selected={repeatingOnly} onPress={() => setRepeatingOnly((v) => !v)} />
+          {searching ? (
+            <Chip
+              label={advancedCount ? `Filters · ${advancedCount}` : 'Filters'}
+              selected={showMoreFilters || advancedCount > 0}
+              onPress={() => {
+                animateNextLayout();
+                setShowMoreFilters((v) => !v);
+              }}
+            />
+          ) : null}
+          <Chip label="Repeating" selected={repeatingOnly} onPress={() => setRepeatingOnly((v) => !v)} />
           <Chip label="All calendars" selected={calendarId === null} onPress={() => setCalendarId(null)} />
           {calendars.map((c) => (
             <Chip key={c.id} label={c.name} color={c.color} selected={calendarId === c.id} onPress={() => setCalendarId(calendarId === c.id ? null : c.id)} />
           ))}
         </ScrollView>
-        {allTags.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-            {allTags.map((t) => (
-              <Chip key={t} label={`#${t}`} selected={tag === t} onPress={() => setTag(tag === t ? null : t)} />
-            ))}
-          </ScrollView>
+        {showMoreFilters ? (
+          <>
+            {allTags.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+                {allTags.map((t) => (
+                  <Chip key={t} label={`#${t}`} selected={tag === t} onPress={() => setTag(tag === t ? null : t)} />
+                ))}
+              </ScrollView>
+            ) : null}
+            <View style={styles.dateRow}>
+              <OptionalDateButton label="From" value={from} onChange={setFrom} />
+              <OptionalDateButton label="To" value={to} onChange={setTo} />
+            </View>
+          </>
         ) : null}
-        <View style={styles.dateRow}>
-          <OptionalDateButton label="From" value={from} onChange={setFrom} />
-          <OptionalDateButton label="To" value={to} onChange={setTo} />
-        </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summary}>
             {rows.length} event{rows.length === 1 ? '' : 's'}
@@ -136,7 +168,11 @@ export function HiddenEventsListScreen({ navigation, route }: ScreenProps<'Hidde
           <EmptyState
             icon="search"
             title={events.length === 0 ? 'No events yet' : 'No events match these filters'}
-          />
+          >
+            {events.length > 0 && activeFilters > 0 ? (
+              <Button small variant="secondary" title="Clear filters" onPress={clearAll} style={styles.emptyAction} />
+            ) : null}
+          </EmptyState>
         }
         renderItem={({ item }) => {
           const e = item.event;
@@ -144,13 +180,19 @@ export function HiddenEventsListScreen({ navigation, route }: ScreenProps<'Hidde
           const start = parseTimestamp(e.startDate);
           const end = parseTimestamp(e.endDate);
           const paused = isPausedOn(e, cal, new Date());
+          const effectiveColor = getEffectiveColor(e);
           return (
             <Pressable
               onPress={() => navigation.navigate('EventEdit', { eventId: e.id })}
-              style={({ pressed }) => [styles.item, { borderLeftColor: getEffectiveColor(e) }, pressed && { opacity: 0.85 }]}
+              style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+                styles.item,
+                { borderLeftColor: effectiveColor },
+                hovered && styles.itemHover,
+                pressed && { opacity: 0.85 },
+              ]}
             >
               <View style={styles.itemTop}>
-                {eventIconKey(e.emoji) ? <EventGlyph value={e.emoji} size={16} color={getEffectiveColor(e)} /> : null}
+                {eventIconKey(e.emoji) ? <EventGlyph value={e.emoji} size={16} color={effectiveColor} /> : null}
                 <Text style={styles.itemTitle} numberOfLines={1}>
                   {eventLabel(e)}
                 </Text>
@@ -166,9 +208,12 @@ export function HiddenEventsListScreen({ navigation, route }: ScreenProps<'Hidde
                   </View>
                 ) : null}
               </View>
-              <Text style={styles.itemMeta} numberOfLines={1}>
-                {cal?.name ?? 'No calendar'} · {e.recurrenceRule ? describeRRule(e.recurrenceRule, start) : formatRange(start, end, e.isAllDay)}
-              </Text>
+              <View style={styles.itemMetaRow}>
+                {cal ? <ColorDot color={cal.color} size={8} /> : null}
+                <Text style={styles.itemMeta} numberOfLines={1}>
+                  {cal?.name ?? 'No calendar'} · {e.recurrenceRule ? describeRRule(e.recurrenceRule, start) : formatRange(start, end, e.isAllDay)}
+                </Text>
+              </View>
               <Text style={styles.itemNext} numberOfLines={1}>
                 {item.next ? `Next: ${formatRange(item.next.start, item.next.end, e.isAllDay)}` : 'Past'}
                 {e.location ? `  ·  ${e.location}` : ''}
@@ -185,21 +230,33 @@ export function HiddenEventsListScreen({ navigation, route }: ScreenProps<'Hidde
 const useStyles = createStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   filters: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: 8, paddingBottom: 4 },
-  search: {
-    fontSize: 16,
-    color: colors.text,
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     backgroundColor: colors.surface,
     borderRadius: radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
+    paddingHorizontal: 14,
+    minHeight: 44,
+  },
+  searchBoxFocused: { borderColor: colors.primary },
+  searchInput: { flex: 1, fontSize: 16, color: colors.text, paddingVertical: 9 },
+  searchClear: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chipRow: { gap: 8 },
   dateRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4 },
   summary: { fontSize: 13, color: colors.textMuted, fontWeight: '600' },
   clear: { fontSize: 13, color: colors.primary, fontWeight: '600' },
+  emptyAction: { marginTop: spacing.sm },
   list: { padding: spacing.lg, gap: 10, paddingBottom: 48 },
   item: {
     backgroundColor: colors.surface,
@@ -208,14 +265,16 @@ const useStyles = createStyles((colors) => ({
     borderColor: colors.border,
     borderLeftWidth: 5,
     padding: 14,
-    gap: 3,
+    gap: 4,
   },
+  itemHover: { backgroundColor: colors.surfaceAlt },
   itemTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   itemTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: colors.text },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.surfaceAlt, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
   pausedBadge: { backgroundColor: colors.primarySoft },
   pausedText: { fontSize: 12, color: colors.primary, fontWeight: '600' },
-  itemMeta: { fontSize: 13, color: colors.textMuted },
+  itemMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  itemMeta: { flex: 1, fontSize: 13, color: colors.textMuted },
   itemNext: { fontSize: 13, color: colors.text },
   tags: { fontSize: 12, color: colors.primary, marginTop: 2 },
 }));

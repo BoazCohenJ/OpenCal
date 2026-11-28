@@ -1,6 +1,6 @@
-import { addDays, differenceInCalendarDays, endOfDay, format, setHours, startOfDay } from 'date-fns';
+import { addDays, addMinutes, differenceInCalendarDays, differenceInMinutes, endOfDay, format, setHours, startOfDay } from 'date-fns';
 import React, { useLayoutEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, Text, TextInput, View } from 'react-native';
 import { Icon } from '../components/Icon';
 import { ColorPicker } from '../components/ColorPicker';
 import { DateTimeField } from '../components/DateTimeField';
@@ -9,12 +9,13 @@ import { PauseWindowsEditor } from '../components/PauseWindowsEditor';
 import { RecurrenceEditor } from '../components/RecurrenceEditor';
 import { ReminderEditor } from '../components/ReminderEditor';
 import { RepeatDeleteSheet, type RepeatDeleteChoice } from '../components/RepeatDeleteSheet';
+import { useToast } from '../components/Toast';
 import { occurrenceDayKey } from '../services/eventTimes';
 import { shareEvent } from '../services/exports';
 import { nextOccurrence } from '../services/occurrences';
 import { endRuleBefore } from '../utils/recurrence';
 import { CalendarSelector, TagEditor } from '../components/Selectors';
-import { Button, Divider, Field, HeaderButton, Section, SwitchRow, TextField } from '../components/ui';
+import { Button, Chip, Divider, Field, HeaderButton, Section, SwitchRow, TextField } from '../components/ui';
 import { useCalendarContext } from '../context/CalendarContext';
 import type { Event } from '../models/Event';
 import type { ScreenProps } from '../navigation/types';
@@ -23,11 +24,15 @@ import { templateFromEvent } from '../services/templates';
 import { createStyles, fonts, radius, spacing, useTheme } from '../theme';
 import { confirmAsync, notify } from '../utils/confirm';
 import { deviceTimeZone, formatPauseWindow, parseDayKey, parseTimestamp } from '../utils/dates';
+import { formatDuration } from '../utils/format';
 import { newId } from '../utils/id';
+
+const DURATION_PRESETS = [15, 30, 45, 60, 90, 120, 180] as const;
 
 export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>) {
   const styles = useStyles();
   const { colors } = useTheme();
+  const showToast = useToast();
   const { calendars, calendarsById, events, saveEvent, deleteEvent, saveTemplate, allTags, notificationPrefs, floatingByDefault, defaultEventMinutes, defaultCalendarId } =
     useCalendarContext();
   const existing = route.params?.eventId ? events.find((e) => e.id === route.params?.eventId) : undefined;
@@ -36,6 +41,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
     const initial = { ...built, id: existing?.id ?? route.params?.importId ?? built.id, floating: built.floating ?? floatingByDefault };
     return calendarsById[initial.calendarId] ? initial : { ...initial, calendarId: defaultCalendarId };
   });
+  const [titleFocused, setTitleFocused] = useState(!existing && !form.title);
   const [showEmoji, setShowEmoji] = useState(false);
   const pickerReady = useIconPickerReady();
   // Which state the picker was in when the current touch began, so tapping the icon tile of an open picker closes it
@@ -175,8 +181,15 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
     if (!ok) return;
     if (removed.current) return;
     removed.current = true;
+    const snapshot = existing;
     deleteEvent(existing.id);
     navigation.goBack();
+    showToast({
+      icon: 'check',
+      message: `Deleted ${snapshot.title}`,
+      actionLabel: 'Undo',
+      onAction: () => saveEvent(snapshot),
+    });
   };
 
   const removeRepeat = (choice: RepeatDeleteChoice) => {
@@ -201,12 +214,34 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
     const event = normalized();
     if (!event) return;
     saveTemplate({ ...templateFromEvent(event), id: stampId.current });
-    notify('Saved as stamp', `“${event.title}” is now in Settings › Stamps.`);
+    showToast({ icon: 'check', message: `Saved “${event.title}” as a stamp` });
   };
+
+  const durationMinutes = form.isAllDay ? 0 : differenceInMinutes(end, start);
+  const invalidRange = form.isAllDay ? endOfDay(end) < startOfDay(start) : end < start;
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" onTouchStart={closePickerOnTouch}>
-      <RepeatDeleteSheet item={deletingRepeat && existing ? { event: existing, day: selectedDay } : null} color={eventColor} position={1} total={1} onChoose={removeRepeat} onCancel={() => setDeletingRepeat(false)} />
+      <RepeatDeleteSheet
+        item={deletingRepeat && existing ? { event: existing, day: selectedDay } : null}
+        color={eventColor}
+        position={1}
+        total={1}
+        onChoose={(choice) => {
+          const snapshot = existing;
+          const wasRemoved = removed.current;
+          removeRepeat(choice);
+          if (!wasRemoved && choice !== 'keep' && snapshot) {
+            showToast({
+              icon: 'check',
+              message: choice === 'this' ? `Deleted occurrence of ${snapshot.title}` : `Deleted ${snapshot.title}`,
+              actionLabel: 'Undo',
+              onAction: () => saveEvent(snapshot),
+            });
+          }
+        }}
+        onCancel={() => setDeletingRepeat(false)}
+      />
       {existing && calendarsById[existing.calendarId]?.subscription ? (
         <View style={styles.feedNote}>
           <Icon name="repeat" size={14} color={colors.textMuted} />
@@ -216,7 +251,7 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
         </View>
       ) : null}
       <View style={styles.titleWrap}>
-        <View style={styles.titleCard}>
+        <View style={[styles.titleCard, titleFocused && styles.titleCardFocused]}>
           <IconButtonTile value={form.emoji} color={eventColor} onPress={() => setShowEmoji(!pickerWasOpen.current)} />
           <TextInput
             style={styles.titleInput}
@@ -224,6 +259,8 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
             placeholderTextColor={colors.textFaint}
             value={form.title}
             onChangeText={(title) => update({ title })}
+            onFocus={() => setTitleFocused(true)}
+            onBlur={() => setTitleFocused(false)}
             autoFocus={!existing && !form.title}
             returnKeyType="done"
           />
@@ -275,9 +312,22 @@ export function EventEditScreen({ navigation, route }: ScreenProps<'EventEdit'>)
         <Field label="Starts">
           <DateTimeField value={start} onChange={setStart} mode={form.isAllDay ? 'date' : 'datetime'} />
         </Field>
-        <Field label="Ends">
+        <Field label={form.isAllDay || invalidRange ? 'Ends' : `Ends · ${formatDuration(durationMinutes)}`}>
           <DateTimeField value={end} onChange={setEnd} mode={form.isAllDay ? 'date' : 'datetime'} />
+          {invalidRange ? <Text style={styles.rangeError}>Ends before it starts</Text> : null}
         </Field>
+        {!form.isAllDay ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.durationRow}>
+            {DURATION_PRESETS.map((mins) => (
+              <Chip
+                key={mins}
+                label={mins < 60 ? `${mins}m` : `${mins / 60}h`}
+                selected={durationMinutes === mins}
+                onPress={() => update({ endDate: addMinutes(start, mins).toISOString() })}
+              />
+            ))}
+          </ScrollView>
+        ) : null}
       </Section>
 
       <Section title="Repeat">
@@ -373,12 +423,15 @@ const useStyles = createStyles((colors) => ({
     gap: 12,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
     padding: 12,
     marginBottom: spacing.lg,
   },
+  titleCardFocused: { borderColor: colors.primary },
   titleInput: { flex: 1, fontSize: 22, fontFamily: fonts.display, color: colors.text, paddingVertical: 6 },
+  durationRow: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: 6 },
+  rangeError: { fontSize: 13, fontWeight: '600', color: colors.danger, marginTop: 2 },
   inherited: { fontSize: 13, color: colors.textMuted, paddingHorizontal: 16, paddingBottom: 14 },
   skippedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: spacing.lg, paddingRight: spacing.sm, paddingVertical: 6 },
   skippedDate: { fontSize: 15, color: colors.text },
